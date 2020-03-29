@@ -16,6 +16,8 @@ sudo apt-get install --no-install-recommends -y xserver-xorg-core xserver-xorg-i
 
 ### Physically Conneting the Display
 
+Refer to the [pinmux docs](./docs/Pinmux.md)
+
 ### Connecting to Device
 
 Once the OS is installed, there are three methods which can be used to communicate with the BeagleBone Black:

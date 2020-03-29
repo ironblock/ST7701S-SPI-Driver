@@ -2,7 +2,7 @@
 
 The following pins on the Beaglebone Black's P9 and P8 headers must be connected. See the section on the Linux Device Tree Overlay for details on the pinmux. In most cases, the `SPI0` and `LCD_DATA[15:0]` bus follow the default (`MODE0`) pinmux. The [24-bit configuration](https://elinux.org/24bit_LCD_for_BBB) is slightly different, and requires different muxing of some pins that are normally GPIO.
 
-![BeagleBone Black Default Pinout](./reference/BeagleBone%20Black%20Pinout%20Diagram.jpeg)
+![BeagleBone Black Default Pinout](../reference/BeagleBone%20Black%20Pinout%20Diagram.jpeg)
 
 #### P8 Header
 
