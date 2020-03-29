@@ -15,7 +15,7 @@ Install the following software:
 
 You will need a dedicated single-board computer to target:
 
-- Beaglebone Black ([Setup Docs](./beaglebone))
+- Beaglebone Black ([Setup Docs](./platforms/beaglebone))
 - Raspberry Pi (Untested)
 
 ### Software
