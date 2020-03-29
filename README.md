@@ -50,8 +50,13 @@ Because the driver is made to target an ARM device, it must be cross-compiled. T
 To start:
 
 ```sh
-$ vagrant up && vagrant rsync && vagrant ssh
-$ cd /vagrant/st7701s/ && cargo build --target=armv7-unknown-linux-gnueabihf && scp target/armv7-unknown-linux-gnueabihf/debug/st7701s debian@beaglebone.local:~
+vagrant up && vagrant rsync && vagrant ssh
+```
+
+To build and copy:
+
+```sh
+cd /vagrant/ && cargo build --target=armv7-unknown-linux-gnueabihf && scp target/armv7-unknown-linux-gnueabihf/debug/st7701s debian@beaglebone.local:~
 ```
 
 Remember, you can run `vagrant rsync-auto` in another shell to continually sync changes for "live" development.
