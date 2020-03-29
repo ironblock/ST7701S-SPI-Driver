@@ -168,13 +168,13 @@ fn main() {
     display.write_command(CommandsGeneral::set_command_2(Command2Selection::Disabled));
     CMD2 = Command2Selection::Disabled;
 
-    // display.write_command(CommandsGeneral::set_color_mode(
-    //     instructions::BitsPerPixel::Rgb666,
-    // ));
-    // display.write_command(CommandsGeneral::display_data_control(
-    //     instructions::ScanDirection::Normal,
-    //     instructions::ColorOrder::Rgb,
-    // ));
+    display.write_command(CommandsGeneral::set_color_mode(
+        instructions::BitsPerPixel::Rgb666,
+    ));
+    display.write_command(CommandsGeneral::display_data_control(
+        instructions::ScanDirection::Normal,
+        instructions::ColorOrder::Rgb,
+    ));
     display.write_command(CommandsGeneral::tearing_effect_on(
         instructions::TearingEffect::VHBlank,
     ));
