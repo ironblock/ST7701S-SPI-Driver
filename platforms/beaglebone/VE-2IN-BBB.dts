@@ -237,7 +237,7 @@
                     dma-burst-sz   = <16>;    // DMA burst size
                     bpp            = <16>;    // Bits per pixel (Use 24bpp for 18-bit LCDs)
                     fdd            = <0x80>;  // FIFO DMA Request Delay
-                    sync-edge      = <0>;     // Horizontal and Vertical Sync Edge: 0=rising 1=falling
+                    sync-edge      = <1>;     // Horizontal and Vertical Sync Edge: 0=rising 1=falling
                     sync-ctrl      = <1>;     // Horizontal and Vertical Sync: Control: 0=ignore
                     raster-order   = <0>;     // Raster Data Order Select: 1=Most-to-least 0=Least-to-most
                     fifo-th        = <0>;     // DMA FIFO threshold
@@ -254,9 +254,10 @@
                 // Documentation/devicetree/bindings/display/panel/display-timing.txt for display
                 // timing binding details.
                 display-timings {
-                    native-mode = <&timing4>;
+                    native-mode = <&timing0>;
 
                     timing0: 480x480_TDO {
+                        // clock-frequency = <8000000>; // 30fps
                         clock-frequency = <16000000>; // 60fps
                         hactive         = <480>;
                         vactive         = <480>;
