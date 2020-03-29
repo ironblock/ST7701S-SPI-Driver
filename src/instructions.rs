@@ -384,7 +384,7 @@ impl CommandsGeneral {
     ///   - SWRESET cannot be sent during SLPOUT
     ///   - (MIPI ONLY) Send a shutdown packet before SWRESET
     pub fn software_reset() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::SWRESET as u8))
+        Ok(Command::new(Self::SWRESET as u8).arg(0x01))
     }
     /// # SLEEP IN
     ///
@@ -401,7 +401,7 @@ impl CommandsGeneral {
     ///
     /// Normally, sleep state can be read with RDDST, but MISO must be connected.
     pub fn sleep_mode_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::SLPIN as u8))
+        Ok(Command::new(Self::SLPIN as u8).arg(0x02))
     }
 
     /// # SLEEP OUT
@@ -412,7 +412,7 @@ impl CommandsGeneral {
     /// data will be valid for the two frames before the command if Normal Mode
     /// is active.
     pub fn sleep_mode_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::SLPOUT as u8))
+        Ok(Command::new(Self::SLPOUT as u8).arg(0x11))
     }
     /// # PARTIAL MODE ON
     ///
@@ -473,7 +473,7 @@ impl CommandsGeneral {
     ///
     /// NOTE: It's possible that this is the default value.
     pub fn display_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::DISPOFF as u8))
+        Ok(Command::new(Self::DISPOFF as u8).arg(0x28))
     }
     /// # DISPLAY ON
     ///
@@ -481,7 +481,7 @@ impl CommandsGeneral {
     /// and pasted the description for DISPOFF. At a guess, it should turn the
     /// display back on.
     pub fn display_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::DISPON as u8))
+        Ok(Command::new(Self::DISPON as u8).arg(0x29))
     }
     /// # TEARING EFFECT LINE OFF
     ///

@@ -8,7 +8,7 @@ mod panel;
 mod spi;
 
 use instructions::{BK0Command2, BK1Command2, Command, Command2Selection, CommandsGeneral};
-use panel::CVTRB;
+use panel::TDOMode;
 use spi::ST7701S;
 
 /// ST7701S supports two kinds of RGB interface, DE mode (mode 1) and HV mode
@@ -21,17 +21,17 @@ fn main() {
 
     let mut CMD2: Command2Selection = Command2Selection::Disabled;
     let mut display = ST7701S::new(String::from("/dev/spidev1.0"));
-    let mode = CVTRB;
+    let mode = TDOMode;
 
     // SOFTWARE RESET
     // 5ms delay
     display.write_command(CommandsGeneral::software_reset());
-    thread::sleep(time::Duration::from_millis(5));
+    thread::sleep(time::Duration::from_millis(10));
 
     // EXIT SLEEP MODE
     // Variable delay (200ms is "safe")
     display.write_command(CommandsGeneral::sleep_mode_off());
-    thread::sleep(time::Duration::from_millis(200));
+    thread::sleep(time::Duration::from_millis(300));
 
     // ENTER BK0 COMMAND2 MODE
     display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK0));
