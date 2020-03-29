@@ -34,12 +34,13 @@ impl ST7701S {
       Ok(c) => {
         let address = &c.serialize_address();
         self.spi.write(&c.serialize_address());
-        println!("address {}", c.address);
+        println!("Address:   {:#04X}", c.address);
 
         for parameter in c.parameters {
           self.spi.write(&Command::serialize_parameter(parameter));
-          println!("parameter {}", parameter);
+          println!("Parameter: {:08b}", parameter);
         }
+        println!("--------------------");
       }
       Err(e) => println!("{}", e),
     }

@@ -21,7 +21,7 @@ use crate::panel::Mode;
 /// transferred by the D/CX pin. If D/CX is “low”, the transmission byte is
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Command {
     pub address: u8,
     pub parameters: Vec<u8>,
