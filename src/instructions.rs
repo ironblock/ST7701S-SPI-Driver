@@ -262,6 +262,7 @@ pub enum Command2Selection {
     Disabled = 0x00,
     BK0 = 0x10,
     BK1 = 0x11,
+    BK3 = 0x13,
 }
 
 #[derive(Copy, Clone)]
@@ -684,7 +685,7 @@ impl BK0Command2 {
         RTNI: u8,
     ) -> Result<Command, &'static str> {
         Self::validate(CMD2, || {
-            Command::new(Self::INVSET as u8).args(&[0x30 | NLINV as u8, RTNI])
+            Command::new(Self::INVSET as u8).args(&[NLINV as u8, RTNI])
         })
     }
 
