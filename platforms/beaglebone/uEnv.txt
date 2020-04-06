@@ -1,5 +1,8 @@
-uname_r=4.14.71-ti-r80
+# These are the only required parameters. Recommend editing your uEnv.txt by
+# hand, since your uname_r may be different, eg.:
+# uname_r=4.14.71-ti-r80
+
 enable_uboot_overlays=1
+dtb_overlay=/lib/firmware/VE-2IN-BBB.dtbo
 uboot_overlay_pru=/lib/firmware/AM335X-PRU-RPROC-4-14-TI-00A0.dtbo
-dtb_overlay=/lib/firmware/VE-2IN-LCD.dtbo
-cmdline=coherent_pool=1M net.ifnames=0 quiet video=HDMI-A-1:480x480@60e
+cmdline=coherent_pool=1M net.ifnames=0 quiet
