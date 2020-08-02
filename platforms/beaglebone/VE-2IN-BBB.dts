@@ -18,164 +18,239 @@
 
     /* Reserved Pins */
     exclusive-use =
-        /* TIED LOW / GND         : Blue 5 (LSB) */
-        "P8.45",	/* LCD_DATA0  : Blue 4 */
-        "P8.46",	/* LCD_DATA1  : Blue 3 */
-        "P8.43",	/* LCD_DATA2  : Blue 2 */
-        "P8.44",	/* LCD_DATA3  : Blue 1 */
-        "P8.41",	/* LCD_DATA4  : Blue 0 (MSB) */
+        /*
+         * SPI 0
+         */
+		"P9.17",	/* P9_17 : SPI0: CS0 */
+		"P9.18",	/* P9_18 : SPI0: D1 */
+		"P9.21",	/* P9_21 : SPI0: D0 */
+		"P9.22",	/* P9_22 : SPI0: SCLK */
 
-        "P8.42",	/* LCD_DATA5  : Green 5 (LSB) */
-        "P8.39",	/* LCD_DATA6  : Green 4 */
-        "P8.40",	/* LCD_DATA7  : Green 3 */
-        "P8.37",	/* LCD_DATA8  : Green 2 */
-        "P8.38",	/* LCD_DATA9  : Green 1 */
-        "P8.36",	/* LCD_DATA10 : Green 0 (MSB) */
+        /*
+         * LCD DATA
+         */
+        "P8.45",	/* LCD | LCD_DATA0  : Blue 4 */
+        "P8.46",	/* LCD | LCD_DATA1  : Blue 3 */
+        "P8.43",	/* LCD | LCD_DATA2  : Blue 2 */
+        "P8.44",	/* LCD | LCD_DATA3  : Blue 1 */
+        "P8.41",	/* LCD | LCD_DATA4  : Blue 0 (MSB) */
 
-        /* TIED LOW / GND         : Red 5 (LSB) */
-        "P8.34",	/* LCD_DATA11 : Red 4 */
-        "P8.35",	/* LCD_DATA12 : Red 3 */
-        "P8.33",	/* LCD_DATA13 : Red 2 */
-        "P8.31",	/* LCD_DATA14 : Red 1 */
-        "P8.32",	/* LCD_DATA15 : Red 0 (MSB) */
+        "P8.42",	/* LCD | LCD_DATA5  : Green 5 (LSB) */
+        "P8.39",	/* LCD | LCD_DATA6  : Green 4 */
+        "P8.40",	/* LCD | LCD_DATA7  : Green 3 */
+        "P8.37",	/* LCD | LCD_DATA8  : Green 2 */
+        "P8.38",	/* LCD | LCD_DATA9  : Green 1 */
+        "P8.36",	/* LCD | LCD_DATA10 : Green 0 (MSB) */
 
-		"P8.15",	/* gpmc_ad15.lcd_data16 */
-		"P8.16",	/* gpmc_ad14.lcd_data17 */
-		"P8.11",	/* gpmc_ad13.lcd_data18 */
-		"P8.12",	/* gpmc_ad12.lcd_data19 */
-		"P8.17",	/* gpmc_ad11.lcd_data20 */
-		"P8.14",	/* gpmc_ad10.lcd_data21 */
-		"P8.13",	/* gpmc_ad9.lcd_data22 */
-		"P8.19",	/* gpmc_ad8.lcd_data23 */
+        "P8.34",	/* LCD | LCD_DATA11 : Red 4 */
+        "P8.35",	/* LCD | LCD_DATA12 : Red 3 */
+        "P8.33",	/* LCD | LCD_DATA13 : Red 2 */
+        "P8.31",	/* LCD | LCD_DATA14 : Red 1 */
+        "P8.32",	/* LCD | LCD_DATA15 : Red 0 (MSB) */
 
+		"P8.15",	/* GPMC_AD15 | LCD_DATA16 : Red 5 (LSB) */
+		"P8.16",	/* GPMC_AD14 | LCD_DATA17 : Blue 5 (LSB) */
+		"P8.11",	/* GPMC_AD13 | LCD_DATA18 : Unused */
+		"P8.12",	/* GPMC_AD12 | LCD_DATA19 : Unused */
+		"P8.17",	/* GPMC_AD11 | LCD_DATA20 : Unused */
+		"P8.14",	/* GPMC_AD10 | LCD_DATA21 : Unused */
+		"P8.13",	/* GPMC_AD9  | LCD_DATA22 : Unused */
+		"P8.19",	/* GPMC_AD8  | LCD_DATA23 : Unused */
+
+        /*
+         * LCD SYNC AND CLOCK
+         */
 		"P8.27",	/* lcd: LCD_VSYNC      : Vertical Sync*/
 		"P8.29",	/* lcd: LCD_HSYNC      : Horizontal Sync */
 		"P8.28",	/* lcd: LCD_PCLK       : Pixel Clock*/
 		"P8.30",	/* lcd: LCD_AC_BIAS_EN : Used for Display Enable (DE) */
 
+        /*
+         * LCD BACKLIGHT
+         */
         "P9.14",	/* EHRPWM1A: LED Backlight Anode */
 
-        "lcd",
+        /*
+         * HARDWARE
+         */
+        "spi0",
+        "lcdc",
 		"ehrpwm1a";
 
+	/*
+	 * Helper to show loaded overlays under: /proc/device-tree/chosen/overlays/
+	 */
+	fragment@0 {
+		target-path="/";
+		__overlay__ {
+
+			chosen {
+				overlays {
+					VE-2IN-BBB-00A0 = __TIMESTAMP__;
+				};
+			};
+		};
+	};
+
     /* Free all reserved pins from pinmux helpers to ensure they're available */
-    fragment@0 {
+    fragment@1 {
         target = <&ocp>;
         __overlay__ {
-            P9_14_pinmux { status = "disabled"; };
+			P9_17_pinmux { status = "disabled"; }; /* SPI0: CS0 */
+			P9_18_pinmux { status = "disabled"; }; /* SPI0: D1 */
+			P9_21_pinmux { status = "disabled"; }; /* SPI0: D0 */
+			P9_22_pinmux { status = "disabled"; }; /* SPI0: SCLK */
 
-            P8_45_pinmux { status = "disabled"; };
-            P8_46_pinmux { status = "disabled"; };
-            P8_43_pinmux { status = "disabled"; };
-            P8_44_pinmux { status = "disabled"; };
-            P8_41_pinmux { status = "disabled"; };
+            P9_14_pinmux { status = "disabled"; }; /* P9_14: gpmc_a2.ehrpwm1a */
 
-            P8_42_pinmux { status = "disabled"; };
-            P8_39_pinmux { status = "disabled"; };
-            P8_40_pinmux { status = "disabled"; };
-            P8_37_pinmux { status = "disabled"; };
-            P8_38_pinmux { status = "disabled"; };
-            P8_36_pinmux { status = "disabled"; };
+            P8_45_pinmux { status = "disabled"; }; /* lcd: lcd_data0 */
+            P8_46_pinmux { status = "disabled"; }; /* lcd: lcd_data1 */
+            P8_43_pinmux { status = "disabled"; }; /* lcd: lcd_data2 */
+            P8_44_pinmux { status = "disabled"; }; /* lcd: lcd_data3 */
+            P8_41_pinmux { status = "disabled"; }; /* lcd: lcd_data4 */
 
-            P8_34_pinmux { status = "disabled"; };
-            P8_35_pinmux { status = "disabled"; };
-            P8_33_pinmux { status = "disabled"; };
-            P8_31_pinmux { status = "disabled"; };
-            P8_32_pinmux { status = "disabled"; };
+            P8_42_pinmux { status = "disabled"; }; /* lcd: lcd_data5 */
+            P8_39_pinmux { status = "disabled"; }; /* lcd: lcd_data6 */
+            P8_40_pinmux { status = "disabled"; }; /* lcd: lcd_data7 */
+            P8_37_pinmux { status = "disabled"; }; /* lcd: lcd_data8 */
+            P8_38_pinmux { status = "disabled"; }; /* lcd: lcd_data9 */
+            P8_36_pinmux { status = "disabled"; }; /* lcd: lcd_data10 */
 
-			P8_15_pinmux { status = "disabled"; };	/* gpmc_ad15.lcd_data16 */
-			P8_16_pinmux { status = "disabled"; };	/* gpmc_ad14.lcd_data17 */
-			P8_11_pinmux { status = "disabled"; };	/* gpmc_ad13.lcd_data18 */
-			P8_12_pinmux { status = "disabled"; };	/* gpmc_ad12.lcd_data19 */
-			P8_17_pinmux { status = "disabled"; };	/* gpmc_ad11.lcd_data20 */
-			P8_14_pinmux { status = "disabled"; };	/* gpmc_ad10.lcd_data21 */
-			P8_13_pinmux { status = "disabled"; };	/* gpmc_ad9.lcd_data22 */
-			P8_19_pinmux { status = "disabled"; };	/* gpmc_ad8.lcd_data23 */
+            P8_34_pinmux { status = "disabled"; }; /* lcd: lcd_data11 */
+            P8_35_pinmux { status = "disabled"; }; /* lcd: lcd_data12 */
+            P8_33_pinmux { status = "disabled"; }; /* lcd: lcd_data13 */
+            P8_31_pinmux { status = "disabled"; }; /* lcd: lcd_data14 */
+            P8_32_pinmux { status = "disabled"; }; /* lcd: lcd_data15 */
 
-            P8_27_pinmux { status = "disabled"; };
-            P8_29_pinmux { status = "disabled"; };
-            P8_28_pinmux { status = "disabled"; };
-            P8_30_pinmux { status = "disabled"; };
+			P8_15_pinmux { status = "disabled"; }; /* gpmc_ad15.lcd_data16 */
+			P8_16_pinmux { status = "disabled"; }; /* gpmc_ad14.lcd_data17 */
+			P8_11_pinmux { status = "disabled"; }; /* gpmc_ad13.lcd_data18 */
+			P8_12_pinmux { status = "disabled"; }; /* gpmc_ad12.lcd_data19 */
+			P8_17_pinmux { status = "disabled"; }; /* gpmc_ad11.lcd_data20 */
+			P8_14_pinmux { status = "disabled"; }; /* gpmc_ad10.lcd_data21 */
+			P8_13_pinmux { status = "disabled"; }; /* gpmc_ad9.lcd_data22 */
+			P8_19_pinmux { status = "disabled"; }; /* gpmc_ad8.lcd_data23 */
+
+            P8_27_pinmux { status = "disabled"; }; /* lcd: lcd_vsync */
+            P8_29_pinmux { status = "disabled"; }; /* lcd: lcd_hsync */
+            P8_28_pinmux { status = "disabled"; }; /* lcd: lcd_pclk */
+            P8_30_pinmux { status = "disabled"; }; /* lcd: lcd_ac_bias_en */
         };
     };
 
     /* Assign LCDC pins - Everything is MODE0 output */
-    fragment@1 {
+    fragment@2 {
         target = <&am33xx_pinmux>;
         __overlay__ {
 			pwm_bl_pins: pinmux_pwm_bl_pins {
 				pinctrl-single,pins = <
-					BONE_P9_14 (PIN_OUTPUT_PULLDOWN | MUX_MODE6)	/* P9_14: gpmc_a2.ehrpwm1a */
+					BONE_P9_14 (PIN_OUTPUT_PULLDOWN | MUX_MODE6) /* P9_14: gpmc_a2.ehrpwm1a */
 				>;
             };
 
             spi0_pins_s0: pinmux_spi0_pins_s0 {
                 pinctrl-single,pins = <
-                  0x150 0x30  /* SPI0_SCLK | MODE0 | INPUT_PULLUP */
-                  0x154 0x30  /* SPI0_D0   | MODE0 | INPUT_PULLUP */
-                  0x158 0x10  /* SPI0_D1   | MODE0 | OUTPUT_PULLUP */
-                  0x15c 0x10  /* SPI0_CS0  | MODE0 | OUTPUT_PULLUP */
+                    BONE_P9_17 (PIN_OUTPUT_PULLUP | MUX_MODE0) /* SPI0_CS0  */
+                    BONE_P9_18 (PIN_OUTPUT_PULLUP | MUX_MODE0) /* SPI0_D1   */
+                    BONE_P9_21 (PIN_INPUT_PULLUP | MUX_MODE0)  /* SPI0_D0   */
+                    BONE_P9_22 (PIN_INPUT_PULLUP | MUX_MODE0)  /* SPI0_SCLK */
                 >;
             };
 
             ve_lcd_pins: pinmux_ve_lcd_pins {
                 pinctrl-single,pins = <
-                    BONE_P8_45 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA0 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_46 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA1 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_43 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA2 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_44 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA3 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_41 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA4 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+                    BONE_P8_45 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA0 */
+                    BONE_P8_46 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA1 */
+                    BONE_P8_43 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA2 */
+                    BONE_P8_44 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA3 */
+                    BONE_P8_41 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA4 */
 
-                    BONE_P8_42 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA5  | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_39 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA6  | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_40 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA7  | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_37 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA8  | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_38 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA9  | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_36 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA10 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+                    BONE_P8_42 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA5  */
+                    BONE_P8_39 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA6  */
+                    BONE_P8_40 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA7  */
+                    BONE_P8_37 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA8  */
+                    BONE_P8_38 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA9  */
+                    BONE_P8_36 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA10 */
 
-                    BONE_P8_34 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA11 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_35 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA12 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_33 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA13 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_31 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA14 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
-                    BONE_P8_32 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA15 | MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+                    BONE_P8_34 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA11 */
+                    BONE_P8_35 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA12 */
+                    BONE_P8_33 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA13 */
+                    BONE_P8_31 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA14 */
+                    BONE_P8_32 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA15 */
 
-					BONE_P8_15 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad15.lcd_data16 */
-					BONE_P8_16 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad14.lcd_data17 */
-					BONE_P8_11 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad13.lcd_data18 */
-					BONE_P8_12 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad12.lcd_data19 */
-					BONE_P8_17 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad11.lcd_data20 */
-					BONE_P8_14 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad10.lcd_data21 */
-					BONE_P8_13 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad9.lcd_data22 */
-					BONE_P8_19 (PIN_OUTPUT | MUX_MODE1) /* gpmc_ad8.lcd_data23 */
+					BONE_P8_15 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA16 */
+					BONE_P8_16 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA17 */
+					BONE_P8_11 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA18 */
+					BONE_P8_12 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA19 */
+					BONE_P8_17 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA20 */
+					BONE_P8_14 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA21 */
+					BONE_P8_13 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA22 */
+					BONE_P8_19 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA23 */
 
-                    BONE_P8_27 (PIN_OUTPUT | MUX_MODE0) /* LCD_VSYNC      | MODE0 | AM33XX_PIN_OUTPUT */
-                    BONE_P8_29 (PIN_OUTPUT | MUX_MODE0) /* LCD_HSYNC      | MODE0 | AM33XX_PIN_OUTPUT */
-                    BONE_P8_28 (PIN_OUTPUT | MUX_MODE0) /* LCD_PCLK       | MODE0 | AM33XX_PIN_OUTPUT */
-                    BONE_P8_30 (PIN_OUTPUT | MUX_MODE0) /* LCD_AC_BIAS_EN | MODE0 | AM33XX_PIN_OUTPUT */
+                    BONE_P8_27 (PIN_OUTPUT | MUX_MODE0) /* LCD_VSYNC      */
+                    BONE_P8_29 (PIN_OUTPUT | MUX_MODE0) /* LCD_HSYNC      */
+                    BONE_P8_28 (PIN_OUTPUT | MUX_MODE0) /* LCD_PCLK       */
+                    BONE_P8_30 (PIN_OUTPUT | MUX_MODE0) /* LCD_AC_BIAS_EN */
                 >;
             };
         };
     };
 
-    fragment@2 {
-        target = <&spi0>;
-        __overlay__ {
-            #address-cells = <1>;
-            #size-cells = <0>;
+    // fragment@3 {
+    //     target = <&spi0>;
+    //     __overlay__ {
+    //         #address-cells = <1>;
+    //         #size-cells = <0>;
 
-            status = "okay";
-            pinctrl-names = "default";
-            pinctrl-0 = <&spi0_pins_s0>;
+    //         status = "okay";
+    //         pinctrl-names = "default";
+    //         pinctrl-0 = <&spi0_pins_s0>;
 
-            spidev@0 {
-                spi-max-frequency = <24000000>;
-                reg = <0>;
-                compatible = "linux,spidev";
-            };
-        };
-    };
+    //         spidev@0 {
+    //             spi-max-frequency = <24000000>;
+    //             reg = <0>;
+    //             compatible = "linux,spidev";
+    //         };
+    //     };
+    // };
 
 	fragment@3 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_pins_s0>;
+			ti,pio-mode; /* disable dma when used as an overlay, dma gets stuck at 160 bits... */
+
+			channel@0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				compatible = "spidev";
+				symlink = "spi/0.0";
+
+				reg = <0>;
+				spi-max-frequency = <16000000>;
+				spi-cpha;
+			};
+
+			channel@1 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				compatible = "spidev";
+				symlink = "spi/0.1";
+
+				reg = <1>;
+				spi-max-frequency = <16000000>;
+			};
+		};
+	};
+
+	fragment@4 {
 		target = <&lcdc>;
 		__overlay__ {
             status = "okay";
@@ -183,14 +258,14 @@
 		};
 	};
 
-	fragment@4 {
+	fragment@5 {
 		target = <&epwmss1>;
 		__overlay__ {
 			status = "okay";
 		};
 	};
 
-	fragment@5 {
+	fragment@6 {
 		target = <&ehrpwm1>;
         __overlay__ {
             pinctrl-names = "default";
@@ -199,13 +274,9 @@
         };
 	};
 
-    fragment@6 {
+    fragment@7 {
         target-path = "/";
         __overlay__ {
-			/* avoid stupid warning */
-			#address-cells = <1>;
-			#size-cells = <1>;
-
             // backlight {
             //     status = "okay";
             //     compatible = "pwm-backlight";
@@ -228,14 +299,14 @@
 
             panel {
                 status        = "okay";
-				compatible    = "tilcdc,panel";
+		        compatible    = "ti,tilcdc,panel";
                 pinctrl-names = "default";
                 pinctrl-0     = <&ve_lcd_pins>;
                 panel-info {
                     ac-bias        = <255>;   // AC Bias Pin Frequency
                     ac-bias-intrpt = <0>;     // AC Bias Pin Transitions per Interrupt
                     dma-burst-sz   = <16>;    // DMA burst size
-                    bpp            = <16>;    // Bits per pixel (Use 24bpp for 18-bit LCDs)
+                    bpp            = <24>;    // Bits per pixel (Use 24bpp for 18-bit LCDs)
                     fdd            = <0x80>;  // FIFO DMA Request Delay
                     sync-edge      = <1>;     // Horizontal and Vertical Sync Edge: 0=rising 1=falling
                     sync-ctrl      = <1>;     // Horizontal and Vertical Sync: Control: 0=ignore
@@ -275,73 +346,7 @@
                         de-active       = <1>;
                         pixelclk-active = <1>;
                     };
-
-                    timing1: linux_kernel {
-                        clock-frequency = <27500000>; // 60fps
-                        hactive         = <480>;
-                        vactive         = <854>;
-
-                        hfront-porch    = <38>;
-                        hsync-len       = <12>;
-                        hback-porch     = <12>;
-
-                        vfront-porch    = <18>;
-                        vsync-len       = <8>;
-                        vback-porch     = <4>;
-
-                        hsync-active    = <0>;
-                        vsync-active    = <0>;
-                        de-active       = <1>;
-                        pixelclk-active = <1>;
-                    };
-
-                    timing3: 480x480_CVT {
-                        clock-frequency = <17000000>; // 60fps
-                        hactive         = <480>;
-                        vactive         = <480>;
-
-                        hfront-porch    = <8>;
-                        hsync-len       = <48>;
-                        hback-porch     = <56>;
-
-                        vfront-porch    = <1>;
-                        vsync-len       = <3>;
-                        vback-porch     = <13>;
-
-                        hsync-active    = <0>;
-                        vsync-active    = <0>;
-                        de-active       = <1>;
-                        pixelclk-active = <1>;
-                    };
-
-                    timing4: 640x480_CVT_RB {
-                        clock-frequency = <23500000>; // 60fps
-                        hactive         = <640>;
-                        vactive         = <480>;
-
-                        hfront-porch    = <8>;
-                        hsync-len       = <32>;
-                        hback-porch     = <40>;
-
-                        vfront-porch    = <14>;
-                        vsync-len       = <3>;
-                        vback-porch     = <4>;
-
-                        hsync-active    = <0>;
-                        vsync-active    = <0>;
-                        de-active       = <1>;
-                        pixelclk-active = <1>;
-                    };
                 };
-            };
-
-            fb {
-                compatible = "ti,am33xx-tilcdc";
-                reg = <0x4830e000 0x1000>;
-                interrupt-parent = <&intc>;
-                interrupts = <36>;
-                ti,hwmods = "lcdc";
-                ti,allow-non-reduced-blanking-modes;
             };
         };
     };
