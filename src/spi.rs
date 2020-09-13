@@ -32,15 +32,26 @@ impl ST7701S {
   pub fn write_command(&mut self, command: Result<Command, &'static str>) -> Result<(), ()> {
     match command {
       Ok(c) => {
-        let address = &c.serialize_address();
-        self.spi.write(&c.serialize_address());
-        // println!("Address:   {:#04X}", c.address);
+        match self.spi.write(&c.serialize_address()) {
+          Err(e) => println!("{}", e),
+          _ => (),
+        };
+
+        #[cfg(debug_assertions)]
+        println!("Address:   {:#04X}", c.address);
 
         for parameter in c.parameters {
-          self.spi.write(&Command::serialize_parameter(parameter));
-          // println!("Parameter: {:08b}", parameter);
+          #[cfg(debug_assertions)]
+          println!("Parameter: {:08b}", parameter);
+
+          match self.spi.write(&Command::serialize_parameter(parameter)) {
+            Err(e) => println!("{}", e),
+            _ => (),
+          };
         }
-        // println!("--------------------");
+
+        #[cfg(debug_assertions)]
+        println!("--------------------");
       }
       Err(e) => println!("{}", e),
     }
