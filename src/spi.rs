@@ -29,7 +29,7 @@ impl ST7701S {
     ST7701S { options, spi }
   }
 
-  pub fn write_command(&mut self, command: Result<Command, &'static str>) -> Result<(), ()> {
+  pub fn write_command(&mut self, command: Result<Command, &'static str>) -> () {
     match command {
       Ok(c) => {
         match self.spi.write(&c.serialize_address()) {
@@ -55,21 +55,25 @@ impl ST7701S {
       }
       Err(e) => println!("{}", e),
     }
-
-    Ok(())
   }
 
-  pub fn read_command(&mut self, command: Result<Command, &'static str>) -> Result<(), ()> {
+  pub fn read_command(&mut self, command: Result<Command, &'static str>) -> () {
     match command {
       Ok(c) => {
         let mut rx_buf = [0_u8; 10];
-        self.spi.write(&c.serialize_address());
-        self.spi.read(&mut rx_buf);
+        match self.spi.write(&c.serialize_address()) {
+          Err(e) => println!("{}", e),
+          _ => (),
+        };
+
+        match self.spi.read(&mut rx_buf) {
+          Err(e) => println!("{}", e),
+          _ => (),
+        };
+
         println!("{:?}", rx_buf);
       }
       Err(e) => println!("{}", e),
     }
-
-    Ok(())
   }
 }
