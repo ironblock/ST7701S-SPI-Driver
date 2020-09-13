@@ -8,7 +8,7 @@ pub mod sequence_linux_kernel;
 pub mod sequence_tdo;
 pub mod spi;
 
-use panel::TDOMode;
+use panel::TDO_MODE;
 use sequence_tdo::init;
 use spi::ST7701S;
 use std::env;
@@ -38,7 +38,7 @@ fn main() {
     }
 
     let mut display = ST7701S::new(spi_path);
-    let mode = TDOMode;
+    let mode = TDO_MODE;
 
     init(&mut display, mode);
 }

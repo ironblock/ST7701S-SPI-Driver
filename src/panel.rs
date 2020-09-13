@@ -15,7 +15,7 @@ pub struct Mode {
   pub height_mm: u32,
 }
 
-pub const DefaultMode: Mode = Mode {
+pub const DEFAULT_MODE: Mode = Mode {
   clock: 27500,
 
   hdisplay: 480,
@@ -32,7 +32,7 @@ pub const DefaultMode: Mode = Mode {
   height_mm: 139,
 };
 
-pub const TDOMode: Mode = Mode {
+pub const TDO_MODE: Mode = Mode {
   clock: 16000,
 
   hdisplay: 480,
@@ -49,7 +49,7 @@ pub const TDOMode: Mode = Mode {
   height_mm: 139,
 };
 
-pub const CVTMode: Mode = Mode {
+pub const CVT_MODE: Mode = Mode {
   clock: 17000,
 
   hdisplay: 480,
@@ -66,7 +66,7 @@ pub const CVTMode: Mode = Mode {
   height_mm: 139,
 };
 
-pub const CVTRB: Mode = Mode {
+pub const CVT_RB: Mode = Mode {
   clock: 23500,
 
   hdisplay: 640,

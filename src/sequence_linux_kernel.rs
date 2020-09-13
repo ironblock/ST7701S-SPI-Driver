@@ -10,7 +10,7 @@ use crate::panel::Mode;
 use crate::spi::ST7701S;
 
 pub fn init(display: &mut ST7701S, mode: Mode) {
-    let mut CMD2: Command2Selection;
+    let mut cmd2: Command2Selection;
 
     // SOFTWARE RESET
     // 5ms delay
@@ -23,32 +23,32 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
     thread::sleep(time::Duration::from_millis(300));
 
     // ENTER BK0 COMMAND2 MODE
-    CMD2 = Command2Selection::BK0;
-    display.write_command(CommandsGeneral::set_command_2(&CMD2));
+    cmd2 = Command2Selection::BK0;
+    display.write_command(CommandsGeneral::set_command_2(&cmd2));
 
     display.write_command(BK0Command2::positive_gamma_control(
-        &CMD2,
+        &cmd2,
         &[
             0x00, 0x0E, 0x15, 0x0F, 0x11, 0x08, 0x08, 0x08, 0x08, 0x23, 0x04, 0x13, 0x12, 0x2B,
             0x34, 0x1F,
         ],
     ));
     display.write_command(BK0Command2::negative_gamma_control(
-        &CMD2,
+        &cmd2,
         &[
             0x00, 0x0E, 0x95, 0x0F, 0x13, 0x07, 0x09, 0x08, 0x08, 0x22, 0x04, 0x10, 0x0E, 0x2C,
             0x34, 0x1F,
         ],
     ));
-    display.write_command(BK0Command2::display_line_setting(&CMD2, 0x80, 0x69, 0x02));
-    display.write_command(BK0Command2::porch_control(&CMD2, &mode));
+    display.write_command(BK0Command2::display_line_setting(&cmd2, 0x80, 0x69, 0x02));
+    display.write_command(BK0Command2::porch_control(&cmd2, &mode));
     display.write_command(BK0Command2::inversion_select(
-        &CMD2,
+        &cmd2,
         Inversion::Column,
         0xFF,
     ));
     display.write_command(BK0Command2::rgb_control(
-        &CMD2,
+        &cmd2,
         DataEnable::DE,
         VsyncActive::Low,
         HsyncActive::Low,
@@ -58,28 +58,28 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
     ));
 
     // ENTER BK1 COMMAND2 MODE
-    CMD2 = Command2Selection::BK1;
-    display.write_command(CommandsGeneral::set_command_2(&CMD2));
+    cmd2 = Command2Selection::BK1;
+    display.write_command(CommandsGeneral::set_command_2(&cmd2));
 
-    display.write_command(BK1Command2::set_vop_amplitude(&CMD2, 0x45));
-    display.write_command(BK1Command2::set_vcom_amplitude(&CMD2, 0x13));
-    display.write_command(BK1Command2::set_vgh_voltage(&CMD2, 0x07));
-    display.write_command(BK1Command2::test_command_setting(&CMD2));
-    display.write_command(BK1Command2::set_vgl_voltage(&CMD2, 0x07));
+    display.write_command(BK1Command2::set_vop_amplitude(&cmd2, 0x45));
+    display.write_command(BK1Command2::set_vcom_amplitude(&cmd2, 0x13));
+    display.write_command(BK1Command2::set_vgh_voltage(&cmd2, 0x07));
+    display.write_command(BK1Command2::test_command_setting(&cmd2));
+    display.write_command(BK1Command2::set_vgl_voltage(&cmd2, 0x07));
     display.write_command(BK1Command2::power_control_one(
-        &CMD2,
+        &cmd2,
         GammaOPBias::Middle,
         SourceOPInput::Min,
         SourceOPOutput::Off,
     ));
 
     display.write_command(BK1Command2::power_control_two(
-        &CMD2,
+        &cmd2,
         VoltageAVDD::Pos6_6,
         VoltageAVCL::Neg4_4,
     ));
-    display.write_command(BK1Command2::set_pre_drive_timing_one(&CMD2, 0x03));
-    display.write_command(BK1Command2::set_pre_drive_timing_two(&CMD2, 0x03));
+    display.write_command(BK1Command2::set_pre_drive_timing_one(&cmd2, 0x03));
+    display.write_command(BK1Command2::set_pre_drive_timing_two(&cmd2, 0x03));
 
     // UNKNOWABLE CARGO-CULTED MYSTERY MEAT
     //
@@ -154,8 +154,8 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
     }));
 
     // BK1 COMMAND2 DISABLE
-    CMD2 = Command2Selection::Disabled;
-    display.write_command(CommandsGeneral::set_command_2(&CMD2));
+    cmd2 = Command2Selection::Disabled;
+    display.write_command(CommandsGeneral::set_command_2(&cmd2));
 
     display.write_command(CommandsGeneral::set_color_mode(BitsPerPixel::Rgb666));
     display.write_command(CommandsGeneral::display_data_control(

@@ -1,3 +1,6 @@
+#![allow(non_snake_case)]
+// NOTE: Non-snake case is allowed here because these variables match exactly
+// the datasheet provided by Sitronix
 use std::convert::TryInto;
 
 use crate::panel::Mode;
