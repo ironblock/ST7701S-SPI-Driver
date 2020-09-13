@@ -61,21 +61,18 @@ sudo cp VE-2IN-BBB.dtbo /lib/firmware/VE-2IN-BBB.dtbo && \
 sudo reboot
 ```
 
-In `/boot/uEnv.txt`, comment out the virtual HDMI cape and the universal cape. Then, add this line:
+Edit `/boot/uEnv.txt` so that these parameters are set. These are required to free SPI I/O pins and load the custom dtbo, which will initialize the framebuffer:
 
 ```
+enable_uboot_overlays=1
 dtb_overlay=/lib/firmware/VE-2IN-BBB.dtbo
-```
-
-You may also want to disable the HDMI framer in the kernel command line arguments:
-
-```
+uboot_overlay_pru=/lib/firmware/AM335X-PRU-RPROC-4-14-TI-00A0.dtbo
 cmdline=coherent_pool=1M net.ifnames=0 quiet
 ```
 
 ## Other things
 
-These are \*_not necessary_, but documented here for reference.
+These are _not necessary_, but documented here for reference.
 
 ### Manually Flash the Reset Pin
 
