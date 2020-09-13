@@ -10,7 +10,7 @@
 #include <dt-bindings/board/am335x-bbw-bbb-base.h>
 
 / {
-	compatible = "ti,beaglebone", "ti,beaglebone-black", "ti,beaglebone-green";
+    compatible = "ti,beaglebone", "ti,beaglebone-black", "ti,beaglebone-green";
 
     /* ID */
     part-number = "VE-2IN-LCD";
@@ -21,85 +21,85 @@
         /*
          * SPI 0
          */
-		"P9.17",	/* P9_17 : SPI0: CS0 */
-		"P9.18",	/* P9_18 : SPI0: D1 */
-		"P9.21",	/* P9_21 : SPI0: D0 */
-		"P9.22",	/* P9_22 : SPI0: SCLK */
+        "P9.17",    /* P9_17 : SPI0: CS0 */
+        "P9.18",    /* P9_18 : SPI0: D1 */
+        "P9.21",    /* P9_21 : SPI0: D0 */
+        "P9.22",    /* P9_22 : SPI0: SCLK */
 
         /*
          * LCD DATA
          */
-        "P8.45",	/* LCD | LCD_DATA0  : Blue 4 */
-        "P8.46",	/* LCD | LCD_DATA1  : Blue 3 */
-        "P8.43",	/* LCD | LCD_DATA2  : Blue 2 */
-        "P8.44",	/* LCD | LCD_DATA3  : Blue 1 */
-        "P8.41",	/* LCD | LCD_DATA4  : Blue 0 (MSB) */
+        "P8.45",    /* LCD | LCD_DATA0  : Blue 4 */
+        "P8.46",    /* LCD | LCD_DATA1  : Blue 3 */
+        "P8.43",    /* LCD | LCD_DATA2  : Blue 2 */
+        "P8.44",    /* LCD | LCD_DATA3  : Blue 1 */
+        "P8.41",    /* LCD | LCD_DATA4  : Blue 0 (MSB) */
 
-        "P8.42",	/* LCD | LCD_DATA5  : Green 5 (LSB) */
-        "P8.39",	/* LCD | LCD_DATA6  : Green 4 */
-        "P8.40",	/* LCD | LCD_DATA7  : Green 3 */
-        "P8.37",	/* LCD | LCD_DATA8  : Green 2 */
-        "P8.38",	/* LCD | LCD_DATA9  : Green 1 */
-        "P8.36",	/* LCD | LCD_DATA10 : Green 0 (MSB) */
+        "P8.42",    /* LCD | LCD_DATA5  : Green 5 (LSB) */
+        "P8.39",    /* LCD | LCD_DATA6  : Green 4 */
+        "P8.40",    /* LCD | LCD_DATA7  : Green 3 */
+        "P8.37",    /* LCD | LCD_DATA8  : Green 2 */
+        "P8.38",    /* LCD | LCD_DATA9  : Green 1 */
+        "P8.36",    /* LCD | LCD_DATA10 : Green 0 (MSB) */
 
-        "P8.34",	/* LCD | LCD_DATA11 : Red 4 */
-        "P8.35",	/* LCD | LCD_DATA12 : Red 3 */
-        "P8.33",	/* LCD | LCD_DATA13 : Red 2 */
-        "P8.31",	/* LCD | LCD_DATA14 : Red 1 */
-        "P8.32",	/* LCD | LCD_DATA15 : Red 0 (MSB) */
+        "P8.34",    /* LCD | LCD_DATA11 : Red 4 */
+        "P8.35",    /* LCD | LCD_DATA12 : Red 3 */
+        "P8.33",    /* LCD | LCD_DATA13 : Red 2 */
+        "P8.31",    /* LCD | LCD_DATA14 : Red 1 */
+        "P8.32",    /* LCD | LCD_DATA15 : Red 0 (MSB) */
 
-		"P8.15",	/* GPMC_AD15 | LCD_DATA16 : Red 5 (LSB) */
-		"P8.16",	/* GPMC_AD14 | LCD_DATA17 : Blue 5 (LSB) */
-		"P8.11",	/* GPMC_AD13 | LCD_DATA18 : Unused */
-		"P8.12",	/* GPMC_AD12 | LCD_DATA19 : Unused */
-		"P8.17",	/* GPMC_AD11 | LCD_DATA20 : Unused */
-		"P8.14",	/* GPMC_AD10 | LCD_DATA21 : Unused */
-		"P8.13",	/* GPMC_AD9  | LCD_DATA22 : Unused */
-		"P8.19",	/* GPMC_AD8  | LCD_DATA23 : Unused */
+        "P8.15",    /* GPMC_AD15 | LCD_DATA16 : Red 5 (LSB) */
+        "P8.16",    /* GPMC_AD14 | LCD_DATA17 : Blue 5 (LSB) */
+        "P8.11",    /* GPMC_AD13 | LCD_DATA18 : Unused */
+        "P8.12",    /* GPMC_AD12 | LCD_DATA19 : Unused */
+        "P8.17",    /* GPMC_AD11 | LCD_DATA20 : Unused */
+        "P8.14",    /* GPMC_AD10 | LCD_DATA21 : Unused */
+        "P8.13",    /* GPMC_AD9  | LCD_DATA22 : Unused */
+        "P8.19",    /* GPMC_AD8  | LCD_DATA23 : Unused */
 
         /*
          * LCD SYNC AND CLOCK
          */
-		"P8.27",	/* lcd: LCD_VSYNC      : Vertical Sync*/
-		"P8.29",	/* lcd: LCD_HSYNC      : Horizontal Sync */
-		"P8.28",	/* lcd: LCD_PCLK       : Pixel Clock*/
-		"P8.30",	/* lcd: LCD_AC_BIAS_EN : Used for Display Enable (DE) */
+        "P8.27",    /* lcd: LCD_VSYNC      : Vertical Sync*/
+        "P8.29",    /* lcd: LCD_HSYNC      : Horizontal Sync */
+        "P8.28",    /* lcd: LCD_PCLK       : Pixel Clock*/
+        "P8.30",    /* lcd: LCD_AC_BIAS_EN : Used for Display Enable (DE) */
 
         /*
          * LCD BACKLIGHT
          */
-        "P9.14",	/* EHRPWM1A: LED Backlight Anode */
+        "P9.14",    /* EHRPWM1A: LED Backlight Anode */
 
         /*
          * HARDWARE
          */
         "spi0",
         "lcdc",
-		"ehrpwm1a";
+        "ehrpwm1a";
 
-	/*
-	 * Helper to show loaded overlays under: /proc/device-tree/chosen/overlays/
-	 */
-	fragment@0 {
-		target-path="/";
-		__overlay__ {
+    /*
+     * Helper to show loaded overlays under: /proc/device-tree/chosen/overlays/
+     */
+    fragment@0 {
+        target-path="/";
+        __overlay__ {
 
-			chosen {
-				overlays {
-					VE-2IN-BBB-00A0 = __TIMESTAMP__;
-				};
-			};
-		};
-	};
+            chosen {
+                overlays {
+                    VE-2IN-BBB-00A0 = __TIMESTAMP__;
+                };
+            };
+        };
+    };
 
     /* Free all reserved pins from pinmux helpers to ensure they're available */
     fragment@1 {
         target = <&ocp>;
         __overlay__ {
-			P9_17_pinmux { status = "disabled"; }; /* SPI0: CS0 */
-			P9_18_pinmux { status = "disabled"; }; /* SPI0: D1 */
-			P9_21_pinmux { status = "disabled"; }; /* SPI0: D0 */
-			P9_22_pinmux { status = "disabled"; }; /* SPI0: SCLK */
+            P9_17_pinmux { status = "disabled"; }; /* SPI0: CS0 */
+            P9_18_pinmux { status = "disabled"; }; /* SPI0: D1 */
+            P9_21_pinmux { status = "disabled"; }; /* SPI0: D0 */
+            P9_22_pinmux { status = "disabled"; }; /* SPI0: SCLK */
 
             P9_14_pinmux { status = "disabled"; }; /* P9_14: gpmc_a2.ehrpwm1a */
 
@@ -122,14 +122,14 @@
             P8_31_pinmux { status = "disabled"; }; /* lcd: lcd_data14 */
             P8_32_pinmux { status = "disabled"; }; /* lcd: lcd_data15 */
 
-			P8_15_pinmux { status = "disabled"; }; /* gpmc_ad15.lcd_data16 */
-			P8_16_pinmux { status = "disabled"; }; /* gpmc_ad14.lcd_data17 */
-			P8_11_pinmux { status = "disabled"; }; /* gpmc_ad13.lcd_data18 */
-			P8_12_pinmux { status = "disabled"; }; /* gpmc_ad12.lcd_data19 */
-			P8_17_pinmux { status = "disabled"; }; /* gpmc_ad11.lcd_data20 */
-			P8_14_pinmux { status = "disabled"; }; /* gpmc_ad10.lcd_data21 */
-			P8_13_pinmux { status = "disabled"; }; /* gpmc_ad9.lcd_data22 */
-			P8_19_pinmux { status = "disabled"; }; /* gpmc_ad8.lcd_data23 */
+            P8_15_pinmux { status = "disabled"; }; /* gpmc_ad15.lcd_data16 */
+            P8_16_pinmux { status = "disabled"; }; /* gpmc_ad14.lcd_data17 */
+            P8_11_pinmux { status = "disabled"; }; /* gpmc_ad13.lcd_data18 */
+            P8_12_pinmux { status = "disabled"; }; /* gpmc_ad12.lcd_data19 */
+            P8_17_pinmux { status = "disabled"; }; /* gpmc_ad11.lcd_data20 */
+            P8_14_pinmux { status = "disabled"; }; /* gpmc_ad10.lcd_data21 */
+            P8_13_pinmux { status = "disabled"; }; /* gpmc_ad9.lcd_data22 */
+            P8_19_pinmux { status = "disabled"; }; /* gpmc_ad8.lcd_data23 */
 
             P8_27_pinmux { status = "disabled"; }; /* lcd: lcd_vsync */
             P8_29_pinmux { status = "disabled"; }; /* lcd: lcd_hsync */
@@ -142,10 +142,10 @@
     fragment@2 {
         target = <&am33xx_pinmux>;
         __overlay__ {
-			pwm_bl_pins: pinmux_pwm_bl_pins {
-				pinctrl-single,pins = <
-					BONE_P9_14 (PIN_OUTPUT_PULLDOWN | MUX_MODE6) /* P9_14: gpmc_a2.ehrpwm1a */
-				>;
+            pwm_bl_pins: pinmux_pwm_bl_pins {
+                pinctrl-single,pins = <
+                    BONE_P9_14 (PIN_OUTPUT_PULLDOWN | MUX_MODE6) /* P9_14: gpmc_a2.ehrpwm1a */
+                >;
             };
 
             spi0_pins_s0: pinmux_spi0_pins_s0 {
@@ -178,14 +178,14 @@
                     BONE_P8_31 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA14 */
                     BONE_P8_32 (PIN_OUTPUT | MUX_MODE0) /* LCD_DATA15 */
 
-					BONE_P8_15 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA16 */
-					BONE_P8_16 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA17 */
-					BONE_P8_11 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA18 */
-					BONE_P8_12 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA19 */
-					BONE_P8_17 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA20 */
-					BONE_P8_14 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA21 */
-					BONE_P8_13 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA22 */
-					BONE_P8_19 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA23 */
+                    BONE_P8_15 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA16 */
+                    BONE_P8_16 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA17 */
+                    BONE_P8_11 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA18 */
+                    BONE_P8_12 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA19 */
+                    BONE_P8_17 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA20 */
+                    BONE_P8_14 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA21 */
+                    BONE_P8_13 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA22 */
+                    BONE_P8_19 (PIN_OUTPUT | MUX_MODE1) /* LCD_DATA23 */
 
                     BONE_P8_27 (PIN_OUTPUT | MUX_MODE0) /* LCD_VSYNC      */
                     BONE_P8_29 (PIN_OUTPUT | MUX_MODE0) /* LCD_HSYNC      */
@@ -214,65 +214,65 @@
     //     };
     // };
 
-	fragment@3 {
-		target = <&spi0>;
-		__overlay__ {
-			#address-cells = <1>;
-			#size-cells = <0>;
+    fragment@3 {
+        target = <&spi0>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
 
-			status = "okay";
-			pinctrl-names = "default";
-			pinctrl-0 = <&spi0_pins_s0>;
-			ti,pio-mode; /* disable dma when used as an overlay, dma gets stuck at 160 bits... */
+            status = "okay";
+            pinctrl-names = "default";
+            pinctrl-0 = <&spi0_pins_s0>;
+            ti,pio-mode; /* disable dma when used as an overlay, dma gets stuck at 160 bits... */
 
-			channel@0 {
-				#address-cells = <1>;
-				#size-cells = <0>;
+            channel@0 {
+                #address-cells = <1>;
+                #size-cells = <0>;
 
-				compatible = "spidev";
-				symlink = "spi/0.0";
+                compatible = "spidev";
+                symlink = "spi/0.0";
 
-				reg = <0>;
-				spi-max-frequency = <16000000>;
-				spi-cpha;
-			};
+                reg = <0>;
+                spi-max-frequency = <16000000>;
+                spi-cpha;
+            };
 
-			channel@1 {
-				#address-cells = <1>;
-				#size-cells = <0>;
+            channel@1 {
+                #address-cells = <1>;
+                #size-cells = <0>;
 
-				compatible = "spidev";
-				symlink = "spi/0.1";
+                compatible = "spidev";
+                symlink = "spi/0.1";
 
-				reg = <1>;
-				spi-max-frequency = <16000000>;
-			};
-		};
-	};
+                reg = <1>;
+                spi-max-frequency = <16000000>;
+            };
+        };
+    };
 
-	fragment@4 {
-		target = <&lcdc>;
-		__overlay__ {
+    fragment@4 {
+        target = <&lcdc>;
+        __overlay__ {
             status = "okay";
             blue-and-red-wiring = "crossed";
-		};
-	};
+        };
+    };
 
-	fragment@5 {
-		target = <&epwmss1>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
+    fragment@5 {
+        target = <&epwmss1>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
 
-	fragment@6 {
-		target = <&ehrpwm1>;
+    fragment@6 {
+        target = <&ehrpwm1>;
         __overlay__ {
             pinctrl-names = "default";
             pinctrl-0     = <&pwm_bl_pins>;
             status        = "okay";
         };
-	};
+    };
 
     fragment@7 {
         target-path = "/";
@@ -299,7 +299,7 @@
 
             panel {
                 status        = "okay";
-		        compatible    = "ti,tilcdc,panel";
+                compatible    = "ti,tilcdc,panel";
                 pinctrl-names = "default";
                 pinctrl-0     = <&ve_lcd_pins>;
                 panel-info {
@@ -313,9 +313,9 @@
                     raster-order   = <0>;     // Raster Data Order Select: 1=Most-to-least 0=Least-to-most
                     fifo-th        = <0>;     // DMA FIFO threshold
                     enable-gpios   = <&gpio1 28 GPIO_ACTIVE_HIGH>;
-					// tft-alt-mode   = <0>;
-					// stn-565-mode   = <0>;
-					// mono-8bit-mode = <0>;
+                    // tft-alt-mode   = <0>;
+                    // stn-565-mode   = <0>;
+                    // mono-8bit-mode = <0>;
                     // invert-pxl-clk; // WRONG, DON'T USE
                 };
 
@@ -347,6 +347,14 @@
                         pixelclk-active = <1>;
                     };
                 };
+            };
+
+            fb {
+                compatible = "ti,am33xx-tilcdc";
+                reg = <0x4830e000 0x1000>;
+                interrupt-parent = <&intc>;
+                interrupts = <36>;
+                ti,hwmods = "lcdc";
             };
         };
     };
