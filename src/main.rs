@@ -2,11 +2,11 @@ extern crate enum_primitive;
 extern crate num;
 extern crate spidev;
 
-mod instructions;
-mod panel;
-mod sequence_linux_kernel;
-mod sequence_tdo;
-mod spi;
+pub mod instructions;
+pub mod panel;
+pub mod sequence_linux_kernel;
+pub mod sequence_tdo;
+pub mod spi;
 
 use panel::TDOMode;
 use sequence_tdo::init;
@@ -19,17 +19,23 @@ use std::env;
 /// selected and the VSYNC, HSYNC, DOTCLK, D23:0 pins can be used. When using
 /// RGB interface, only serial interface can be selected.
 fn main() {
-    println!("Initializing SPI driver for ST7701S panel");
+    let tag: String = String::from("[ST7701S]");
+    println!("{} Initializing SPI driver", tag);
 
     let args: Vec<String> = env::args().collect();
-    let spi_argument: Option<String> = Some(String::from(&args[0]));
-    let mut spi_path: String = String::from("/dev/spidev0.0");
+    let mut spi_path: String = String::from("/dev/spi/0.0");
+    let mut spi_argument: Option<String> = None;
 
-    if !spi_argument.is_some() {
-        spi_path = spi_argument.unwrap();
+    if args.len() > 1 {
+        spi_argument = Some(String::from(&args[1]));
     }
 
-    println!("Using SPI device path {}", spi_path);
+    if spi_argument.is_some() {
+        spi_path = spi_argument.unwrap();
+        println!("{} Using custom SPI device path \"{}\"", tag, spi_path);
+    } else {
+        println!("{} Using default SPI device path {}", tag, spi_path);
+    }
 
     let mut display = ST7701S::new(spi_path);
     let mode = TDOMode;
