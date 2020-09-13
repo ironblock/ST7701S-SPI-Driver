@@ -6,11 +6,11 @@ use crate::panel::Mode;
 use crate::spi::ST7701S;
 
 pub fn init(display: &mut ST7701S, mode: Mode) {
-  let mut CMD2: Command2Selection = Command2Selection::Disabled;
+  let mut CMD2: Command2Selection;
 
   // Set Command2 for BK0
-  display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK0));
   CMD2 = Command2Selection::BK0;
+  display.write_command(CommandsGeneral::set_command_2(&CMD2));
 
   display.write_command(BK0Command2::display_line_setting(&CMD2, 0x3B, 0x00, 0x00));
   // Note: This will be off by one from the TDO spec:
@@ -50,8 +50,8 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
   ));
 
   // Set Command2 for BK1
-  display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK1));
   CMD2 = Command2Selection::BK1;
+  display.write_command(CommandsGeneral::set_command_2(&CMD2));
 
   display.write_command(BK1Command2::set_vop_amplitude(&CMD2, 0x5d));
   display.write_command(BK1Command2::set_vcom_amplitude(&CMD2, 0x43));
@@ -139,16 +139,16 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
   }));
 
   // Set Command2 for BK3
-  display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK1));
   CMD2 = Command2Selection::BK1;
+  display.write_command(CommandsGeneral::set_command_2(&CMD2));
   display.write_command(Ok(Command {
     address: 0xEF,
     parameters: vec![0x08],
   }));
 
   // COMMAND2 DISABLE
-  display.write_command(CommandsGeneral::set_command_2(Command2Selection::Disabled));
   CMD2 = Command2Selection::Disabled;
+  display.write_command(CommandsGeneral::set_command_2(&CMD2));
 
   display.write_command(CommandsGeneral::sleep_mode_off());
   thread::sleep(time::Duration::from_millis(120));

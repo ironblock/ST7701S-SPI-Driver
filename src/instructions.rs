@@ -617,7 +617,7 @@ impl CommandsGeneral {
     ///
     /// eg. for a BK1 Command2 instruction, "current" must be set to
     /// Command2Selection::BK1.
-    pub fn set_command_2(set: Command2Selection) -> Result<Command, &'static str> {
+    pub fn set_command_2(set: *const Command2Selection) -> Result<Command, &'static str> {
         Ok(Command::new(Self::CND2BKxSEL as u8).args(&[0x77, 0x01, 0x00, 0x00, set as u8]))
     }
 }

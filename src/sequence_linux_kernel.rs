@@ -10,7 +10,7 @@ use crate::panel::Mode;
 use crate::spi::ST7701S;
 
 pub fn init(display: &mut ST7701S, mode: Mode) {
-    let mut CMD2: Command2Selection = Command2Selection::Disabled;
+    let mut CMD2: Command2Selection;
 
     // SOFTWARE RESET
     // 5ms delay
@@ -23,8 +23,8 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
     thread::sleep(time::Duration::from_millis(300));
 
     // ENTER BK0 COMMAND2 MODE
-    display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK0));
     CMD2 = Command2Selection::BK0;
+    display.write_command(CommandsGeneral::set_command_2(&CMD2));
 
     display.write_command(BK0Command2::positive_gamma_control(
         &CMD2,
@@ -58,8 +58,8 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
     ));
 
     // ENTER BK1 COMMAND2 MODE
-    display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK1));
     CMD2 = Command2Selection::BK1;
+    display.write_command(CommandsGeneral::set_command_2(&CMD2));
 
     display.write_command(BK1Command2::set_vop_amplitude(&CMD2, 0x45));
     display.write_command(BK1Command2::set_vcom_amplitude(&CMD2, 0x13));
@@ -154,8 +154,8 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
     }));
 
     // BK1 COMMAND2 DISABLE
-    display.write_command(CommandsGeneral::set_command_2(Command2Selection::Disabled));
     CMD2 = Command2Selection::Disabled;
+    display.write_command(CommandsGeneral::set_command_2(&CMD2));
 
     display.write_command(CommandsGeneral::set_color_mode(BitsPerPixel::Rgb666));
     display.write_command(CommandsGeneral::display_data_control(
