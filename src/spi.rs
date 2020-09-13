@@ -7,7 +7,6 @@ use std::io::prelude::*;
 
 pub struct ST7701S {
   spi: Spidev,
-  options: SpidevOptions,
 }
 
 impl ST7701S {
@@ -26,7 +25,7 @@ impl ST7701S {
       .build();
     let spi = ST7701S::create_spi(device, &options).unwrap();
 
-    ST7701S { options, spi }
+    ST7701S { spi }
   }
 
   pub fn write_command(&mut self, command: Result<Command, &'static str>) -> () {
