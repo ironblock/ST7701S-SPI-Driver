@@ -28,28 +28,31 @@
 
         /*
          * LCD DATA
+         * NOTE: Red and blue signals are swapped in 24-bit mode. Since this is
+         * an 18-bit LCD, we either need to run in 24-bit mode and throw away
+         * the bottom 6 bits, or run in 16 bit mode
          */
-        "P8.45",    /* LCD | LCD_DATA0  : Blue 4 */
-        "P8.46",    /* LCD | LCD_DATA1  : Blue 3 */
-        "P8.43",    /* LCD | LCD_DATA2  : Blue 2 */
-        "P8.44",    /* LCD | LCD_DATA3  : Blue 1 */
-        "P8.41",    /* LCD | LCD_DATA4  : Blue 0 (MSB) */
+        "P8.45",    /* LCD | LCD_DATA0  : Red 3 */
+        "P8.46",    /* LCD | LCD_DATA1  : Red 4 */
+        "P8.43",    /* LCD | LCD_DATA2  : Red 5 */
+        "P8.44",    /* LCD | LCD_DATA3  : Red 6 */
+        "P8.41",    /* LCD | LCD_DATA4  : Red 7 */
 
-        "P8.42",    /* LCD | LCD_DATA5  : Green 5 (LSB) */
-        "P8.39",    /* LCD | LCD_DATA6  : Green 4 */
-        "P8.40",    /* LCD | LCD_DATA7  : Green 3 */
-        "P8.37",    /* LCD | LCD_DATA8  : Green 2 */
-        "P8.38",    /* LCD | LCD_DATA9  : Green 1 */
-        "P8.36",    /* LCD | LCD_DATA10 : Green 0 (MSB) */
+        "P8.42",    /* LCD | LCD_DATA5  : Green 2 */
+        "P8.39",    /* LCD | LCD_DATA6  : Green 3 */
+        "P8.40",    /* LCD | LCD_DATA7  : Green 4 */
+        "P8.37",    /* LCD | LCD_DATA8  : Green 5 */
+        "P8.38",    /* LCD | LCD_DATA9  : Green 6 */
+        "P8.36",    /* LCD | LCD_DATA10 : Green 7 */
 
-        "P8.34",    /* LCD | LCD_DATA11 : Red 4 */
-        "P8.35",    /* LCD | LCD_DATA12 : Red 3 */
-        "P8.33",    /* LCD | LCD_DATA13 : Red 2 */
-        "P8.31",    /* LCD | LCD_DATA14 : Red 1 */
-        "P8.32",    /* LCD | LCD_DATA15 : Red 0 (MSB) */
+        "P8.34",    /* LCD | LCD_DATA11 : Blue 3 */
+        "P8.35",    /* LCD | LCD_DATA12 : Blue 4 */
+        "P8.33",    /* LCD | LCD_DATA13 : Blue 5 */
+        "P8.31",    /* LCD | LCD_DATA14 : Blue 6 */
+        "P8.32",    /* LCD | LCD_DATA15 : Blue 7 */
 
-        "P8.15",    /* GPMC_AD15 | LCD_DATA16 : Red 5 (LSB) */
-        "P8.16",    /* GPMC_AD14 | LCD_DATA17 : Blue 5 (LSB) */
+        "P8.15",    /* GPMC_AD15 | LCD_DATA16 : Unused */
+        "P8.16",    /* GPMC_AD14 | LCD_DATA17 : Unused */
         "P8.11",    /* GPMC_AD13 | LCD_DATA18 : Unused */
         "P8.12",    /* GPMC_AD12 | LCD_DATA19 : Unused */
         "P8.17",    /* GPMC_AD11 | LCD_DATA20 : Unused */
@@ -254,7 +257,12 @@
         target = <&lcdc>;
         __overlay__ {
             status = "okay";
-            blue-and-red-wiring = "crossed";
+            /* If you want to get 24 bit RGB and 16 BGR mode instead of
+	        * current 16 bit RGB and 24 BGR modes, set the propety
+	        * below to "crossed" and uncomment the video-ports -property
+	        * in tda19988 node.
+	        */
+            blue-and-red-wiring = "straight";
         };
     };
 
@@ -306,7 +314,7 @@
                     ac-bias        = <255>;   // AC Bias Pin Frequency
                     ac-bias-intrpt = <0>;     // AC Bias Pin Transitions per Interrupt
                     dma-burst-sz   = <16>;    // DMA burst size
-                    bpp            = <24>;    // Bits per pixel (Use 24bpp for 18-bit LCDs)
+                    bpp            = <16>;    // Bits per pixel (Use 24bpp for 18-bit LCDs)
                     fdd            = <0x80>;  // FIFO DMA Request Delay
                     sync-edge      = <1>;     // Horizontal and Vertical Sync Edge: 0=rising 1=falling
                     sync-ctrl      = <1>;     // Horizontal and Vertical Sync: Control: 0=ignore
@@ -327,19 +335,37 @@
                 display-timings {
                     native-mode = <&timing0>;
 
-                    timing0: 480x480_TDO {
-                        // clock-frequency = <8000000>; // 30fps
+                    timing0: 480x480_CVT {
+                        clock-frequency = <17500000>; // 60fps
+                        hactive         = <480>;
+                        vactive         = <480>;
+
+                        hback-porch     = <16>;
+                        hsync-len       = <40>;
+                        hfront-porch    = <112>;
+
+                        vback-porch     = <3>;
+                        vsync-len       = <10>;
+                        vfront-porch    = <20>;
+
+                        hsync-active    = <0>;
+                        vsync-active    = <0>;
+                        de-active       = <1>;
+                        pixelclk-active = <1>;
+                    };
+
+                    timing1: 480x480_TDO {
                         clock-frequency = <16000000>; // 60fps
                         hactive         = <480>;
                         vactive         = <480>;
 
-                        hfront-porch    = <24>; //Min: 1; Max: ?; Clock cycles.
-                        hsync-len       = <6>;  //Min: 1; Max: 255; Clock cycles.
                         hback-porch     = <18>; //Min: 1; Max: 255; Clock cycles.
+                        hsync-len       = <6>;  //Min: 1; Max: 255; Clock cycles.
+                        hfront-porch    = <24>; //Min: 1; Max: ?; Clock cycles.
 
-                        vfront-porch    = <16>; //Min: 2; Max: ?; Lines.
-                        vsync-len       = <4>;  //Min: 1; Max: 254; Lines.
                         vback-porch     = <10>; //Min: 1; Max: 254; Lines.
+                        vsync-len       = <4>;  //Min: 1; Max: 254; Lines.
+                        vfront-porch    = <16>; //Min: 2; Max: ?; Lines.
 
                         hsync-active    = <0>;
                         vsync-active    = <0>;

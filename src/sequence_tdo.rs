@@ -8,15 +8,15 @@ use crate::spi::ST7701S;
 pub fn init(display: &mut ST7701S, mode: Mode) {
   let mut cmd2: Command2Selection;
 
+  // display.write_command(CommandsGeneral::sleep_mode_off());
+  // display.write_command(CommandsGeneral::software_reset());
+  // thread::sleep(time::Duration::from_millis(5));
+
   // Set Command2 for BK0
   cmd2 = Command2Selection::BK0;
   display.write_command(CommandsGeneral::set_command_2(&cmd2));
 
   display.write_command(BK0Command2::display_line_setting(&cmd2, 0x3B, 0x00, 0x00));
-  // Note: This will be off by one from the TDO spec:
-  // SPI_WriteComm(0xC1); // PORCTRL
-  // 0x0B); // V,
-  // 0x02); // V,
   display.write_command(BK0Command2::porch_control(&cmd2, &mode));
   display.write_command(BK0Command2::inversion_select(
     &cmd2,
@@ -47,6 +47,10 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
       0xB1, 0x05, 0x13, 0x1B, 0x0D, 0x11, 0x05, 0x08, 0x07, 0x07, 0x24, 0x04, 0x11, 0x0E, 0x2C,
       0x33, 0x1D,
     ],
+  ));
+  display.write_command(BK0Command2::digital_gamma_enable(
+    &cmd2,
+    instructions::DigitalGamma::On,
   ));
 
   // Set Command2 for BK1
@@ -154,11 +158,24 @@ pub fn init(display: &mut ST7701S, mode: Mode) {
   thread::sleep(time::Duration::from_millis(120));
 
   display.write_command(CommandsGeneral::display_on());
+  display.write_command(CommandsGeneral::normal_mode_on());
+  display.write_command(CommandsGeneral::idle_mode_off());
+
   display.write_command(CommandsGeneral::display_data_control(
     instructions::ScanDirection::Normal,
     instructions::ColorOrder::Rgb,
   ));
   display.write_command(CommandsGeneral::set_color_mode(
-    instructions::BitsPerPixel::Rgb666,
+    instructions::BitsPerPixel::Rgb565,
+  ));
+
+  display.write_command(CommandsGeneral::configure_color_enhancement(
+    instructions::Enhancement::On,
+    instructions::EnhancementMode::High,
+    instructions::AdaptiveBrightness::MovingImage,
+  ));
+
+  display.write_command(CommandsGeneral::gamma_curve_select(
+    instructions::GammaCurve::Two,
   ));
 }

@@ -70,6 +70,12 @@ pub enum GammaCurve {
 }
 
 #[derive(Copy, Clone)]
+pub enum DigitalGamma {
+    Off = 0x00,
+    On = 0x08,
+}
+
+#[derive(Copy, Clone)]
 pub enum TearingEffect {
     /// V-blanking only
     VBlank = 0x00,
@@ -658,6 +664,18 @@ impl BK0Command2 {
         })
     }
 
+    /// # DIGITAL GAMMA ENABLE
+    /// ST7701S digital gamma function can implement the RGB gamma correction
+    /// independently. ST7701S utilizes look-up table of digital gamma to change
+    /// ram data, and then display the changed data from source driver.
+    pub fn digital_gamma_enable(
+        CMD2: &Command2Selection,
+        DGM_ON: DigitalGamma,
+    ) -> Result<Command, &'static str> {
+        Self::validate(CMD2, || {
+            Command::new(Self::NVGAMCTRL as u8).args(&[DGM_ON as u8])
+        })
+    }
     /// # DISPLAY LINE SETTING
     pub fn display_line_setting(
         CMD2: &Command2Selection,
