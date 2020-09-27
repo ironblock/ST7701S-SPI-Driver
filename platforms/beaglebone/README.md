@@ -40,7 +40,7 @@ The display requires a device tree overlay to be created and loaded in order for
 The `.dts` file uses some C headers that must be copied to the BeagleBone in order to compile the overlay:
 
 ```sh
-scp -r ./beaglebone/dt-bindings debian@beaglebone.local:~/dts/dt-bindings
+scp -r ./beaglebone/dt-bindings debian@beaglebone.local:~/bb.org-overlays/include/
 ```
 
 Make changes to `./beaglebone/VE-2IN-BBB.dts`, then copy it over:
@@ -54,7 +54,7 @@ scp ./beaglebone/VE-2IN-BBB.dts debian@beaglebone.local:~/dts
 Build the `.dts` file and reboot to load it:
 
 ```sh
-cd ~/dts && \
+cd ~/bb.org-overlays/include/ && \
 cpp -nostdinc -I . -undef -x assembler-with-cpp VE-2IN-BBB.dts VE-2IN-BBB.dts.preprocessed && \
 dtc -O dtb -o VE-2IN-BBB.dtbo -b 0 -@ VE-2IN-BBB.dts.preprocessed && \
 sudo cp VE-2IN-BBB.dtbo /lib/firmware/VE-2IN-BBB.dtbo && \
