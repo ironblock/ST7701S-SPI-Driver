@@ -1,0 +1,38 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [develop, master, $default-branch]
+  pull_request:
+    branches: [develop, master, $default-branch]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: true
+      matrix:
+        profile: [dev, release]
+        target: [armv7-unknown-linux-gnueabihf]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/tooling
+      - name: Add Target for `${{ matrix.target }}`
+        run: rustup target add ${{ matrix.target }}
+      - name: Run Tests
+        run: cargo test --verbose
+      - name: Build Driver (`${{ matrix.target }}`, `${{ matrix.profile }}`)
+        run: cargo build --verbose --target ${{ matrix.target }} --profile ${{ matrix.profile }}
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}

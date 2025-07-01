@@ -1,0 +1,9 @@
+name: Install Tooling
+description: Install any command line utilities or dependencies that will be required for an Ubuntu image to successfully build the driver.
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure toolchains and linkers are present
+      run: sudo apt-get -yq install gcc g++-arm-linux-gnueabihf
+      shell: bash
