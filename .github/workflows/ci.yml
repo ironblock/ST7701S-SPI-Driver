@@ -24,10 +24,10 @@ jobs:
       - uses: ./.github/actions/tooling
       - name: Add Target for `${{ matrix.target }}`
         run: rustup target add ${{ matrix.target }}
+      - name: Run Tests
+        run: cargo test --verbose
       - name: Build Driver (`${{ matrix.target }}`, `${{ matrix.profile }}`)
         run: cargo build --verbose --target ${{ matrix.target }} --profile ${{ matrix.profile }}
-      - name: Run Tests (`${{ matrix.target }}`, `${{ matrix.profile }}`)
-        run: cargo test --verbose --target ${{ matrix.target }} --profile ${{ matrix.profile }}
       - name: Cache
         uses: actions/cache@v4
         with:
