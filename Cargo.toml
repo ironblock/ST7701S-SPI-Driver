@@ -2,7 +2,7 @@
 name = "st7701s"
 version = "0.1.0"
 authors = ["Corey Vixie <corey@vixie.enterprises>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 num = "0.2.0"

@@ -1,3 +1,4 @@
+#![warn(missing_docs, missing_debug_implementations, rust_2024_compatibility)]
 extern crate enum_primitive;
 extern crate num;
 extern crate spidev;
