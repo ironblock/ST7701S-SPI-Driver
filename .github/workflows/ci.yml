@@ -21,6 +21,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/tooling
       - name: Add Target for `${{ matrix.target }}`
         run: rustup target add ${{ matrix.target }}
       - name: Build Driver (`${{ matrix.target }}`, `${{ matrix.profile }}`)
