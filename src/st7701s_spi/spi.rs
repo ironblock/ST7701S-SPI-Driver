@@ -1,5 +1,6 @@
 extern crate spidev;
 
+use log::{error};
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
 use std::io;
 use std::io::prelude::*;
@@ -30,36 +31,36 @@ impl HalfDuplexSPI {
         HalfDuplexSPI { options, spi }
     }
 
-    pub fn write_command(&mut self, command: Result<Command, &'static str>) -> Result<(), ()> {
+    pub fn write_command(&mut self, command: Result<Command, &'static str>) -> () {
         match command {
             Ok(c) => {
-                let address = &c.serialize_address();
-                self.spi.write(&c.serialize_address());
-                // println!("Address:   {:#04X}", c.address);
+                self.spi.write(&c.serialize_address()).unwrap_or_else(|_| {
+                    panic!("Failed to write to address {:#04X}", c.address)
+                });
 
                 for parameter in c.parameters {
-                    self.spi.write(&Command::serialize_parameter(parameter));
-                    // println!("Parameter: {:08b}", parameter);
+                    self.spi.write(&Command::serialize_parameter(parameter)).unwrap_or_else(|_| {
+                        panic!("Failed to write parameter {:#04X}", parameter)
+                    });
                 }
-                // println!("--------------------");
             }
-            Err(e) => println!("{e}"),
+            Err(e) => error!("{e}"),
         }
-
-        Ok(())
     }
 
-    pub fn read_command(&mut self, command: Result<Command, &'static str>) -> Result<(), ()> {
+    pub fn read_command(&mut self, command: Result<Command, &'static str>) -> () {
         match command {
             Ok(c) => {
                 let mut rx_buf = [0_u8; 10];
-                self.spi.write(&c.serialize_address());
-                self.spi.read(&mut rx_buf);
+                self.spi.write(&c.serialize_address()).unwrap_or_else(|_| {
+                    panic!("Failed to write to address {:#04X}", c.address)
+                });
+                self.spi.read(&mut rx_buf).unwrap_or_else(|_| {
+                    panic!("Failed to read from address {:#04X}", c.address)
+                });
                 println!("{rx_buf:?}");
             }
             Err(e) => println!("{e}"),
         }
-
-        Ok(())
     }
 }
