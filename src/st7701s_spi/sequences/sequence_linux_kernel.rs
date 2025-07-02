@@ -1,15 +1,17 @@
 use std::{thread, time};
 
-use crate::instructions::{
-    BK0Command2, BK1Command2, BitsPerPixel, ColorOrder, Command, Command2Selection,
-    CommandsGeneral, DataEnable, DataPolarity, EnablePolarity, GammaOPBias, HsyncActive, Inversion,
-    ScanDirection, SourceOPInput, SourceOPOutput, TearingEffect, VoltageAVCL, VoltageAVDD,
-    VsyncActive,
+use crate::st7701s_spi::{
+    commands::{
+        BK0Command2, BK1Command2, BitsPerPixel, ColorOrder, Command, Command2Selection,
+        CommandsGeneral, DataEnable, DataPolarity, EnablePolarity, GammaOPBias, HsyncActive,
+        Inversion, ScanDirection, SourceOPInput, SourceOPOutput, TearingEffect, VoltageAVCL,
+        VoltageAVDD, VsyncActive,
+    },
+    panel::Mode,
+    spi::HalfDuplexSPI,
 };
-use crate::panel::Mode;
-use crate::spi::ST7701S;
 
-pub fn init(display: &mut ST7701S, mode: Mode) {
+pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
     let mut CMD2: Command2Selection = Command2Selection::Disabled;
 
     // SOFTWARE RESET

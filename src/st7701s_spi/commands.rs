@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::panel::Mode;
+use crate::st7701s_spi::panel::Mode;
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
 /// are performed half-duplex
