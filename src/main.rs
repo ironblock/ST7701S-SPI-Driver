@@ -21,13 +21,13 @@ extern crate num;
 extern crate spidev;
 
 use log::info;
-use st7701s::st7701s_spi::{panel::TDOMode, sequences::sequence_tdo::init, spi::HalfDuplexSPI};
+use st7701s::st7701s_spi::{ panel::TDOMODE, sequences::sequence_tdo::init, spi::HalfDuplexSPI};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");
 
     let mut display = HalfDuplexSPI::new(String::from("/dev/spidev1.0"));
-    let mode = TDOMode;
+    let mode = TDOMODE;
 
     init(&mut display, mode);
 }

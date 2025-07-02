@@ -14,7 +14,7 @@ pub struct HalfDuplexSPI {
 impl HalfDuplexSPI {
     pub fn create_spi(device: String, options: &SpidevOptions) -> io::Result<Spidev> {
         let mut spi = Spidev::open(device)?;
-        spi.configure(&options)?;
+        spi.configure(options)?;
         Ok(spi)
     }
 
@@ -43,7 +43,7 @@ impl HalfDuplexSPI {
                 }
                 // println!("--------------------");
             }
-            Err(e) => println!("{}", e),
+            Err(e) => println!("{e}"),
         }
 
         Ok(())
@@ -55,9 +55,9 @@ impl HalfDuplexSPI {
                 let mut rx_buf = [0_u8; 10];
                 self.spi.write(&c.serialize_address());
                 self.spi.read(&mut rx_buf);
-                println!("{:?}", rx_buf);
+                println!("{rx_buf:?}");
             }
-            Err(e) => println!("{}", e),
+            Err(e) => println!("{e}"),
         }
 
         Ok(())

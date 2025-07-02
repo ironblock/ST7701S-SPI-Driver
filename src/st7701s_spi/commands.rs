@@ -30,7 +30,7 @@ pub struct Command {
 impl Command {
     fn new(address: u8) -> Command {
         Command {
-            address: address,
+            address,
             parameters: Vec::new(),
         }
     }
@@ -46,7 +46,7 @@ impl Command {
     }
 
     pub fn serialize_address(&self) -> [u8; 2] {
-        [(self.address as u8), 0x00]
+        [self.address, 0x00]
     }
 
     pub fn serialize_parameter(parameter: u8) -> [u8; 2] {
@@ -464,8 +464,8 @@ impl CommandsGeneral {
     ///
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
-    pub fn gamma_curve_select(GC: GammaCurve) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::GAMSET as u8).arg(GC as u8))
+    pub fn gamma_curve_select(gc: GammaCurve) -> Result<Command, &'static str> {
+        Ok(Command::new(Self::GAMSET as u8).arg(gc as u8))
     }
     /// # DISPLAY OFF (DEFAULT?)
     ///
@@ -498,8 +498,8 @@ impl CommandsGeneral {
     ///
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |   --   |   --   |   --   |   --   |   --   |   --   |   TE   |
-    pub fn tearing_effect_on(TE: TearingEffect) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::TEON as u8).arg(TE as u8))
+    pub fn tearing_effect_on(te: TearingEffect) -> Result<Command, &'static str> {
+        Ok(Command::new(Self::TEON as u8).arg(te as u8))
     }
     /// # DISPLAY DATA ACCESS CONTROL
     /// * [ML] - Scan direction
@@ -507,10 +507,10 @@ impl CommandsGeneral {
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
     pub fn display_data_control(
-        ML: ScanDirection,
-        CO: ColorOrder,
+        ml: ScanDirection,
+        co: ColorOrder,
     ) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::MADCTL as u8).arg(ML as u8 | CO as u8))
+        Ok(Command::new(Self::MADCTL as u8).arg(ml as u8 | co as u8))
     }
     /// # IDLE MODE OFF
     ///
@@ -533,8 +533,8 @@ impl CommandsGeneral {
     ///
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
-    pub fn set_color_mode(BPP: BitsPerPixel) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::COLMOD as u8).arg(BPP as u8))
+    pub fn set_color_mode(bpp: BitsPerPixel) -> Result<Command, &'static str> {
+        Ok(Command::new(Self::COLMOD as u8).arg(bpp as u8))
     }
     /// # WRDISBV
     ///
@@ -545,8 +545,8 @@ impl CommandsGeneral {
     ///
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|                     Display Brightness Value [7:0]                    |
-    pub fn set_display_brightness(DBV: u8) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRDISBV as u8).arg(DBV as u8))
+    pub fn set_display_brightness(dbv: u8) -> Result<Command, &'static str> {
+        Ok(Command::new(Self::WRDISBV as u8).arg(dbv))
     }
 
     /// # WRITE CTRL DISPLAY
@@ -560,11 +560,11 @@ impl CommandsGeneral {
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
     pub fn configure_brightness(
-        BCTRL: BrightnessControl,
-        DD: DisplayDimming,
-        BL: Backlight,
+        bctrl: BrightnessControl,
+        dd: DisplayDimming,
+        bl: Backlight,
     ) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRCTRLD as u8).arg(BCTRL as u8 | DD as u8 | BL as u8))
+        Ok(Command::new(Self::WRCTRLD as u8).arg(bctrl as u8 | dd as u8 | bl as u8))
     }
     /// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
     ///
@@ -578,11 +578,11 @@ impl CommandsGeneral {
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
     pub fn configure_color_enhancement(
-        CE: Enhancement,
-        CEMD: EnhancementMode,
-        CABC: AdaptiveBrightness,
+        ce: Enhancement,
+        cemd: EnhancementMode,
+        cabc: AdaptiveBrightness,
     ) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRCACE as u8).arg(CE as u8 | CEMD as u8 | CABC as u8))
+        Ok(Command::new(Self::WRCACE as u8).arg(ce as u8 | cemd as u8 | cabc as u8))
     }
 
     ///
@@ -594,8 +594,8 @@ impl CommandsGeneral {
     ///
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|                     Minimum Brightness Value [7:0]                    |
-    pub fn set_minimum_brightness(MBV: u8) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRCABCMB as u8).arg(MBV as u8))
+    pub fn set_minimum_brightness(mbv: u8) -> Result<Command, &'static str> {
+        Ok(Command::new(Self::WRCABCMB as u8).arg(mbv))
     }
 
     pub fn read_display_pixel_format() -> Result<Command, &'static str> {
@@ -623,11 +623,11 @@ impl CommandsGeneral {
 }
 
 impl BK0Command2 {
-    pub fn validate<F>(CMD2: &Command2Selection, build_command: F) -> Result<Command, &'static str>
+    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<Command, &'static str>
     where
         F: Fn() -> Command,
     {
-        match CMD2 {
+        match cmd2 {
             Command2Selection::BK0 => Ok(build_command()),
             _ => Err("Cannot run command '{}': BK0 Command 2 mode not set"),
         }
@@ -636,10 +636,10 @@ impl BK0Command2 {
     /// # POSITIVE GAMMA CONTROL
     /// See note above about parameters
     pub fn positive_gamma_control(
-        CMD2: &Command2Selection,
+        cmd2: &Command2Selection,
         parameters: &[u8],
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
+        Self::validate(cmd2, || {
             Command::new(Self::PVGAMCTRL as u8).args(parameters)
         })
     }
@@ -647,31 +647,31 @@ impl BK0Command2 {
     /// # POSITIVE GAMMA CONTROL
     /// See note above about parameters
     pub fn negative_gamma_control(
-        CMD2: &Command2Selection,
+        cmd2: &Command2Selection,
         parameters: &[u8],
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
+        Self::validate(cmd2, || {
             Command::new(Self::NVGAMCTRL as u8).args(parameters)
         })
     }
 
     /// # DISPLAY LINE SETTING
     pub fn display_line_setting(
-        CMD2: &Command2Selection,
-        LDE_EN: u8,
-        Line: u8,
-        Line_delta: u8,
+        cmd2: &Command2Selection,
+        lde_en: u8,
+        line: u8,
+        line_delta: u8,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(Self::LNESET as u8).args(&[LDE_EN | Line, Line_delta])
+        Self::validate(cmd2, || {
+            Command::new(Self::LNESET as u8).args(&[lde_en | line, line_delta])
         })
     }
 
     /// # PORCH CONTROL
-    pub fn porch_control(CMD2: &Command2Selection, mode: &Mode) -> Result<Command, &'static str> {
+    pub fn porch_control(cmd2: &Command2Selection, mode: &Mode) -> Result<Command, &'static str> {
         let front_porch: u8 = (mode.vtotal - mode.vsync_end).try_into().unwrap();
         let back_porch: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
-        Self::validate(CMD2, || {
+        Self::validate(cmd2, || {
             Command::new(Self::PORCTRL as u8).args(&[front_porch, back_porch])
         })
     }
@@ -680,12 +680,12 @@ impl BK0Command2 {
     /// * [LINV] - the type of inversion
     /// * [RTNI] - minimum number of pclk in each line
     pub fn inversion_select(
-        CMD2: &Command2Selection,
-        NLINV: Inversion,
-        RTNI: u8,
+        cmd2: &Command2Selection,
+        nlinv: Inversion,
+        rtni: u8,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(Self::INVSET as u8).args(&[NLINV as u8, RTNI])
+        Self::validate(cmd2, || {
+            Command::new(Self::INVSET as u8).args(&[nlinv as u8, rtni])
         })
     }
 
@@ -710,22 +710,22 @@ impl BK0Command2 {
     ///|                                  HBP                                  |
     ///|                                  VBP                                  |
     pub fn rgb_control(
-        CMD2: &Command2Selection,
-        DEHV: DataEnable,
-        VSP: VsyncActive,
-        HSP: HsyncActive,
-        DP: DataPolarity,
-        EP: EnablePolarity,
+        cmd2: &Command2Selection,
+        dehv: DataEnable,
+        vsp: VsyncActive,
+        hsp: HsyncActive,
+        dp: DataPolarity,
+        ep: EnablePolarity,
         mode: &Mode,
     ) -> Result<Command, &'static str> {
-        let HBP: u8 = (mode.htotal - mode.hsync_end).try_into().unwrap();
-        let VBP: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
+        let hbp: u8 = (mode.htotal - mode.hsync_end).try_into().unwrap();
+        let vbp: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
 
-        Self::validate(CMD2, || {
+        Self::validate(cmd2, || {
             Command::new(Self::RGBCTRL as u8).args(&[
-                DEHV as u8 | VSP as u8 | HSP as u8 | DP as u8 | EP as u8,
-                HBP,
-                VBP,
+                dehv as u8 | vsp as u8 | hsp as u8 | dp as u8 | ep as u8,
+                hbp,
+                vbp,
             ])
         })
     }
@@ -749,14 +749,14 @@ impl BK0Command2 {
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |   --   |   PWM  |   LED  |   MDT  |            EPF           |
     pub fn color_control(
-        CMD2: &Command2Selection,
-        PWM: PWMPolarity,
-        LED: LEDPolarity,
-        MDT: PixelPinout,
-        EPF: EndPixelFormat,
+        cmd2: &Command2Selection,
+        pwm: PWMPolarity,
+        led: LEDPolarity,
+        mdt: PixelPinout,
+        epf: EndPixelFormat,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(Self::COLCTRL as u8).arg(PWM as u8 | LED as u8 | MDT as u8 | EPF as u8)
+        Self::validate(cmd2, || {
+            Command::new(Self::COLCTRL as u8).arg(pwm as u8 | led as u8 | mdt as u8 | epf as u8)
         })
     }
 
@@ -769,69 +769,69 @@ impl BK0Command2 {
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |   --   |   --   |   --   |   SRE  |      SRE_alpha[3:0]      |
     pub fn configure_sunlight_ehancement(
-        CMD2: &Command2Selection,
-        SRE: SunlightReadable,
-        mut SRE_alpha: u8,
+        cmd2: &Command2Selection,
+        sre: SunlightReadable,
+        mut sre_alpha: u8,
     ) -> Result<Command, &'static str> {
-        if SRE_alpha > 0x0F {
-            SRE_alpha = 0x0F;
+        if sre_alpha > 0x0F {
+            sre_alpha = 0x0F;
         }
-        Self::validate(CMD2, || {
-            Command::new(Self::SECTRL as u8).arg(SRE as u8 | SRE_alpha)
+        Self::validate(cmd2, || {
+            Command::new(Self::SECTRL as u8).arg(sre as u8 | sre_alpha)
         })
     }
 }
 
 impl BK1Command2 {
-    pub fn validate<F>(CMD2: &Command2Selection, build_command: F) -> Result<Command, &'static str>
+    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<Command, &'static str>
     where
         F: Fn() -> Command,
     {
-        match CMD2 {
+        match cmd2 {
             Command2Selection::BK1 => Ok(build_command()),
             _ => Err("Cannot run command '{}': BK0 Command 2 mode not set"),
         }
     }
 
-    pub fn set_vop_amplitude(CMD2: &Command2Selection, VRHA: u8) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || Command::new(BK1Command2::VRHS as u8).arg(VRHA))
+    pub fn set_vop_amplitude(cmd2: &Command2Selection, vrha: u8) -> Result<Command, &'static str> {
+        Self::validate(cmd2, || Command::new(BK1Command2::VRHS as u8).arg(vrha))
     }
 
-    pub fn set_vcom_amplitude(CMD2: &Command2Selection, VCOM: u8) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || Command::new(BK1Command2::VCOMS as u8).arg(VCOM))
+    pub fn set_vcom_amplitude(cmd2: &Command2Selection, vcom: u8) -> Result<Command, &'static str> {
+        Self::validate(cmd2, || Command::new(BK1Command2::VCOMS as u8).arg(vcom))
     }
 
-    pub fn set_vgh_voltage(CMD2: &Command2Selection, VGH: u8) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || Command::new(BK1Command2::VGHSS as u8).arg(VGH))
+    pub fn set_vgh_voltage(cmd2: &Command2Selection, vgh: u8) -> Result<Command, &'static str> {
+        Self::validate(cmd2, || Command::new(BK1Command2::VGHSS as u8).arg(vgh))
     }
-    pub fn test_command_setting(CMD2: &Command2Selection) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || Command::new(BK1Command2::TESTCMD as u8).arg(0x80))
+    pub fn test_command_setting(cmd2: &Command2Selection) -> Result<Command, &'static str> {
+        Self::validate(cmd2, || Command::new(BK1Command2::TESTCMD as u8).arg(0x80))
     }
 
-    pub fn set_vgl_voltage(CMD2: &Command2Selection, VGLS: u8) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(BK1Command2::VGLS as u8).arg(0x40 | VGLS)
+    pub fn set_vgl_voltage(cmd2: &Command2Selection, vgls: u8) -> Result<Command, &'static str> {
+        Self::validate(cmd2, || {
+            Command::new(BK1Command2::VGLS as u8).arg(0x40 | vgls)
         })
     }
 
     pub fn power_control_one(
-        CMD2: &Command2Selection,
-        AP: GammaOPBias,
-        APIS: SourceOPInput,
-        APOS: SourceOPOutput,
+        cmd2: &Command2Selection,
+        ap: GammaOPBias,
+        apis: SourceOPInput,
+        apos: SourceOPOutput,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(BK1Command2::PWCTRL1 as u8).arg(AP as u8 | APIS as u8 | APOS as u8)
+        Self::validate(cmd2, || {
+            Command::new(BK1Command2::PWCTRL1 as u8).arg(ap as u8 | apis as u8 | apos as u8)
         })
     }
 
     pub fn power_control_two(
-        CMD2: &Command2Selection,
-        AVDD: VoltageAVDD,
-        AVCL: VoltageAVCL,
+        cmd2: &Command2Selection,
+        avdd: VoltageAVDD,
+        avcl: VoltageAVCL,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(BK1Command2::PWCTRL2 as u8).arg(AVDD as u8 | AVCL as u8)
+        Self::validate(cmd2, || {
+            Command::new(BK1Command2::PWCTRL2 as u8).arg(avdd as u8 | avcl as u8)
         })
     }
 
@@ -841,22 +841,22 @@ impl BK1Command2 {
     ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
     ///|   --   |    1   |    1   |    1   |                T2D                |
     pub fn set_pre_drive_timing_one(
-        CMD2: &Command2Selection,
-        T2D: u8,
+        cmd2: &Command2Selection,
+        t2d: u8,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(BK1Command2::SPD1 as u8).arg(0x70 | T2D)
+        Self::validate(cmd2, || {
+            Command::new(BK1Command2::SPD1 as u8).arg(0x70 | t2d)
         })
     }
 
     /// # SET SOURCE PRE DRIVE TIMING CONTROL
     /// Same parameters as SPD1
     pub fn set_pre_drive_timing_two(
-        CMD2: &Command2Selection,
-        T2D: u8,
+        cmd2: &Command2Selection,
+        t2d: u8,
     ) -> Result<Command, &'static str> {
-        Self::validate(CMD2, || {
-            Command::new(BK1Command2::SPD2 as u8).arg(0x70 | T2D)
+        Self::validate(cmd2, || {
+            Command::new(BK1Command2::SPD2 as u8).arg(0x70 | t2d)
         })
     }
 }
