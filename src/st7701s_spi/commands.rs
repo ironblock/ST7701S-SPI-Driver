@@ -1,6 +1,15 @@
 use std::convert::TryInto;
 
-use crate::st7701s_spi::{panel::Mode, parameters::{AdaptiveBrightness, Backlight, BitsPerPixel, BrightnessControl, ColorOrder, DataEnable, DataPolarity, DisplayDimming, EnablePolarity, EndPixelFormat, Enhancement, EnhancementMode, GammaCurve, GammaOPBias, HsyncActive, Inversion, LEDPolarity, PWMPolarity, PixelPinout, ScanDirection, SourceOPInput, SourceOPOutput, SunlightReadable, TearingEffect, VoltageAVCL, VoltageAVDD, VsyncActive}};
+use crate::st7701s_spi::{
+    panel::Mode,
+    parameters::{
+        AdaptiveBrightness, Backlight, BitsPerPixel, BrightnessControl, ColorOrder, DataEnable,
+        DataPolarity, DisplayDimming, EnablePolarity, EndPixelFormat, Enhancement, EnhancementMode,
+        GammaCurve, GammaOPBias, HsyncActive, Inversion, LEDPolarity, PWMPolarity, PixelPinout,
+        ScanDirection, SourceOPInput, SourceOPOutput, SunlightReadable, TearingEffect, VoltageAVCL,
+        VoltageAVDD, VsyncActive,
+    },
+};
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
 /// are performed half-duplex
@@ -53,8 +62,8 @@ impl Command {
     }
 }
 
-
-#[derive(PartialEq)]#[repr(u8)]
+#[derive(PartialEq)]
+#[repr(u8)]
 pub enum Command2Selection {
     Disabled = 0x00,
     BK0 = 0x10,
@@ -141,7 +150,6 @@ pub enum BK0Command2 {
     CCCTRL = 0xE3,    // Color Calibration Control
     SKCTRL = 0xE4,    // Skin Tone Preservation CONTROL
 }
-
 
 pub enum BK1Command2 {
     VRHS = 0xB0,     // Vop Amplitude setting

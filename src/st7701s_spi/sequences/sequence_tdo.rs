@@ -1,10 +1,13 @@
 use std::{thread, time};
 
 use crate::st7701s_spi::{
-    commands::{
-        BK0Command2, BK1Command2,  Command, Command2Selection,
-        CommandsGeneral,
-    }, panel::Mode, parameters::{BitsPerPixel, ColorOrder, EndPixelFormat, GammaOPBias, Inversion, LEDPolarity, PWMPolarity, PixelPinout, ScanDirection, SourceOPInput, SourceOPOutput, VoltageAVCL, VoltageAVDD}, spi::HalfDuplexSPI
+    commands::{BK0Command2, BK1Command2, Command, Command2Selection, CommandsGeneral},
+    panel::Mode,
+    parameters::{
+        BitsPerPixel, ColorOrder, EndPixelFormat, GammaOPBias, Inversion, LEDPolarity, PWMPolarity,
+        PixelPinout, ScanDirection, SourceOPInput, SourceOPOutput, VoltageAVCL, VoltageAVDD,
+    },
+    spi::HalfDuplexSPI,
 };
 
 pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
