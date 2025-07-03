@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::st7701s_spi::panel::Mode;
+use crate::st7701s_spi::{panel::Mode, parameters::{AdaptiveBrightness, Backlight, BitsPerPixel, BrightnessControl, ColorOrder, DataEnable, DataPolarity, DisplayDimming, EnablePolarity, EndPixelFormat, Enhancement, EnhancementMode, GammaCurve, GammaOPBias, HsyncActive, Inversion, LEDPolarity, PWMPolarity, PixelPinout, ScanDirection, SourceOPInput, SourceOPOutput, SunlightReadable, TearingEffect, VoltageAVCL, VoltageAVDD, VsyncActive}};
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
 /// are performed half-duplex
@@ -21,7 +21,6 @@ use crate::st7701s_spi::panel::Mode;
 /// transferred by the D/CX pin. If D/CX is “low”, the transmission byte is
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
-#[derive(Clone, Debug)]
 pub struct Command {
     pub address: u8,
     pub parameters: Vec<u8>,
@@ -54,210 +53,8 @@ impl Command {
     }
 }
 
-#[derive(Copy, Clone)]
-pub enum GammaCurve {
-    /// Gamma Curve 1 (G=2.2)
-    One = 0x01,
-    /// Reserved
-    Two = 0x02,
-    /// Reserved
-    Three = 0x04,
-    /// Reserved
-    Four = 0x08,
-}
 
-#[derive(Copy, Clone)]
-pub enum TearingEffect {
-    /// V-blanking only
-    VBlank = 0x00,
-    /// V-blanking and H-blanking
-    VHBlank = 0x01,
-}
-
-#[derive(Copy, Clone)]
-pub enum DataEnable {
-    DE = 0x00,
-    HV = 0x80,
-}
-
-#[derive(Copy, Clone)]
-pub enum VsyncActive {
-    Low = 0x00,
-    High = 0x08,
-}
-#[derive(Copy, Clone)]
-pub enum HsyncActive {
-    Low = 0x00,
-    High = 0x04,
-}
-#[derive(Copy, Clone)]
-pub enum DataPolarity {
-    Rising = 0x00,
-    Falling = 0x02,
-}
-#[derive(Copy, Clone)]
-pub enum EnablePolarity {
-    Low = 0x00,
-    High = 0x01,
-}
-
-#[derive(Copy, Clone)]
-pub enum PWMPolarity {
-    Low = 0x00,
-    High = 0x20,
-}
-
-#[derive(Copy, Clone)]
-pub enum LEDPolarity {
-    Low = 0x00,
-    High = 0x10,
-}
-
-#[derive(Copy, Clone)]
-pub enum PixelPinout {
-    Normal = 0x00,
-    Condensed = 0x08,
-}
-#[derive(Copy, Clone)]
-pub enum EndPixelFormat {
-    SelfMSB = 0x00,
-    GreenMSB = 0x01,
-    SelfLSB = 0x02,
-    Zero = 0x04,
-    One = 0x05,
-}
-
-#[derive(Copy, Clone)]
-pub enum ScanDirection {
-    Normal = 0x00,
-    Reverse = 0x10,
-}
-
-#[derive(Copy, Clone)]
-pub enum ColorOrder {
-    /// RGB mode
-    Rgb = 0x00,
-    /// BGR mode
-    Bgr = 0x08,
-}
-
-#[derive(Copy, Clone)]
-pub enum BitsPerPixel {
-    /// 16 bits per pixel (RGB565)
-    Rgb565 = 0x50,
-    /// 18 bits per pixel (RGB666)
-    Rgb666 = 0x60,
-    /// 24 bits per pixel (RGB888)
-    Rgb888 = 0x70,
-}
-
-#[derive(Copy, Clone)]
-pub enum BrightnessControl {
-    /// Ignore display brightness value and soft-set it to 0x00
-    Off = 0x00,
-    /// Use display brightness value normally
-    On = 0x20,
-}
-
-#[derive(Copy, Clone)]
-pub enum DisplayDimming {
-    /// Ignore display brightness value and soft-set it to 0x00
-    Off = 0x00,
-    /// Use display brightness value normally
-    On = 0x08,
-}
-
-#[derive(Copy, Clone)]
-pub enum Backlight {
-    /// Disable backlight circuit. Control lines must be low.
-    Off = 0x00,
-    /// Enable backlight circuit. Normal behavior.
-    On = 0x04,
-}
-
-#[derive(Copy, Clone)]
-pub enum Enhancement {
-    /// Disable color enhancement
-    Off = 0x00,
-    /// Enable color enhancement
-    On = 0x80,
-}
-
-#[derive(Copy, Clone)]
-pub enum EnhancementMode {
-    Low = 0x00,
-    Medium = 0x10,
-    High = 0x30,
-}
-
-#[derive(Copy, Clone)]
-pub enum AdaptiveBrightness {
-    /// Off
-    Off = 0x00,
-    /// User Interface Mode
-    UserInterface = 0x01,
-    /// Still Picture Mode
-    StillPicture = 0x02,
-    /// Moving Image Mode
-    MovingImage = 0x03,
-}
-
-#[derive(Copy, Clone)]
-pub enum Inversion {
-    OneDot = 0x00,
-    TwoDot = 0x01,
-    Column = 0x07,
-}
-
-#[derive(Copy, Clone)]
-pub enum GammaOPBias {
-    Off = 0x00,
-    Min = 0x40,
-    Middle = 0x80,
-    Max = 0xC0,
-}
-
-#[derive(Copy, Clone)]
-pub enum SourceOPInput {
-    Off = 0x00,
-    Min = 0x04,
-    Middle = 0x08,
-    Max = 0x0C,
-}
-
-#[derive(Copy, Clone)]
-pub enum SourceOPOutput {
-    Off = 0x00,
-    Min = 0x01,
-    Middle = 0x02,
-    Max = 0x03,
-}
-
-#[derive(Copy, Clone)]
-pub enum VoltageAVDD {
-    Pos6_2 = 0x00,
-    Pos6_4 = 0x10,
-    Pos6_6 = 0x20,
-    Pos6_8 = 0x30,
-}
-
-#[derive(Copy, Clone)]
-pub enum VoltageAVCL {
-    Neg4_4 = 0x00,
-    Neg4_6 = 0x01,
-    Neg4_8 = 0x02,
-    Neg5_0 = 0x03,
-}
-
-#[derive(Copy, Clone)]
-pub enum SunlightReadable {
-    /// DEFAULT: Sunlight readable mode off
-    Off = 0x00,
-    /// Enable sunlight readable mode
-    On = 0x10,
-}
-
-#[derive(PartialEq)]
+#[derive(PartialEq)]#[repr(u8)]
 pub enum Command2Selection {
     Disabled = 0x00,
     BK0 = 0x10,
@@ -265,7 +62,7 @@ pub enum Command2Selection {
     BK3 = 0x13,
 }
 
-#[derive(Copy, Clone)]
+#[repr(u8)]
 pub enum CommandsGeneral {
     NOP = 0x00,        // No-op
     SWRESET = 0x01,    // Software Reset
@@ -322,7 +119,7 @@ pub enum CommandsGeneral {
     CND2BKxSEL = 0xFF, // Set Command2 mode for BK Register
 }
 
-#[derive(Copy, Clone)]
+#[repr(u8)]
 pub enum BK0Command2 {
     PVGAMCTRL = 0xB0, // Positive Voltage Gamma Control
     NVGAMCTRL = 0xB1, // Negative Voltage Gamma Control
@@ -345,7 +142,7 @@ pub enum BK0Command2 {
     SKCTRL = 0xE4,    // Skin Tone Preservation CONTROL
 }
 
-#[derive(Copy, Clone)]
+
 pub enum BK1Command2 {
     VRHS = 0xB0,     // Vop Amplitude setting
     VCOMS = 0xB1,    // VCOM amplitude setting
