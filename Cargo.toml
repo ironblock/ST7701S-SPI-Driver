@@ -2,9 +2,10 @@
 name = "st7701s"
 version = "0.1.0"
 authors = ["Corey Vixie <corey@vixie.enterprises>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
+log = "0.4.27"
 num = "0.2.0"
 spidev = "0.4.0"
 enum_primitive = "0.1.1"
@@ -12,3 +13,7 @@ enum_primitive = "0.1.1"
 [[bin]]
 name = "st7701s"
 path = "src/main.rs"
+
+[lib]
+name = "st7701s"
+path = "src/lib.rs"
