@@ -1,7 +1,7 @@
 use std::{thread, time};
 
 use crate::st7701s_spi::{
-    commands::{BK0Command2, BK1Command2, Command, Command2Selection, CommandsGeneral},
+    commands::{BK0Command2, BK1Command2, OldCommand, Command2Selection, CommandsGeneral},
     panel::Mode,
     parameters::{
         BitsPerPixel, ColorOrder, DataEnable, DataPolarity, EnablePolarity, GammaOPBias,
@@ -93,61 +93,61 @@ pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
     // something to not line up.
     //
     // May whatever gods you pray to have mercy on our souls.
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE0,
         parameters: vec![0x00, 0x00, 0x02],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE1,
         parameters: vec![
             0x0B, 0x00, 0x0D, 0x00, 0x0C, 0x00, 0x0E, 0x00, 0x00, 0x44, 0x44,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE2,
         parameters: vec![
             0x33, 0x33, 0x44, 0x44, 0x64, 0x00, 0x66, 0x00, 0x65, 0x00, 0x67, 0x00, 0x00,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE3,
         parameters: vec![0x00, 0x00, 0x33, 0x33],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE4,
         parameters: vec![0x44, 0x44],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE5,
         parameters: vec![
             0x0C, 0x78, 0x3C, 0xA0, 0x0E, 0x78, 0x3C, 0xA0, 0x10, 0x78, 0x3C, 0xA0, 0x12, 0x78,
             0x3C, 0xA0,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE6,
         parameters: vec![0x00, 0x00, 0x33, 0x33],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE7,
         parameters: vec![0x44, 0x44],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE8,
         parameters: vec![
             0x0D, 0x78, 0x3C, 0xA0, 0x0F, 0x78, 0x3C, 0xA0, 0x11, 0x78, 0x3C, 0xA0, 0x13, 0x78,
             0x3C, 0xA0,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xEB,
         parameters: vec![0x02, 0x02, 0x39, 0x39, 0xEE, 0x44, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xEC,
         parameters: vec![0x00, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xED,
         parameters: vec![
             0xFF, 0xF1, 0x04, 0x56, 0x72, 0x3F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF3, 0x27, 0x65, 0x40,

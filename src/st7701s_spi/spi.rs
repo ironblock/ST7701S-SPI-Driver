@@ -5,7 +5,7 @@ use spidev::{SpiModeFlags, Spidev, SpidevOptions};
 use std::io;
 use std::io::prelude::*;
 
-use crate::st7701s_spi::commands::Command;
+use crate::st7701s_spi::commands::OldCommand;
 
 pub struct HalfDuplexSPI {
     spi: Spidev,
@@ -31,7 +31,7 @@ impl HalfDuplexSPI {
         HalfDuplexSPI { options, spi }
     }
 
-    pub fn write_command(&mut self, command: Result<Command, &'static str>) {
+    pub fn write_command(&mut self, command: Result<OldCommand, &'static str>) {
         match command {
             Ok(c) => {
                 self.spi
@@ -40,7 +40,7 @@ impl HalfDuplexSPI {
 
                 for parameter in c.parameters {
                     self.spi
-                        .write(&Command::serialize_parameter(parameter))
+                        .write(&OldCommand::serialize_parameter(parameter))
                         .unwrap_or_else(|_| panic!("Failed to write parameter {parameter:#04X}"));
                 }
             }
@@ -48,7 +48,7 @@ impl HalfDuplexSPI {
         }
     }
 
-    pub fn read_command(&mut self, command: Result<Command, &'static str>) {
+    pub fn read_command(&mut self, command: Result<OldCommand, &'static str>) {
         match command {
             Ok(c) => {
                 let mut rx_buf = [0_u8; 10];

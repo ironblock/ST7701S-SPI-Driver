@@ -30,25 +30,25 @@ use crate::st7701s_spi::{
 /// transferred by the D/CX pin. If D/CX is “low”, the transmission byte is
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
-pub struct Command {
+pub struct OldCommand {
     pub address: u8,
     pub parameters: Vec<u8>,
 }
 
-impl Command {
-    fn new(address: u8) -> Command {
-        Command {
+impl OldCommand {
+    fn new(address: u8) -> OldCommand {
+        OldCommand {
             address,
             parameters: Vec::new(),
         }
     }
 
-    fn arg(mut self, arg: u8) -> Command {
+    fn arg(mut self, arg: u8) -> OldCommand {
         self.parameters.push(arg);
         self
     }
 
-    fn args(mut self, args: &[u8]) -> Command {
+    fn args(mut self, args: &[u8]) -> OldCommand {
         self.parameters.extend_from_slice(args);
         self
     }
@@ -169,268 +169,286 @@ pub enum BK1Command2 {
     MIPISET4 = 0xD3, // MIPI Setting 4
 }
 
-impl CommandsGeneral {
-    /// # NO OPERATION
-    ///
-    /// This command is "empty". It has no effect on the display, but it can be
-    /// used to terminate parameter write commands.
-    pub fn no_operation() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::NOP as u8))
-    }
 
-    /// # SOFTWARE RESET
-    ///
-    /// The display module performs a software reset. Registers are written with
-    /// the default "reset" values.
-    ///
-    ///   - Frame buffer contents are unaffected by this command
-    ///   - After a SWRESET command, sleep at least 5ms before the next command
-    ///   - If the display is sleeping when a SWRESET is sent, the sleep
-    ///     duration should be at least 120ms before sending the next command.
-    ///   - SWRESET cannot be sent during SLPOUT
-    ///   - (MIPI ONLY) Send a shutdown packet before SWRESET
-    pub fn software_reset() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::SWRESET as u8).arg(0x01))
-    }
-    /// # SLEEP IN
-    ///
-    /// This command causes the display module to enter a minimum power state.
-    /// The buck converter, display oscilator, and panel scanning are all shut
-    /// down.
-    ///
-    /// The control interface, display data, and registers remain active.
-    ///
-    /// The driver may send PCLK, HS, and CS information after SLPIN, and this
-    /// data will be valid for the next two frames if Normal Mode is active.
-    ///
-    /// Dimming will not work when changing from sleep out to sleep in.
-    ///
-    /// Normally, sleep state can be read with RDDST, but MISO must be connected.
-    pub fn sleep_mode_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::SLPIN as u8).arg(0x02))
-    }
+pub enum PacketType {
+    Command = 0b0,
+    Data = 0b1,
+}
 
-    /// # SLEEP OUT
-    ///
-    /// This command turns off the minimum power state set by SLPIN.
-    ///
-    /// The driver may send PCLK, HS, and CS information before SLPOUT, and this
-    /// data will be valid for the two frames before the command if Normal Mode
-    /// is active.
-    pub fn sleep_mode_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::SLPOUT as u8).arg(0x11))
-    }
-    /// # PARTIAL MODE ON
-    ///
-    /// This command turns on Partial Mode. See PARTIAL AREA (30h) command.
-    pub fn partial_mode_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::PTLON as u8))
-    }
-    /// # NORMAL MODE ON (DEFAULT)
-    ///
-    /// This command turns on Normal Mode and turns off Partial Mode.
-    pub fn normal_mode_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::NORON as u8))
-    }
-    /// # DISPLAY INVERSION OFF (DEFAULT)
-    ///
-    /// This command restores normal pixel values.
-    pub fn invert_display_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::INVOFF as u8))
-    }
-    /// # DISPLAY INVERSION ON
-    ///
-    /// This command inverts the display (white becomes black, red becomes blue).
-    pub fn invert_display_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::INVON as u8))
-    }
-    /// # ALL PIXELS OFF (BLACK)
-    ///
-    /// This command sets all pixel values to black.
-    ///
-    /// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-    pub fn all_pixels_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::ALLPOFF as u8))
-    }
-    /// # ALL PIXELS ON (WHITE)
-    ///
-    /// This command sets all pixel values to white.
-    ///
-    /// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-    pub fn all_pixels_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::ALLPON as u8))
-    }
-    /// # GAMMA CURVE SELECT
-    ///
-    /// This command selects a predefined gamma curve from one of four values.
-    ///
-    /// WARNING: It's not clear from the Sitronix documentation what any values
-    /// are aside from 01.
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
-    pub fn gamma_curve_select(gc: GammaCurve) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::GAMSET as u8).arg(gc as u8))
-    }
-    /// # DISPLAY OFF (DEFAULT?)
-    ///
-    /// This command is used to enter Display Off Mode. In this mode, display
-    /// data is disabled and all pixels are blanked.
-    ///
-    /// NOTE: It's possible that this is the default value.
-    pub fn display_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::DISPOFF as u8).arg(0x28))
-    }
-    /// # DISPLAY ON
-    ///
-    /// WARNING: I have no idea how this behaves. The Sitronix docs monkey copied
-    /// and pasted the description for DISPOFF. At a guess, it should turn the
-    /// display back on.
-    pub fn display_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::DISPON as u8).arg(0x29))
-    }
-    /// # TEARING EFFECT LINE OFF
-    ///
-    /// This command is used to turn off the display module's Tearing Effect
-    /// output signal (vsync?) on the TE signal line (active low).
-    pub fn tearing_effect_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::TEOFF as u8))
-    }
-    /// # TEARING EFFECT LINE ON
-    ///
-    /// This command is used to turn on the display module's Tearing Effect
-    /// output signal line.
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |   --   |   --   |   --   |   --   |   --   |   --   |   TE   |
-    pub fn tearing_effect_on(te: TearingEffect) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::TEON as u8).arg(te as u8))
-    }
-    /// # DISPLAY DATA ACCESS CONTROL
-    /// * [ML] - Scan direction
-    /// * []
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
-    pub fn display_data_control(
-        ml: ScanDirection,
-        co: ColorOrder,
-    ) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::MADCTL as u8).arg(ml as u8 | co as u8))
-    }
-    /// # IDLE MODE OFF
-    ///
-    /// Turns off Idle Mode. Display is capable of its full 16.7 million color
-    /// palette
-    pub fn idle_mode_off() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::IDMOFF as u8))
-    }
-    /// # IDLE MODE ON
-    ///
-    /// Turns on Idle Mode. In idle mode the color palette is significantly
-    /// reduced. The MSB of each color will be rounded up or down, creating a
-    /// palette limited to 8 colors.
-    pub fn idle_mode_on() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::IDMON as u8))
-    }
-    /// # SET INTERFACE PIXEL FORMAT
-    ///
-    /// Defines the format for RGB pixel data.
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
-    pub fn set_color_mode(bpp: BitsPerPixel) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::COLMOD as u8).arg(bpp as u8))
-    }
-    /// # WRDISBV
-    ///
-    /// Change the display brightness to an 8-bit value.
-    ///
-    /// 0x00: Lowest brightness
-    /// 0xFF: Hightest brightness
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|                     Display Brightness Value [7:0]                    |
-    pub fn set_display_brightness(dbv: u8) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRDISBV as u8).arg(dbv))
-    }
+pub type Address = &'static u8;
+pub type Parameters<const S: usize> = [u8; S];
 
-    /// # WRITE CTRL DISPLAY
-    ///
-    /// This command changes more general behavior of the brightness controls.
-    ///
-    /// [BCTRL] Brightness control on or off
-    /// [DD] Display dimming (only affects manual brightness settings)
-    /// [BL] Backlight control on or off
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
-    pub fn configure_brightness(
-        bctrl: BrightnessControl,
-        dd: DisplayDimming,
-        bl: Backlight,
-    ) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRCTRLD as u8).arg(bctrl as u8 | dd as u8 | bl as u8))
-    }
-    /// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
-    ///
-    /// Set parameters for content-based adaptive brightness control, set
-    /// different color enhancement modes.
-    ///
-    /// [CE] Color enhancement on or off:
-    /// [CEMD] Color enhancement mode
-    /// [CABC] Adaptive brightness control
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
-    pub fn configure_color_enhancement(
-        ce: Enhancement,
-        cemd: EnhancementMode,
-        cabc: AdaptiveBrightness,
-    ) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRCACE as u8).arg(ce as u8 | cemd as u8 | cabc as u8))
-    }
+pub struct Command(Address);
+pub struct Setting<const S: usize>(Address, Parameters<S>);
 
-    ///
-    /// WRITE CABC MINIMUM BRIGHTNESS
-    ///
-    /// Sets the minimum brightness value to be used for CABC (see WRCACE).
-    ///
-    /// [MBV] Minimum Brightness Value
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|                     Minimum Brightness Value [7:0]                    |
-    pub fn set_minimum_brightness(mbv: u8) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::WRCABCMB as u8).arg(mbv))
-    }
+/// # NO OPERATION
+///
+/// This command is "empty". It has no effect on the display, but it can be
+/// used to terminate parameter write commands.
+pub fn no_operation() -> Command {
+    Command(&(CommandsGeneral::NOP as u8))
+}
 
-    pub fn read_display_pixel_format() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::RDDCOLMOD as u8))
-    }
+/// # SOFTWARE RESET
+///
+/// The display module performs a software reset. Registers are written with
+/// the default "reset" values.
+///
+///   - Frame buffer contents are unaffected by this command
+///   - After a SWRESET command, sleep at least 5ms before the next command
+///   - If the display is sleeping when a SWRESET is sent, the sleep
+///     duration should be at least 120ms before sending the next command.
+///   - SWRESET cannot be sent during SLPOUT
+///   - (MIPI ONLY) Send a shutdown packet before SWRESET
+pub fn software_reset() -> Setting<1> {
+    const RESET_DATA: [u8; 1] = [0b0000_0001];
 
-    pub fn read_self_diagnostics() -> Result<Command, &'static str> {
-        Ok(Command::new(Self::RDDSDR as u8))
-    }
+    Setting(&(CommandsGeneral::SWRESET as u8), RESET_DATA)
+}
 
-    /// # SET COMMAND2 MODE
-    /// This is one of the most confusing attributes of the Sitronix chips.
-    /// BK0, BK1, and BK3 (maybe) all have "Command2" instructions that share a
-    /// common address space. To avoid collisions and to ensure you're sending
-    /// the command you think you're sending, we use a double-entry bookkeeping
-    /// approach, where set_command_2 will send the chip the updated Command2
-    /// setting AND record it back to the local flag, which is required for
-    /// static type checking in all Command2 instructions locally.
-    ///
-    /// eg. for a BK1 Command2 instruction, "current" must be set to
-    /// Command2Selection::BK1.
-    pub fn set_command_2(set: Command2Selection) -> Result<Command, &'static str> {
-        Ok(Command::new(Self::CND2BKxSEL as u8).args(&[0x77, 0x01, 0x00, 0x00, set as u8]))
-    }
+/// # SLEEP IN
+///
+/// This command causes the display module to enter a minimum power state.
+/// The buck converter, display oscilator, and panel scanning are all shut
+/// down.
+///
+/// The control interface, display data, and registers remain active.
+///
+/// The driver may send PCLK, HS, and CS information after SLPIN, and this
+/// data will be valid for the next two frames if Normal Mode is active.
+///
+/// Dimming will not work when changing from sleep out to sleep in.
+///
+/// Normally, sleep state can be read with RDDST, but MISO must be connected.
+pub fn sleep_mode_on() -> Command {
+    Command(&(CommandsGeneral::SLPIN as u8))
+}
+
+/// # SLEEP OUT
+///
+/// This command turns off the minimum power state set by SLPIN.
+///
+/// The driver may send PCLK, HS, and CS information before SLPOUT, and this
+/// data will be valid for the two frames before the command if Normal Mode
+/// is active.
+pub fn sleep_mode_off() -> Command {
+    Command(&(CommandsGeneral::SLPOUT as u8))
+}
+
+/// # PARTIAL MODE ON
+///
+/// This command turns on Partial Mode. See PARTIAL AREA (30h) command.
+pub fn partial_mode_on() -> Command {
+    Command(&(CommandsGeneral::PTLON as u8))
+}
+
+/// # NORMAL MODE ON (DEFAULT)
+///
+/// This command turns on Normal Mode and turns off Partial Mode.
+pub fn normal_mode_on() -> Command {
+    Command(&(CommandsGeneral::NORON as u8))
+}
+
+/// # DISPLAY INVERSION OFF (DEFAULT)
+///
+/// This command restores normal pixel values.
+pub fn invert_display_off() -> Command {
+    Command(&(CommandsGeneral::INVOFF as u8))
+}
+
+/// # DISPLAY INVERSION ON
+///
+/// This command inverts the display (white becomes black, red becomes blue).
+pub fn invert_display_on() -> Command {
+    Command(&(CommandsGeneral::INVON as u8))
+}
+
+/// # ALL PIXELS OFF (BLACK)
+///
+/// This command sets all pixel values to black.
+///
+/// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
+pub fn all_pixels_off() -> Command {
+    Command(&(CommandsGeneral::ALLPOFF as u8))
+}
+
+/// # ALL PIXELS ON (WHITE)
+///
+/// This command sets all pixel values to white.
+///
+/// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
+pub fn all_pixels_on() -> Command {
+    Command(&(CommandsGeneral::ALLPON as u8))
+}
+
+/// # GAMMA CURVE SELECT
+///
+/// This command selects a predefined gamma curve from one of four values.
+///
+/// WARNING: It's not clear from the Sitronix documentation what any values
+/// are aside from 01.
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
+pub fn gamma_curve_select(gc: GammaCurve) -> Setting<1> {
+    Setting(&(CommandsGeneral::GAMSET as u8), [gc as u8])
+}
+
+/// # DISPLAY OFF (DEFAULT?)
+///
+/// This command is used to enter Display Off Mode. In this mode, display
+/// data is disabled and all pixels are blanked.
+///
+/// NOTE: It's possible that this is the default value.
+pub fn display_off() -> Setting<1> {
+    Setting(&(CommandsGeneral::DISPOFF as u8), [0x28])
+}
+
+/// # DISPLAY ON
+///
+/// WARNING: I have no idea how this behaves. The Sitronix docs monkey copied
+/// and pasted the description for DISPOFF. At a guess, it should turn the
+/// display back on.
+pub fn display_on() -> Setting<1> {
+    Setting(&(CommandsGeneral::DISPON as u8), [0x29])
+}
+
+pub fn tearing_effect_off() -> Command {
+    Command(&(CommandsGeneral::TEOFF as u8))
+}
+
+pub fn tearing_effect_on(te: TearingEffect) -> Setting<1> {
+    Setting(&(CommandsGeneral::TEON as u8), [te as u8])
+}
+
+/// # DISPLAY DATA ACCESS CONTROL
+/// * [ML] - Scan direction
+/// * []
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
+pub fn display_data_control(ml: ScanDirection, co: ColorOrder) -> Setting<1> {
+    Setting(&(CommandsGeneral::MADCTL as u8), [ml as u8 | co as u8])
+}
+/// # IDLE MODE OFF
+///
+/// Turns off Idle Mode. Display is capable of its full 16.7 million color
+/// palette
+pub fn idle_mode_off() -> Command {
+    Command(&(CommandsGeneral::IDMOFF as u8))
+}
+/// # IDLE MODE ON
+///
+/// Turns on Idle Mode. In idle mode the color palette is significantly
+/// reduced. The MSB of each color will be rounded up or down, creating a
+/// palette limited to 8 colors.
+pub fn idle_mode_on() -> Command {
+    Command(&(CommandsGeneral::IDMON as u8))
+}
+/// # SET INTERFACE PIXEL FORMAT
+///
+/// Defines the format for RGB pixel data.
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
+pub fn set_color_mode(bpp: BitsPerPixel) -> Setting<1> {
+    Setting(&(CommandsGeneral::COLMOD as u8), [bpp as u8])
+}
+/// # WRDISBV
+///
+/// Change the display brightness to an 8-bit value.
+///
+/// 0x00: Lowest brightness
+/// 0xFF: Hightest brightness
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|                     Display Brightness Value [7:0]                    |
+pub fn set_display_brightness(dbv: u8) -> Setting<1> {
+    Setting(&(CommandsGeneral::WRDISBV as u8), [dbv as u8])
+}
+
+/// # WRITE CTRL DISPLAY
+///
+/// This command changes more general behavior of the brightness controls.
+///
+/// [BCTRL] Brightness control on or off
+/// [DD] Display dimming (only affects manual brightness settings)
+/// [BL] Backlight control on or off
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
+pub fn configure_brightness(
+    bctrl: BrightnessControl,
+    dd: DisplayDimming,
+    bl: Backlight,
+) -> Setting<1> {
+    Setting(
+        &(CommandsGeneral::WRCTRLD as u8),
+        [bctrl as u8 | dd as u8 | bl as u8],
+    )
+}
+
+/// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
+///
+/// Set parameters for content-based adaptive brightness control, set
+/// different color enhancement modes.
+///
+/// [CE] Color enhancement on or off:
+/// [CEMD] Color enhancement mode
+/// [CABC] Adaptive brightness control
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
+pub fn configure_color_enhancement(
+    ce: Enhancement,
+    cemd: EnhancementMode,
+    cabc: AdaptiveBrightness,
+) -> Setting<1> {
+    Setting(
+        &(CommandsGeneral::WRCACE as u8),
+        [ce as u8 | cemd as u8 | cabc as u8],
+    )
+}
+
+///
+/// WRITE CABC MINIMUM BRIGHTNESS
+///
+/// Sets the minimum brightness value to be used for CABC (see WRCACE).
+///
+/// [MBV] Minimum Brightness Value
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|                     Minimum Brightness Value [7:0]                    |
+pub fn set_minimum_brightness(mbv: u8) -> Setting<1> {
+    Setting(&(CommandsGeneral::WRCABCMB as u8), [mbv as u8])
+}
+
+pub fn read_display_pixel_format() -> Command {
+    Command(&(CommandsGeneral::RDDCOLMOD as u8))
+}
+
+pub fn read_self_diagnostics() -> Command {
+    Command(&(CommandsGeneral::RDDSDR as u8))
+}
+
+/// # SET COMMAND2 MODE
+/// This is one of the most confusing attributes of the Sitronix chips.
+/// BK0, BK1, and BK3 (maybe) all have "Command2" instructions that share a
+/// common address space. To avoid collisions and to ensure you're sending
+/// the command you think you're sending, we use a double-entry bookkeeping
+/// approach, where set_command_2 will send the chip the updated Command2
+/// setting AND record it back to the local flag, which is required for
+/// static type checking in all Command2 instructions locally.
+///
+/// eg. for a BK1 Command2 instruction, "current" must be set to
+/// Command2Selection::BK1.
+pub fn set_command_2(set: Command2Selection) -> Setting<5> {
+    Setting(&(CommandsGeneral::CND2BKxSEL as u8), [0x77, 0x01, 0x00, 0x00, set as u8])
 }
 
 impl BK0Command2 {
-    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<Command, &'static str>
+    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<OldCommand, &'static str>
     where
-        F: Fn() -> Command,
+        F: Fn() -> OldCommand,
     {
         match cmd2 {
             Command2Selection::BK0 => Ok(build_command()),
@@ -443,9 +461,9 @@ impl BK0Command2 {
     pub fn positive_gamma_control(
         cmd2: &Command2Selection,
         parameters: &[u8],
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(Self::PVGAMCTRL as u8).args(parameters)
+            OldCommand::new(Self::PVGAMCTRL as u8).args(parameters)
         })
     }
 
@@ -454,9 +472,9 @@ impl BK0Command2 {
     pub fn negative_gamma_control(
         cmd2: &Command2Selection,
         parameters: &[u8],
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(Self::NVGAMCTRL as u8).args(parameters)
+            OldCommand::new(Self::NVGAMCTRL as u8).args(parameters)
         })
     }
 
@@ -466,18 +484,18 @@ impl BK0Command2 {
         lde_en: u8,
         line: u8,
         line_delta: u8,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(Self::LNESET as u8).args(&[lde_en | line, line_delta])
+            OldCommand::new(Self::LNESET as u8).args(&[lde_en | line, line_delta])
         })
     }
 
     /// # PORCH CONTROL
-    pub fn porch_control(cmd2: &Command2Selection, mode: &Mode) -> Result<Command, &'static str> {
+    pub fn porch_control(cmd2: &Command2Selection, mode: &Mode) -> Result<OldCommand, &'static str> {
         let front_porch: u8 = (mode.vtotal - mode.vsync_end).try_into().unwrap();
         let back_porch: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
         Self::validate(cmd2, || {
-            Command::new(Self::PORCTRL as u8).args(&[front_porch, back_porch])
+            OldCommand::new(Self::PORCTRL as u8).args(&[front_porch, back_porch])
         })
     }
 
@@ -488,9 +506,9 @@ impl BK0Command2 {
         cmd2: &Command2Selection,
         nlinv: Inversion,
         rtni: u8,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(Self::INVSET as u8).args(&[nlinv as u8, rtni])
+            OldCommand::new(Self::INVSET as u8).args(&[nlinv as u8, rtni])
         })
     }
 
@@ -522,12 +540,12 @@ impl BK0Command2 {
         dp: DataPolarity,
         ep: EnablePolarity,
         mode: &Mode,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         let hbp: u8 = (mode.htotal - mode.hsync_end).try_into().unwrap();
         let vbp: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
 
         Self::validate(cmd2, || {
-            Command::new(Self::RGBCTRL as u8).args(&[
+            OldCommand::new(Self::RGBCTRL as u8).args(&[
                 dehv as u8 | vsp as u8 | hsp as u8 | dp as u8 | ep as u8,
                 hbp,
                 vbp,
@@ -559,9 +577,9 @@ impl BK0Command2 {
         led: LEDPolarity,
         mdt: PixelPinout,
         epf: EndPixelFormat,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(Self::COLCTRL as u8).arg(pwm as u8 | led as u8 | mdt as u8 | epf as u8)
+            OldCommand::new(Self::COLCTRL as u8).arg(pwm as u8 | led as u8 | mdt as u8 | epf as u8)
         })
     }
 
@@ -577,20 +595,20 @@ impl BK0Command2 {
         cmd2: &Command2Selection,
         sre: SunlightReadable,
         mut sre_alpha: u8,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         if sre_alpha > 0x0F {
             sre_alpha = 0x0F;
         }
         Self::validate(cmd2, || {
-            Command::new(Self::SECTRL as u8).arg(sre as u8 | sre_alpha)
+            OldCommand::new(Self::SECTRL as u8).arg(sre as u8 | sre_alpha)
         })
     }
 }
 
 impl BK1Command2 {
-    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<Command, &'static str>
+    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<OldCommand, &'static str>
     where
-        F: Fn() -> Command,
+        F: Fn() -> OldCommand,
     {
         match cmd2 {
             Command2Selection::BK1 => Ok(build_command()),
@@ -598,24 +616,24 @@ impl BK1Command2 {
         }
     }
 
-    pub fn set_vop_amplitude(cmd2: &Command2Selection, vrha: u8) -> Result<Command, &'static str> {
-        Self::validate(cmd2, || Command::new(BK1Command2::VRHS as u8).arg(vrha))
+    pub fn set_vop_amplitude(cmd2: &Command2Selection, vrha: u8) -> Result<OldCommand, &'static str> {
+        Self::validate(cmd2, || OldCommand::new(BK1Command2::VRHS as u8).arg(vrha))
     }
 
-    pub fn set_vcom_amplitude(cmd2: &Command2Selection, vcom: u8) -> Result<Command, &'static str> {
-        Self::validate(cmd2, || Command::new(BK1Command2::VCOMS as u8).arg(vcom))
+    pub fn set_vcom_amplitude(cmd2: &Command2Selection, vcom: u8) -> Result<OldCommand, &'static str> {
+        Self::validate(cmd2, || OldCommand::new(BK1Command2::VCOMS as u8).arg(vcom))
     }
 
-    pub fn set_vgh_voltage(cmd2: &Command2Selection, vgh: u8) -> Result<Command, &'static str> {
-        Self::validate(cmd2, || Command::new(BK1Command2::VGHSS as u8).arg(vgh))
+    pub fn set_vgh_voltage(cmd2: &Command2Selection, vgh: u8) -> Result<OldCommand, &'static str> {
+        Self::validate(cmd2, || OldCommand::new(BK1Command2::VGHSS as u8).arg(vgh))
     }
-    pub fn test_command_setting(cmd2: &Command2Selection) -> Result<Command, &'static str> {
-        Self::validate(cmd2, || Command::new(BK1Command2::TESTCMD as u8).arg(0x80))
+    pub fn test_command_setting(cmd2: &Command2Selection) -> Result<OldCommand, &'static str> {
+        Self::validate(cmd2, || OldCommand::new(BK1Command2::TESTCMD as u8).arg(0x80))
     }
 
-    pub fn set_vgl_voltage(cmd2: &Command2Selection, vgls: u8) -> Result<Command, &'static str> {
+    pub fn set_vgl_voltage(cmd2: &Command2Selection, vgls: u8) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(BK1Command2::VGLS as u8).arg(0x40 | vgls)
+            OldCommand::new(BK1Command2::VGLS as u8).arg(0x40 | vgls)
         })
     }
 
@@ -624,9 +642,9 @@ impl BK1Command2 {
         ap: GammaOPBias,
         apis: SourceOPInput,
         apos: SourceOPOutput,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(BK1Command2::PWCTRL1 as u8).arg(ap as u8 | apis as u8 | apos as u8)
+            OldCommand::new(BK1Command2::PWCTRL1 as u8).arg(ap as u8 | apis as u8 | apos as u8)
         })
     }
 
@@ -634,9 +652,9 @@ impl BK1Command2 {
         cmd2: &Command2Selection,
         avdd: VoltageAVDD,
         avcl: VoltageAVCL,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(BK1Command2::PWCTRL2 as u8).arg(avdd as u8 | avcl as u8)
+            OldCommand::new(BK1Command2::PWCTRL2 as u8).arg(avdd as u8 | avcl as u8)
         })
     }
 
@@ -648,9 +666,9 @@ impl BK1Command2 {
     pub fn set_pre_drive_timing_one(
         cmd2: &Command2Selection,
         t2d: u8,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(BK1Command2::SPD1 as u8).arg(0x70 | t2d)
+            OldCommand::new(BK1Command2::SPD1 as u8).arg(0x70 | t2d)
         })
     }
 
@@ -659,9 +677,9 @@ impl BK1Command2 {
     pub fn set_pre_drive_timing_two(
         cmd2: &Command2Selection,
         t2d: u8,
-    ) -> Result<Command, &'static str> {
+    ) -> Result<OldCommand, &'static str> {
         Self::validate(cmd2, || {
-            Command::new(BK1Command2::SPD2 as u8).arg(0x70 | t2d)
+            OldCommand::new(BK1Command2::SPD2 as u8).arg(0x70 | t2d)
         })
     }
 }

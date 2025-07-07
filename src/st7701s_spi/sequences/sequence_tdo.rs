@@ -1,7 +1,7 @@
 use std::{thread, time};
 
 use crate::st7701s_spi::{
-    commands::{BK0Command2, BK1Command2, Command, Command2Selection, CommandsGeneral},
+    commands::{BK0Command2, BK1Command2, OldCommand, Command2Selection, CommandsGeneral},
     panel::Mode,
     parameters::{
         BitsPerPixel, ColorOrder, EndPixelFormat, GammaOPBias, Inversion, LEDPolarity, PWMPolarity,
@@ -28,7 +28,7 @@ pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
         Inversion::OneDot,
         0x02,
     ));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xCC,
         parameters: vec![0x10],
     }));
@@ -77,68 +77,68 @@ pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
     ));
     display.write_command(BK1Command2::set_pre_drive_timing_one(&cmd2, 0x08));
     display.write_command(BK1Command2::set_pre_drive_timing_two(&cmd2, 0x08));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xD0,
         parameters: vec![0x88],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE0,
         parameters: vec![0x00, 0x00, 0x02],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE1,
         parameters: vec![
             0x03, 0xA0, 0x00, 0x00, 0x04, 0xA0, 0x00, 0x00, 0x00, 0x20, 0x20,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE2,
         parameters: vec![
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE3,
         parameters: vec![0x00, 0x00, 0x11, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE4,
         parameters: vec![0x22, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE5,
         parameters: vec![
             0x05, 0xEC, 0xA0, 0xA0, 0x07, 0xEE, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE6,
         parameters: vec![0x00, 0x00, 0x11, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE7,
         parameters: vec![0x22, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xE8,
         parameters: vec![
             0x06, 0xED, 0xA0, 0xA0, 0x08, 0xEF, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xEB,
         parameters: vec![0x00, 0x00, 0x40, 0x40, 0x00, 0x00, 0x00],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xED,
         parameters: vec![
             0xFF, 0xFF, 0xFF, 0xBA, 0x0A, 0xBF, 0x45, 0xFF, 0xFF, 0x54, 0xFB, 0xA0, 0xAB, 0xFF,
             0xFF, 0xFF,
         ],
     }));
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xEF,
         parameters: vec![0x10, 0x0D, 0x04, 0x08, 0x3F, 0x1F],
     }));
@@ -146,7 +146,7 @@ pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
     // Set Command2 for BK3
     display.write_command(CommandsGeneral::set_command_2(Command2Selection::BK1));
     cmd2 = Command2Selection::BK1;
-    display.write_command(Ok(Command {
+    display.write_command(Ok(OldCommand {
         address: 0xEF,
         parameters: vec![0x08],
     }));
