@@ -1,4 +1,6 @@
-use frunk::LabelledGeneric;
+use std::num::{NonZero, NonZeroUsize};
+
+use num::Zero;
 
 /**
     ## Extended Address Banks
@@ -17,6 +19,31 @@ pub enum Bank {
 
 pub type Extension = Option<Bank>;
 pub type Address = u8;
+pub type DataBytes = usize;
+
+pub enum Payload {
+    Command,
+    TX(NonZeroUsize),
+    RX(NonZeroUsize)
+}
+
+impl Payload {
+    const fn tx(size: usize) -> Self {
+        Self::TX(NonZeroUsize::new(size).unwrap())
+    }
+
+    const fn rx(size: usize) -> Self {
+        Self::RX(NonZeroUsize::new(size).unwrap())
+    }
+
+    const fn size(&self) -> usize {
+        match *self {
+            Self::Command => 0,
+            Self::RX(size) => size.get(),
+            Self::TX(size) => size.get(),
+        }
+    }
+}
 
 pub type WriteData<const S: usize> = [u8; S];
 pub type ReadData = fn(&[u8]);
@@ -33,7 +60,7 @@ pub struct Transmission<const S: usize> {
 }
 pub type Command = Transmission<0>;
 
-pub type Location = (Extension, Address);
+pub type Properties = (Extension, Address, Payload);
 
 #[rustfmt::skip]
 #[repr(u8)]
@@ -94,6 +121,55 @@ pub enum Core {
     CND2BKXSEL = 0xFF,
 }
 
+impl Core {
+    #[rustfmt::skip]
+    pub const fn payload(&self) -> Payload {
+        match *self {
+            Self::SWRESET    => Payload::tx(1),
+            Self::RDDID      => Payload::rx(4),
+            Self::RDNUMED    => Payload::rx(1),
+            Self::RDRED      => Payload::rx(1),
+            Self::RDGREEN    => Payload::rx(1),
+            Self::RDBLUE     => Payload::rx(1),
+            Self::RDDPM      => Payload::rx(1),
+            Self::RDDMADCTL  => Payload::rx(1),
+            Self::RDDCOLMOD  => Payload::rx(1),
+            Self::RDDIM      => Payload::rx(1),
+            Self::RDDSM      => Payload::rx(1),
+            Self::RDDSDR     => Payload::rx(1),
+            Self::GAMSET     => Payload::tx(1),
+            Self::TEON       => Payload::tx(1),
+            Self::MADCTL     => Payload::tx(1),
+            Self::COLMOD     => Payload::tx(1),
+            Self::GSL        => Payload::rx(2),
+            Self::WRDISBV    => Payload::tx(1),
+            Self::RDDISBV    => Payload::rx(1),
+            Self::WRCTRLD    => Payload::tx(1),
+            Self::RDCTRLD    => Payload::rx(1),
+            Self::WRCACE     => Payload::tx(1),
+            Self::RDCABC     => Payload::rx(1),
+            Self::WRCABCMB   => Payload::tx(1),
+            Self::RDCABCMB   => Payload::rx(1),
+            Self::RDABCSDR   => Payload::rx(1),
+            Self::RDBWLB     => Payload::rx(1),
+            Self::RDBKX      => Payload::rx(1),
+            Self::RDBKY      => Payload::rx(1),
+            Self::RDWX       => Payload::rx(1),
+            Self::RDWY       => Payload::rx(1),
+            Self::RDRGLB     => Payload::rx(1),
+            Self::RDRX       => Payload::rx(1),
+            Self::RDRY       => Payload::rx(1),
+            Self::RDGX       => Payload::rx(1),
+            Self::RDGY       => Payload::rx(1),
+            Self::RDBALB     => Payload::rx(1),
+            Self::RDBX       => Payload::rx(1),
+            Self::CND2BKXSEL => Payload::tx(5),
+            _                => Payload::Command
+        }
+    }
+}
+
+
 #[rustfmt::skip]
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -122,6 +198,36 @@ pub enum BK0 {
     CABCCTRL  = 0xEE,
 }
 
+impl BK0 {
+    #[rustfmt::skip]
+    pub const fn payload(&self) -> Payload {
+        match *self {
+            Self::PVGAMCTRL => Payload::tx(16),
+            Self::NVGAMCTRL => Payload::tx(16),
+            Self::DGMEN     => Payload::tx(1),
+            Self::DGMLUTR   => Payload::tx(130),
+            Self::DGMLUTB   => Payload::tx(130),
+            Self::PWMCLK    => Payload::tx(1),
+            Self::LNESET    => Payload::tx(2),
+            Self::PORCTRL   => Payload::tx(2),
+            Self::INVSET    => Payload::tx(2),
+            Self::RGBCTRL   => Payload::tx(3),
+            Self::PARCTRL   => Payload::tx(4),
+            Self::SDIR      => Payload::tx(1),
+            Self::PDOSET    => Payload::tx(1),
+            Self::COLCTRL   => Payload::tx(1),
+            Self::SSCTRL    => Payload::tx(1),
+            Self::SRECTRL   => Payload::tx(1),
+            Self::NRCTRL    => Payload::tx(1),
+            Self::SECTRL    => Payload::tx(1),
+            Self::CCCTRL    => Payload::tx(1),
+            Self::SKCTRL    => Payload::tx(1),
+            Self::NVMSETE   => Payload::tx(1),
+            Self::CABCCTRL  => Payload::tx(1),
+        }
+    }
+}
+
 #[rustfmt::skip]
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -145,6 +251,32 @@ pub enum BK1 {
     NVMSET   = 0xCA,
 }
 
+impl BK1 {
+    #[rustfmt::skip]
+    pub const fn payload(&self) -> Payload {
+        match *self {
+            Self::VRHS     => Payload::tx(1),
+            Self::VCOMS    => Payload::tx(1),
+            Self::VGHSS    => Payload::tx(1),
+            Self::TESTCMD  => Payload::tx(1),
+            Self::VGLS     => Payload::tx(1),
+            Self::PWCTRL1  => Payload::tx(1),
+            Self::PWCTRL2  => Payload::tx(1),
+            Self::PCLKS1   => Payload::tx(1),
+            Self::PCLKS3   => Payload::tx(1),
+            Self::SPD1     => Payload::tx(1),
+            Self::SPD2     => Payload::tx(1),
+            Self::MIPISET1 => Payload::tx(1),
+            Self::MIPISET2 => Payload::tx(4),
+            Self::MIPISET3 => Payload::tx(1),
+            Self::MIPISET4 => Payload::tx(2),
+            Self::NVMEN    => Payload::tx(4),
+            Self::NVMSET   => Payload::tx(3),
+        }
+    }
+}
+
+
 pub enum Instruction {
     Core(Core),
     BK0(BK0),
@@ -152,16 +284,16 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub const fn location(&self) -> Location {
+    pub const fn properties(&self) -> Properties {
         match *self {
-            Self::Core(x) => (None, x as Address),
-            Self::BK0(x) => (Some(Bank::BK0), x as Address),
-            Self::BK1(x) => (Some(Bank::BK1), x as Address),
+            Self::Core(x) => (None, x as Address, Core::payload(&x)),
+            Self::BK0(x) => (Some(Bank::BK0), x as Address, BK0::payload(&x)),
+            Self::BK1(x) => (Some(Bank::BK1), x as Address, BK1::payload(&x)),
         }
     }
 
     pub const fn define<const S: usize>(&self, operation: Operation<S>) -> Transmission<S> {
-        let (extension, address) = Self::location(&self);
+        let (extension, address, payload) = Self::properties(&self);
 
         Transmission {
             extension,

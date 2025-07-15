@@ -190,7 +190,7 @@ pub const fn gamma_curve_select(gc: GammaCurve) -> Transmission<1> {
         GammaCurve::Three => 0x04,
         GammaCurve::Four => 0x08,
     };
-    Instruction::Core(Core::GAMSET).to_write([data])
+    Instruction::Core(Core::GAMSET).to_write(&[data])
 }
 
 /// # DISPLAY OFF (DEFAULT?)
