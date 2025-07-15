@@ -5,9 +5,13 @@ authors = ["Corey Vixie <corey@vixie.enterprises>"]
 edition = "2024"
 
 [dependencies]
+bitflags = "2.9.1"
+frunk = "0.4.4"
+frunk_core = "0.4.4"
+frunk_proc_macros = "0.1.4"
 log = "0.4.27"
 num = "0.2.0"
-spidev = "0.4.0"
+spidev = "0.7.0"
 enum_primitive = "0.1.1"
 
 [[bin]]

@@ -1,0 +1,86 @@
+wget --no-cache https://developer.arm.com/-/media/Files/downloads/gnu-a/8.3-2019.03/binrel/gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf.tar.xz &&
+wget --no-cache https://developer.arm.com/-/media/Files/downloads/gnu-a/8.3-2019.03/binrel/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu.tar.xz &&
+git clone git://arago-project.org/git/projects/oe-layersetup.git tisdk &&
+tar -Jxvf gcc-arm-8.3-2019.03-x86_64-arm-linux-gnueabihf.tar.xz -C $HOME &&
+tar -Jxvf gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu.tar.xz -C $HOME &&
+cd tisdk
+
+
+
+
+cd /opt/
+wget https://remi.avignon.me/bbb/kmsxx_1.0.0_armhf.deb
+wget https://remi.avignon.me/bbb/libgbm_2.0.0-1_armhf.deb
+wget https://remi.avignon.me/bbb/omap5-ti335x-sgx-ddk-um_1.0.0_armhf.deb
+wget https://remi.avignon.me/bbb/weston_2.0.0_armhf.deb
+
+dpkg -i libgbm_2.0.0-1_armhf.deb
+dpkg -i --force-all omap5-ti335x-sgx-ddk-um_1.0.0_armhf.deb
+dpkg -i kmsxx_1.0.0_armhf.deb
+apt-get install libxcb-composite0 libunwind8
+dpkg -i weston_2.0.0_armhf.deb
+
+rm kmsxx_1.0.0_armhf.deb
+rm libgbm_2.0.0-1_armhf.deb
+rm omap5-ti335x-sgx-ddk-um_1.0.0_armhf.deb
+rm weston_2.0.0_armhf.deb
+
+
+
+debian@beaglebone:~$
+git clone -b ti-img-sgx/zeus/1.17.4948957 git://git.ti.com/graphics/omap5-sgx-ddk-um-linux.git
+sudo su
+export DISCIMAGE=/
+export TARGET_PRODUCT=ti335x
+make install
+exit
+
+#fix: libgbm.so.2 (one line:)
+sudo ln -s /usr/lib/arm-linux-gnueabihf/libgbm.so.1 /usr/lib/arm-linux-gnueabihf/libgbm.so.2
+
+sudo modprobe pvrsrvkm
+
+
+Add to init.d/rc.pvr:
+### BEGIN INIT INFO
+# Provides:          pvrsrvkm
+# Required-Start:    $local_fs $remote_fs
+# Required-Stop:     $local_fs $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: PowerVR SGX 530 Drivers
+# Description:       Debian init script for PowerVR SGX 530 GPU drivers
+### END INIT INFO
+
+root@beaglebone:/home/debian# dmesg | grep -i pvr
+[   70.620851] pvrsrvkm: loading out-of-tree module taints kernel.
+[   71.609084] [drm] Initialized pvr 1.17.4948957 20110701 for 56000000.sgx on minor 1
+
+root@beaglebone:/home/debian# modprobe pvrsrvkm
+root@beaglebone:/home/debian# /usr/bin/pvrsrvctl --start --no-module
+root@beaglebone:/home/debian# dmesg | grep -i pvr
+[   70.620851] pvrsrvkm: loading out-of-tree module taints kernel.
+[   71.609084] [drm] Initialized pvr 1.17.4948957 20110701 for 56000000.sgx on minor 1
+[  312.475018] PVR_K: UM DDK-(4948957) and KM DDK-(4948957) match. [ OK ]
+root@beaglebone:/home/debian#
+
+
+
+cd /opt/scripts/tools/
+./update_kernel.sh
+// got 4.19.94-ti-r45
+apt get ti-sgx-ti335x-modules-`uname -r`
+
+systemctl set-default multi-user.target
+
+git clone -b ti-img-sgx/thud/1.17.4948957 https://git.ti.com/git/graphics/omap5-sgx-ddk-um-linux.git
+export DISCIMAGE=/
+export TARGET_PRODUCT=ti335x
+make install
+
+mv /etc/ld.so.conf.d/libc.conf 10-libc.conf
+mv /etc/ld.so.conf.d/arm-linux-gnueabihf.conf 20-arm-linux-gnueabihf.conf
+
+weston --tty=2 --use-pixman works
+
+apt install gcc-8-base

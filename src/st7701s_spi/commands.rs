@@ -1,6 +1,5 @@
-use std::convert::TryInto;
-
 use crate::st7701s_spi::{
+    interface::{BK0, BK1, Command, Core, Instruction, Transmission},
     panel::Mode,
     parameters::{
         AdaptiveBrightness, Backlight, BitsPerPixel, BrightnessControl, ColorOrder, DataEnable,
@@ -9,6 +8,7 @@ use crate::st7701s_spi::{
         ScanDirection, SourceOPInput, SourceOPOutput, SunlightReadable, TearingEffect, VoltageAVCL,
         VoltageAVDD, VsyncActive,
     },
+    state::{Toggle, ToggleCommands},
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -30,163 +30,66 @@ use crate::st7701s_spi::{
 /// transferred by the D/CX pin. If D/CX is “low”, the transmission byte is
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
-pub struct OldCommand {
-    pub address: u8,
-    pub parameters: Vec<u8>,
-}
+// pub struct OldCommand {
+//     pub address: u8,
+//     pub parameters: Vec<u8>,
+// }
 
-impl OldCommand {
-    fn new(address: u8) -> OldCommand {
-        OldCommand {
-            address,
-            parameters: Vec::new(),
-        }
-    }
+// impl OldCommand {
+//     fn new(address: u8) -> OldCommand {
+//         OldCommand {
+//             address,
+//             parameters: Vec::new(),
+//         }
+//     }
 
-    fn arg(mut self, arg: u8) -> OldCommand {
-        self.parameters.push(arg);
-        self
-    }
+//     fn arg(mut self, arg: u8) -> OldCommand {
+//         self.parameters.push(arg);
+//         self
+//     }
 
-    fn args(mut self, args: &[u8]) -> OldCommand {
-        self.parameters.extend_from_slice(args);
-        self
-    }
+//     fn args(mut self, args: &[u8]) -> OldCommand {
+//         self.parameters.extend_from_slice(args);
+//         self
+//     }
 
-    pub fn serialize_address(&self) -> [u8; 2] {
-        [self.address, 0x00]
-    }
+//     pub fn serialize_address(&self) -> [u8; 2] {
+//         [self.address, 0x00]
+//     }
 
-    pub fn serialize_parameter(parameter: u8) -> [u8; 2] {
-        [parameter, 0x01]
-    }
-}
+//     pub fn serialize_parameter(parameter: u8) -> [u8; 2] {
+//         [parameter, 0x01]
+//     }
+// }
 
-#[derive(PartialEq)]
 #[repr(u8)]
-pub enum Command2Selection {
+#[rustfmt::skip]
+pub enum ExtensionRegister {
     Disabled = 0x00,
     BK0 = 0x10,
     BK1 = 0x11,
     BK3 = 0x13,
 }
 
-#[repr(u8)]
-pub enum CommandsGeneral {
-    NOP = 0x00,        // No-op
-    SWRESET = 0x01,    // Software Reset
-    RDDID = 0x04,      // Read Display ID
-    RDNUMED = 0x05,    // Read Number of Errors on DSI
-    RDRED = 0x06,      // Read the first pixel of Red Color
-    RDGREEN = 0x07,    // Read the first pixel of Green Color
-    RDBLUE = 0x08,     // Read the first pixel of Blue Color
-    RDDPM = 0x0A,      // Read Display Power Mode
-    RDDMADCTL = 0x0B,  // Read Display MADCTL
-    RDDCOLMOD = 0x0C,  // Read Display Pixel Format
-    RDDIM = 0x0D,      // Read Display Image Mode
-    RDDSM = 0x0E,      // Read Display Signal Mode
-    RDDSDR = 0x0F,     // Read Display Self-Diagnostic Result
-    SLPIN = 0x10,      // Sleep in
-    SLPOUT = 0x11,     // Sleep Out
-    PTLON = 0x12,      // Partial Display Mode On
-    NORON = 0x13,      // Normal Display Mode On
-    INVOFF = 0x20,     // Display Inversion Off
-    INVON = 0x21,      // Display Inversion On
-    ALLPOFF = 0x22,    // All Pixel Off
-    ALLPON = 0x23,     // All Pixel ON
-    GAMSET = 0x26,     // Gamma Set
-    DISPOFF = 0x28,    // Display Off
-    DISPON = 0x29,     // Display On
-    TEOFF = 0x34,      // Tearing Effect Line OFF
-    TEON = 0x35,       // Tearing Effect Line ON
-    MADCTL = 0x36,     // Display data access control
-    IDMOFF = 0x38,     // Idle Mode Off
-    IDMON = 0x39,      // Idle Mode On
-    COLMOD = 0x3A,     // Interface Pixel Format
-    GSL = 0x45,        // Get Scan Line
-    WRDISBV = 0x51,    // Write Display Brightness
-    RDDISBV = 0x52,    // Read Display Brightness Value
-    WRCTRLD = 0x53,    // Write CTRL Display
-    RDCTRLD = 0x54,    // Read CTRL Value Display
-    WRCACE = 0x55,     // Write Content Adaptive Brightness Control and Color Enhancement
-    RDCABC = 0x56,     // Read Content Adaptive Brightness Control
-    WRCABCMB = 0x5E,   // Write CABC Minimum Brightness
-    RDCABCMB = 0x5F,   // Read CABC Minimum Brightness
-    RDABCSDR = 0x68,   // Read Automatic Brightness Control Self-Diagnostic Result
-    RDBWLB = 0x70,     // Read Black/White Low Bits
-    RDBkx = 0x71,      // Read Bkx
-    RDBky = 0x72,      // Read Bky
-    RDWx = 0x73,       // Read Wx
-    RDWy = 0x74,       // Read Wy
-    RDRGLB = 0x75,     // Read Red/Green Low Bits
-    RDRx = 0x76,       // Read Rx
-    RDRy = 0x77,       // Read Ry
-    RDGx = 0x78,       // Read Gx
-    RDGy = 0x79,       // Read Gy
-    RDBALB = 0x7A,     // Read Blue/A Color Low Bits
-    RDBx = 0x7B,       // Read Bx
-    CND2BKxSEL = 0xFF, // Set Command2 mode for BK Register
-}
+//  const fn encode<S>(mut packets: [u8; S])-> [u16; S]  {
+//     const COMMAND_BIT: u16 = 0b0_0000_0000;
+//     let mut transmission: [u16; S] = [0x00; S];
 
-#[repr(u8)]
-pub enum BK0Command2 {
-    PVGAMCTRL = 0xB0, // Positive Voltage Gamma Control
-    NVGAMCTRL = 0xB1, // Negative Voltage Gamma Control
-    DGMEN = 0xB8,     // Digital Gamma Enable
-    DGMLUTR = 0xB9,   // Digital Gamma Look-up Table for Red
-    DGMLUTB = 0xBA,   // Digital Gamma Look-up Table for Blue
-    PWMCLKSEL = 0xBC, // PWM CLK select
-    LNESET = 0xC0,    // Display Line Setting
-    PORCTRL = 0xC1,   // Porch Control
-    INVSET = 0xC2,    // Inversion selection & Frame Rate Control
-    RGBCTRL = 0xC3,   // RGB control
-    PARCTRL = 0xC5,   // Partial Mode Control
-    SDIR = 0xC7,      // X-direction Control
-    PDOSET = 0xC8,    // Pseudo-Dot inversion diving setting
-    COLCTRL = 0xCD,   // Color Control
-    SRECTRL = 0xE0,   // Sunlight Readable Enhancement
-    NRCTRL = 0xE1,    // Noise Reduce Control
-    SECTRL = 0xE2,    // Sharpness Control
-    CCCTRL = 0xE3,    // Color Calibration Control
-    SKCTRL = 0xE4,    // Skin Tone Preservation CONTROL
-}
+//     transmission
+// }
 
-pub enum BK1Command2 {
-    VRHS = 0xB0,     // Vop Amplitude setting
-    VCOMS = 0xB1,    // VCOM amplitude setting
-    VGHSS = 0xB2,    // VGH Voltage setting
-    TESTCMD = 0xB3,  // TEST Command Setting
-    VGLS = 0xB5,     // VGL Voltage setting
-    PWCTRL1 = 0xB7,  // Power Control 1
-    PWCTRL2 = 0xB8,  // Power Control 2
-    PCLKS1 = 0xBA,   // Power pumping clk selection 1
-    PCLKS3 = 0xBC,   // Power pumping clk selection 3
-    SPD1 = 0xC1,     //  Source pre_drive timing set1
-    SPD2 = 0xC2,     //  Source pre_drive timing set2
-    MIPISET1 = 0xD0, // MIPI Setting 1
-    MIPISET2 = 0xD1, // MIPI Setting 2
-    MIPISET3 = 0xD2, // MIPI Setting 3
-    MIPISET4 = 0xD3, // MIPI Setting 4
-}
+// pub type Address = &'static u8;
+// pub type Parameters<const S: usize> = [u8; S];
 
-
-pub enum PacketType {
-    Command = 0b0,
-    Data = 0b1,
-}
-
-pub type Address = &'static u8;
-pub type Parameters<const S: usize> = [u8; S];
-
-pub struct Command(Address);
-pub struct Setting<const S: usize>(Address, Parameters<S>);
+// pub struct Command(Address);
+// pub struct Transmission<const S: usize>(Address, Parameters<S>);
 
 /// # NO OPERATION
 ///
 /// This command is "empty". It has no effect on the display, but it can be
 /// used to terminate parameter write commands.
-pub fn no_operation() -> Command {
-    Command(&(CommandsGeneral::NOP as u8))
+const fn no_operation() -> Command {
+    Instruction::Core(Core::NOP).to_command()
 }
 
 /// # SOFTWARE RESET
@@ -200,10 +103,10 @@ pub fn no_operation() -> Command {
 ///     duration should be at least 120ms before sending the next command.
 ///   - SWRESET cannot be sent during SLPOUT
 ///   - (MIPI ONLY) Send a shutdown packet before SWRESET
-pub fn software_reset() -> Setting<1> {
+pub const fn software_reset() -> Transmission<1> {
     const RESET_DATA: [u8; 1] = [0b0000_0001];
 
-    Setting(&(CommandsGeneral::SWRESET as u8), RESET_DATA)
+    Instruction::Core(Core::SWRESET).to_write(RESET_DATA)
 }
 
 /// # SLEEP IN
@@ -220,47 +123,37 @@ pub fn software_reset() -> Setting<1> {
 /// Dimming will not work when changing from sleep out to sleep in.
 ///
 /// Normally, sleep state can be read with RDDST, but MISO must be connected.
-pub fn sleep_mode_on() -> Command {
-    Command(&(CommandsGeneral::SLPIN as u8))
-}
+pub const fn sleep_mode(mode: Toggle) -> Command {
+    const SLEEP: ToggleCommands = ToggleCommands::new(
+        Instruction::Core(Core::SLPIN),
+        Instruction::Core(Core::SLPOUT),
+    );
 
-/// # SLEEP OUT
-///
-/// This command turns off the minimum power state set by SLPIN.
-///
-/// The driver may send PCLK, HS, and CS information before SLPOUT, and this
-/// data will be valid for the two frames before the command if Normal Mode
-/// is active.
-pub fn sleep_mode_off() -> Command {
-    Command(&(CommandsGeneral::SLPOUT as u8))
+    SLEEP.toggle(mode)
 }
 
 /// # PARTIAL MODE ON
 ///
 /// This command turns on Partial Mode. See PARTIAL AREA (30h) command.
-pub fn partial_mode_on() -> Command {
-    Command(&(CommandsGeneral::PTLON as u8))
-}
+pub const fn partial_mode(mode: Toggle) -> Command {
+    const PARTIAL: ToggleCommands = ToggleCommands::new(
+        Instruction::Core(Core::PTLON),
+        Instruction::Core(Core::NORON),
+    );
 
-/// # NORMAL MODE ON (DEFAULT)
-///
-/// This command turns on Normal Mode and turns off Partial Mode.
-pub fn normal_mode_on() -> Command {
-    Command(&(CommandsGeneral::NORON as u8))
+    PARTIAL.toggle(mode)
 }
 
 /// # DISPLAY INVERSION OFF (DEFAULT)
 ///
 /// This command restores normal pixel values.
-pub fn invert_display_off() -> Command {
-    Command(&(CommandsGeneral::INVOFF as u8))
-}
+pub const fn invert_display(mode: Toggle) -> Command {
+    const INVERT: ToggleCommands = ToggleCommands::new(
+        Instruction::Core(Core::PTLON),
+        Instruction::Core(Core::NORON),
+    );
 
-/// # DISPLAY INVERSION ON
-///
-/// This command inverts the display (white becomes black, red becomes blue).
-pub fn invert_display_on() -> Command {
-    Command(&(CommandsGeneral::INVON as u8))
+    INVERT.toggle(mode)
 }
 
 /// # ALL PIXELS OFF (BLACK)
@@ -268,8 +161,8 @@ pub fn invert_display_on() -> Command {
 /// This command sets all pixel values to black.
 ///
 /// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-pub fn all_pixels_off() -> Command {
-    Command(&(CommandsGeneral::ALLPOFF as u8))
+pub const fn all_pixels_off() -> Command {
+    Instruction::Core(Core::ALLPOFF).to_command()
 }
 
 /// # ALL PIXELS ON (WHITE)
@@ -277,8 +170,8 @@ pub fn all_pixels_off() -> Command {
 /// This command sets all pixel values to white.
 ///
 /// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-pub fn all_pixels_on() -> Command {
-    Command(&(CommandsGeneral::ALLPON as u8))
+pub const fn all_pixels_on() -> Command {
+    Instruction::Core(Core::ALLPON).to_command()
 }
 
 /// # GAMMA CURVE SELECT
@@ -290,8 +183,14 @@ pub fn all_pixels_on() -> Command {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
-pub fn gamma_curve_select(gc: GammaCurve) -> Setting<1> {
-    Setting(&(CommandsGeneral::GAMSET as u8), [gc as u8])
+pub const fn gamma_curve_select(gc: GammaCurve) -> Transmission<1> {
+    let data = match gc {
+        GammaCurve::One => 0x01,
+        GammaCurve::Two => 0x02,
+        GammaCurve::Three => 0x04,
+        GammaCurve::Four => 0x08,
+    };
+    Instruction::Core(Core::GAMSET).to_write([data])
 }
 
 /// # DISPLAY OFF (DEFAULT?)
@@ -300,25 +199,26 @@ pub fn gamma_curve_select(gc: GammaCurve) -> Setting<1> {
 /// data is disabled and all pixels are blanked.
 ///
 /// NOTE: It's possible that this is the default value.
-pub fn display_off() -> Setting<1> {
-    Setting(&(CommandsGeneral::DISPOFF as u8), [0x28])
+pub const fn display_output(mode: Toggle) -> Command {
+    const OUTPUT: ToggleCommands = ToggleCommands::new(
+        Instruction::Core(Core::DISPON),
+        Instruction::Core(Core::DISPOFF),
+    );
+
+    OUTPUT.toggle(mode)
 }
 
-/// # DISPLAY ON
-///
-/// WARNING: I have no idea how this behaves. The Sitronix docs monkey copied
-/// and pasted the description for DISPOFF. At a guess, it should turn the
-/// display back on.
-pub fn display_on() -> Setting<1> {
-    Setting(&(CommandsGeneral::DISPON as u8), [0x29])
-}
+pub const fn tearing_effect(te: Option<TearingEffect>) -> Transmission {
+    if let Some(x) = te {
+        let data: u8 = match x {
+            TearingEffect::VBlank => 0x00,
+            TearingEffect::VHBlank => 0x01,
+        };
 
-pub fn tearing_effect_off() -> Command {
-    Command(&(CommandsGeneral::TEOFF as u8))
-}
-
-pub fn tearing_effect_on(te: TearingEffect) -> Setting<1> {
-    Setting(&(CommandsGeneral::TEON as u8), [te as u8])
+        Instruction::Core(Core::TEON).to_write([data])
+    } else {
+        Instruction::Core(Core::TEOFF).to_command()
+    }
 }
 
 /// # DISPLAY DATA ACCESS CONTROL
@@ -326,32 +226,35 @@ pub fn tearing_effect_on(te: TearingEffect) -> Setting<1> {
 /// * []
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
-pub fn display_data_control(ml: ScanDirection, co: ColorOrder) -> Setting<1> {
-    Setting(&(CommandsGeneral::MADCTL as u8), [ml as u8 | co as u8])
+pub const fn display_data_control(ml: ScanDirection, co: ColorOrder) -> Transmission<1> {
+    Instruction::Core(Core::MADCTL).to_write([ml as u8 | co as u8])
 }
+
 /// # IDLE MODE OFF
 ///
 /// Turns off Idle Mode. Display is capable of its full 16.7 million color
 /// palette
-pub fn idle_mode_off() -> Command {
-    Command(&(CommandsGeneral::IDMOFF as u8))
+pub const fn idle_mode_off() -> Command {
+    Instruction::Core(Core::IDMOFF).to_command()
 }
+
 /// # IDLE MODE ON
 ///
 /// Turns on Idle Mode. In idle mode the color palette is significantly
 /// reduced. The MSB of each color will be rounded up or down, creating a
 /// palette limited to 8 colors.
-pub fn idle_mode_on() -> Command {
-    Command(&(CommandsGeneral::IDMON as u8))
+pub const fn idle_mode_on() -> Command {
+    Instruction::Core(Core::IDMON).to_command()
 }
+
 /// # SET INTERFACE PIXEL FORMAT
 ///
 /// Defines the format for RGB pixel data.
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
-pub fn set_color_mode(bpp: BitsPerPixel) -> Setting<1> {
-    Setting(&(CommandsGeneral::COLMOD as u8), [bpp as u8])
+pub const fn set_color_mode(bpp: BitsPerPixel) -> Transmission<1> {
+    Instruction::Core(Core::COLMOD).to_write([bpp as u8])
 }
 /// # WRDISBV
 ///
@@ -362,8 +265,8 @@ pub fn set_color_mode(bpp: BitsPerPixel) -> Setting<1> {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Display Brightness Value [7:0]                    |
-pub fn set_display_brightness(dbv: u8) -> Setting<1> {
-    Setting(&(CommandsGeneral::WRDISBV as u8), [dbv as u8])
+pub const fn set_display_brightness(dbv: u8) -> Transmission<1> {
+    Instruction::Core(Core::WRDISBV).to_write([dbv as u8])
 }
 
 /// # WRITE CTRL DISPLAY
@@ -376,15 +279,12 @@ pub fn set_display_brightness(dbv: u8) -> Setting<1> {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
-pub fn configure_brightness(
+pub const fn configure_brightness(
     bctrl: BrightnessControl,
     dd: DisplayDimming,
     bl: Backlight,
-) -> Setting<1> {
-    Setting(
-        &(CommandsGeneral::WRCTRLD as u8),
-        [bctrl as u8 | dd as u8 | bl as u8],
-    )
+) -> Transmission<1> {
+    Instruction::Core(Core::WRCTRLD).to_write([bctrl as u8 | dd as u8 | bl as u8])
 }
 
 /// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
@@ -398,15 +298,12 @@ pub fn configure_brightness(
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
-pub fn configure_color_enhancement(
+pub const fn configure_color_enhancement(
     ce: Enhancement,
     cemd: EnhancementMode,
     cabc: AdaptiveBrightness,
-) -> Setting<1> {
-    Setting(
-        &(CommandsGeneral::WRCACE as u8),
-        [ce as u8 | cemd as u8 | cabc as u8],
-    )
+) -> Transmission<1> {
+    Instruction::Core(Core::WRCACE).to_write([ce as u8 | cemd as u8 | cabc as u8])
 }
 
 ///
@@ -418,16 +315,16 @@ pub fn configure_color_enhancement(
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Minimum Brightness Value [7:0]                    |
-pub fn set_minimum_brightness(mbv: u8) -> Setting<1> {
-    Setting(&(CommandsGeneral::WRCABCMB as u8), [mbv as u8])
+pub const fn set_minimum_brightness(mbv: u8) -> Transmission<1> {
+    Instruction::Core(Core::WRCABCMB).to_write([mbv as u8])
 }
 
-pub fn read_display_pixel_format() -> Command {
-    Command(&(CommandsGeneral::RDDCOLMOD as u8))
+pub const fn read_display_pixel_format() -> Command {
+    Instruction::Core(Core::RDDCOLMOD).to_command()
 }
 
-pub fn read_self_diagnostics() -> Command {
-    Command(&(CommandsGeneral::RDDSDR as u8))
+pub const fn read_self_diagnostics() -> Command {
+    Instruction::Core(Core::RDDSDR).to_command()
 }
 
 /// # SET COMMAND2 MODE
@@ -441,245 +338,194 @@ pub fn read_self_diagnostics() -> Command {
 ///
 /// eg. for a BK1 Command2 instruction, "current" must be set to
 /// Command2Selection::BK1.
-pub fn set_command_2(set: Command2Selection) -> Setting<5> {
-    Setting(&(CommandsGeneral::CND2BKxSEL as u8), [0x77, 0x01, 0x00, 0x00, set as u8])
+// pub const fn set_command_2(set: ExtensionRegister) -> Transmission<5> {
+//     Instruction::Core(
+//         Core::CND2BKxSEL).to_write(
+//         [0x77, 0x01, 0x00, 0x00, set as u8],
+//     ))
+// }
+
+/// # POSITIVE GAMMA CONTROL
+/// See note above about parameters
+pub const fn positive_gamma_control(
+    cmd2: &ExtensionRegister,
+    parameters: [u8; 1],
+) -> Transmission<1> {
+    Instruction::BK0(BK0::PVGAMCTRL).to_write(parameters)
 }
 
-impl BK0Command2 {
-    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<OldCommand, &'static str>
-    where
-        F: Fn() -> OldCommand,
-    {
-        match cmd2 {
-            Command2Selection::BK0 => Ok(build_command()),
-            _ => Err("Cannot run command '{}': BK0 Command 2 mode not set"),
-        }
-    }
-
-    /// # POSITIVE GAMMA CONTROL
-    /// See note above about parameters
-    pub fn positive_gamma_control(
-        cmd2: &Command2Selection,
-        parameters: &[u8],
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::PVGAMCTRL as u8).args(parameters)
-        })
-    }
-
-    /// # POSITIVE GAMMA CONTROL
-    /// See note above about parameters
-    pub fn negative_gamma_control(
-        cmd2: &Command2Selection,
-        parameters: &[u8],
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::NVGAMCTRL as u8).args(parameters)
-        })
-    }
-
-    /// # DISPLAY LINE SETTING
-    pub fn display_line_setting(
-        cmd2: &Command2Selection,
-        lde_en: u8,
-        line: u8,
-        line_delta: u8,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::LNESET as u8).args(&[lde_en | line, line_delta])
-        })
-    }
-
-    /// # PORCH CONTROL
-    pub fn porch_control(cmd2: &Command2Selection, mode: &Mode) -> Result<OldCommand, &'static str> {
-        let front_porch: u8 = (mode.vtotal - mode.vsync_end).try_into().unwrap();
-        let back_porch: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::PORCTRL as u8).args(&[front_porch, back_porch])
-        })
-    }
-
-    /// # INVERSION SELECT
-    /// * [LINV] - the type of inversion
-    /// * [RTNI] - minimum number of pclk in each line
-    pub fn inversion_select(
-        cmd2: &Command2Selection,
-        nlinv: Inversion,
-        rtni: u8,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::INVSET as u8).args(&[nlinv as u8, rtni])
-        })
-    }
-
-    /// # RGB CONTROLDE/HV:RGB Mode selection
-    /// * [DEHV]
-    ///     0: RGB DE mode
-    ///     1: RGB HV mode
-    /// * [VSP]: Sets the signal polarity of the VSYNC pin.
-    ///     0: Low active
-    ///     1: High active
-    /// * [HSP]: Sets the signal polarity of the HSYNC pin.
-    ///     0: Low active
-    ///     1: High active
-    /// * [DP]: Sets the signal polarity of the DOTCLK pin.
-    ///     0: The data is input on the positive edge of DOTCLK
-    ///     1: The data is input on the negative edge of DOTCLK
-    /// * [EP]: Sets the signal polarity of the ENABLE pin.
-    ///     0: The data DB23-0 is written when ENABLE = “1". Disable data write operation when ENABLE = “0”.
-    ///     1: The data DB23-0 is written when ENABLE = “0”. Disable data write operation when ENABLE = “1”.
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|  DEHV  |   --   |   --   |   --   |   VSP  |   HSP  |   DP   |   EP   |
-    ///|                                  HBP                                  |
-    ///|                                  VBP                                  |
-    pub fn rgb_control(
-        cmd2: &Command2Selection,
-        dehv: DataEnable,
-        vsp: VsyncActive,
-        hsp: HsyncActive,
-        dp: DataPolarity,
-        ep: EnablePolarity,
-        mode: &Mode,
-    ) -> Result<OldCommand, &'static str> {
-        let hbp: u8 = (mode.htotal - mode.hsync_end).try_into().unwrap();
-        let vbp: u8 = (mode.vsync_start - mode.vdisplay).try_into().unwrap();
-
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::RGBCTRL as u8).args(&[
-                dehv as u8 | vsp as u8 | hsp as u8 | dp as u8 | ep as u8,
-                hbp,
-                vbp,
-            ])
-        })
-    }
-
-    /// # COLOR CONTROL
-    /// * [PWM]: LEDPWM polarity control.
-    ///     0: polarity normal.
-    ///     1: polarity reverse.
-    /// * [LED]: LED_ON polarity control.
-    ///     0: polarity normal.
-    ///     1: polarity reverse.
-    /// * [MDT]: RGB pixel format argument.(for 262K).See Table 17.
-    ///     0: pixel format argument normal.
-    ///     1: pixel collect to DB[17:0].
-    /// * [EPF][2:0]: end of pixel format (for 65k & 262k mode)
-    ///     0: copy self MSB
-    ///     1: copy G MSB
-    ///     2: copy self LSB
-    ///     4: FIX 0
-    ///     5: FIX 1
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |   --   |   PWM  |   LED  |   MDT  |            EPF           |
-    pub fn color_control(
-        cmd2: &Command2Selection,
-        pwm: PWMPolarity,
-        led: LEDPolarity,
-        mdt: PixelPinout,
-        epf: EndPixelFormat,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::COLCTRL as u8).arg(pwm as u8 | led as u8 | mdt as u8 | epf as u8)
-        })
-    }
-
-    /// # CONFIGURE SUNLIGHT READABLE ENHANCEMENT MODE
-    ///
-    /// Sets the minimum brightness value to be used for CABC (see WRCACE).
-    ///
-    /// [MBV] Minimum Brightness Value
-    ///
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |   --   |   --   |   --   |   SRE  |      SRE_alpha[3:0]      |
-    pub fn configure_sunlight_ehancement(
-        cmd2: &Command2Selection,
-        sre: SunlightReadable,
-        mut sre_alpha: u8,
-    ) -> Result<OldCommand, &'static str> {
-        if sre_alpha > 0x0F {
-            sre_alpha = 0x0F;
-        }
-        Self::validate(cmd2, || {
-            OldCommand::new(Self::SECTRL as u8).arg(sre as u8 | sre_alpha)
-        })
-    }
+/// # POSITIVE GAMMA CONTROL
+/// See note above about parameters
+pub const fn negative_gamma_control(
+    cmd2: &ExtensionRegister,
+    parameters: [u8; 1],
+) -> Transmission<1> {
+    Instruction::BK0(BK0::NVGAMCTRL).to_write(parameters)
 }
 
-impl BK1Command2 {
-    pub fn validate<F>(cmd2: &Command2Selection, build_command: F) -> Result<OldCommand, &'static str>
-    where
-        F: Fn() -> OldCommand,
-    {
-        match cmd2 {
-            Command2Selection::BK1 => Ok(build_command()),
-            _ => Err("Cannot run command '{}': BK0 Command 2 mode not set"),
-        }
+/// # DISPLAY LINE SETTING
+pub const fn display_line_setting(
+    cmd2: &ExtensionRegister,
+    lde_en: u8,
+    line: u8,
+    line_delta: u8,
+) -> Transmission<2> {
+    Instruction::BK0(BK0::LNESET).to_write([lde_en | line, line_delta])
+}
+
+/// # PORCH CONTROL
+pub const fn porch_control(cmd2: &ExtensionRegister, mode: &Mode) -> Transmission<2> {
+    let front_porch: u8 = (mode.vtotal - mode.vsync_end) as u8;
+    let back_porch: u8 = (mode.vsync_start - mode.vdisplay) as u8;
+
+    Instruction::BK0(BK0::PORCTRL).to_write([front_porch, back_porch])
+}
+
+/// # INVERSION SELECT
+/// * [LINV] - the type of inversion
+/// * [RTNI] - minimum number of pclk in each line
+pub const fn inversion_select(
+    cmd2: &ExtensionRegister,
+    nlinv: Inversion,
+    rtni: u8,
+) -> Transmission<2> {
+    Instruction::BK0(BK0::INVSET).to_write([nlinv as u8, rtni])
+}
+
+/// # RGB CONTROLDE/HV:RGB Mode selection
+/// * [DEHV]
+///     0: RGB DE mode
+///     1: RGB HV mode
+/// * [VSP]: Sets the signal polarity of the VSYNC pin.
+///     0: Low active
+///     1: High active
+/// * [HSP]: Sets the signal polarity of the HSYNC pin.
+///     0: Low active
+///     1: High active
+/// * [DP]: Sets the signal polarity of the DOTCLK pin.
+///     0: The data is input on the positive edge of DOTCLK
+///     1: The data is input on the negative edge of DOTCLK
+/// * [EP]: Sets the signal polarity of the ENABLE pin.
+///     0: The data DB23-0 is written when ENABLE = “1". Disable data write operation when ENABLE = “0”.
+///     1: The data DB23-0 is written when ENABLE = “0”. Disable data write operation when ENABLE = “1”.
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|  DEHV  |   --   |   --   |   --   |   VSP  |   HSP  |   DP   |   EP   |
+///|                                  HBP                                  |
+///|                                  VBP                                  |
+pub const fn rgb_control(
+    cmd2: &ExtensionRegister,
+    dehv: DataEnable,
+    vsp: VsyncActive,
+    hsp: HsyncActive,
+    dp: DataPolarity,
+    ep: EnablePolarity,
+    mode: &Mode,
+) -> Transmission<3> {
+    let hbp: u8 = (mode.htotal - mode.hsync_end) as u8;
+    let vbp: u8 = (mode.vsync_start - mode.vdisplay) as u8;
+
+    Instruction::BK0(BK0::RGBCTRL).to_write([
+        dehv as u8 | vsp as u8 | hsp as u8 | dp as u8 | ep as u8,
+        hbp,
+        vbp,
+    ])
+}
+
+/// # COLOR CONTROL
+/// * [PWM]: LEDPWM polarity control.
+///     0: polarity normal.
+///     1: polarity reverse.
+/// * [LED]: LED_ON polarity control.
+///     0: polarity normal.
+///     1: polarity reverse.
+/// * [MDT]: RGB pixel format argument.(for 262K).See Table 17.
+///     0: pixel format argument normal.
+///     1: pixel collect to DB[17:0].
+/// * [EPF][2:0]: end of pixel format (for 65k & 262k mode)
+///     0: copy self MSB
+///     1: copy G MSB
+///     2: copy self LSB
+///     4: FIX 0
+///     5: FIX 1
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |   --   |   PWM  |   LED  |   MDT  |            EPF           |
+pub const fn color_control(
+    cmd2: &ExtensionRegister,
+    pwm: PWMPolarity,
+    led: LEDPolarity,
+    mdt: PixelPinout,
+    epf: EndPixelFormat,
+) -> Transmission<1> {
+    Instruction::BK0(BK0::COLCTRL).to_write([pwm as u8 | led as u8 | mdt as u8 | epf as u8])
+}
+
+/// # CONFIGURE SUNLIGHT READABLE ENHANCEMENT MODE
+///
+/// Sets the minimum brightness value to be used for CABC (see WRCACE).
+///
+/// [MBV] Minimum Brightness Value
+///
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |   --   |   --   |   --   |   SRE  |      SRE_alpha[3:0]      |
+pub const fn configure_sunlight_ehancement(
+    cmd2: &ExtensionRegister,
+    sre: SunlightReadable,
+    mut sre_alpha: u8,
+) -> Transmission<1> {
+    if sre_alpha > 0x0F {
+        sre_alpha = 0x0F;
     }
 
-    pub fn set_vop_amplitude(cmd2: &Command2Selection, vrha: u8) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || OldCommand::new(BK1Command2::VRHS as u8).arg(vrha))
-    }
+    Instruction::BK0(BK0::SECTRL).to_write([sre as u8 | sre_alpha])
+}
 
-    pub fn set_vcom_amplitude(cmd2: &Command2Selection, vcom: u8) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || OldCommand::new(BK1Command2::VCOMS as u8).arg(vcom))
-    }
+pub const fn set_vop_amplitude(cmd2: &ExtensionRegister, vrha: u8) -> Transmission<1> {
+    Instruction::BK1(BK1::VRHS).to_write([vrha])
+}
 
-    pub fn set_vgh_voltage(cmd2: &Command2Selection, vgh: u8) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || OldCommand::new(BK1Command2::VGHSS as u8).arg(vgh))
-    }
-    pub fn test_command_setting(cmd2: &Command2Selection) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || OldCommand::new(BK1Command2::TESTCMD as u8).arg(0x80))
-    }
+pub const fn set_vcom_amplitude(cmd2: &ExtensionRegister, vcom: u8) -> Transmission<1> {
+    Instruction::BK1(BK1::VCOMS).to_write([vcom])
+}
 
-    pub fn set_vgl_voltage(cmd2: &Command2Selection, vgls: u8) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(BK1Command2::VGLS as u8).arg(0x40 | vgls)
-        })
-    }
+pub const fn set_vgh_voltage(cmd2: &ExtensionRegister, vgh: u8) -> Transmission<1> {
+    Instruction::BK1(BK1::VGHSS).to_write([vgh])
+}
+pub const fn test_command_setting(cmd2: &ExtensionRegister) -> Transmission<1> {
+    Instruction::BK1(BK1::TESTCMD).to_write([0x80])
+}
 
-    pub fn power_control_one(
-        cmd2: &Command2Selection,
-        ap: GammaOPBias,
-        apis: SourceOPInput,
-        apos: SourceOPOutput,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(BK1Command2::PWCTRL1 as u8).arg(ap as u8 | apis as u8 | apos as u8)
-        })
-    }
+pub const fn set_vgl_voltage(cmd2: &ExtensionRegister, vgls: u8) -> Transmission<1> {
+    Instruction::BK1(BK1::VGLS).to_write([0x40 | vgls])
+}
 
-    pub fn power_control_two(
-        cmd2: &Command2Selection,
-        avdd: VoltageAVDD,
-        avcl: VoltageAVCL,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(BK1Command2::PWCTRL2 as u8).arg(avdd as u8 | avcl as u8)
-        })
-    }
+pub const fn power_control_one(
+    cmd2: &ExtensionRegister,
+    ap: GammaOPBias,
+    apis: SourceOPInput,
+    apos: SourceOPOutput,
+) -> Transmission<1> {
+    Instruction::BK1(BK1::PWCTRL1).to_write([ap as u8 | apis as u8 | apos as u8])
+}
 
-    /// # SET SOURCE PRE DRIVE TIMING CONTROL
-    /// T2D [3:0]: source pre_drive timing setting.(GND to VDD)
-    /// Adjust Range : 0 ~ 3 uS 1 step is 0.2uS
-    ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-    ///|   --   |    1   |    1   |    1   |                T2D                |
-    pub fn set_pre_drive_timing_one(
-        cmd2: &Command2Selection,
-        t2d: u8,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(BK1Command2::SPD1 as u8).arg(0x70 | t2d)
-        })
-    }
+pub const fn power_control_two(
+    cmd2: &ExtensionRegister,
+    avdd: VoltageAVDD,
+    avcl: VoltageAVCL,
+) -> Transmission<1> {
+    Instruction::BK1(BK1::PWCTRL2).to_write([avdd as u8 | avcl as u8])
+}
 
-    /// # SET SOURCE PRE DRIVE TIMING CONTROL
-    /// Same parameters as SPD1
-    pub fn set_pre_drive_timing_two(
-        cmd2: &Command2Selection,
-        t2d: u8,
-    ) -> Result<OldCommand, &'static str> {
-        Self::validate(cmd2, || {
-            OldCommand::new(BK1Command2::SPD2 as u8).arg(0x70 | t2d)
-        })
-    }
+/// # SET SOURCE PRE DRIVE TIMING CONTROL
+/// T2D [3:0]: source pre_drive timing setting.(GND to VDD)
+/// Adjust Range : 0 ~ 3 uS 1 step is 0.2uS
+///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+///|   --   |    1   |    1   |    1   |                T2D                |
+pub const fn set_pre_drive_timing_one(cmd2: &ExtensionRegister, t2d: u8) -> Transmission<1> {
+    Instruction::BK1(BK1::SPD1).to_write([0x70 | t2d])
+}
+
+/// # SET SOURCE PRE DRIVE TIMING CONTROL
+/// Same parameters as SPD1
+pub const fn set_pre_drive_timing_two(cmd2: &ExtensionRegister, t2d: u8) -> Transmission<1> {
+    Instruction::BK1(BK1::SPD2).to_write([0x70 | t2d])
 }

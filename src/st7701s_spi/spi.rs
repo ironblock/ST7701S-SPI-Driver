@@ -1,66 +1,70 @@
 extern crate spidev;
 
-use log::error;
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
-use std::io;
 use std::io::prelude::*;
+use std::path::Path;
 
-use crate::st7701s_spi::commands::OldCommand;
+use crate::st7701s_spi::interface::{Operation, ReadData, Transmission, WriteData};
 
-pub struct HalfDuplexSPI {
-    spi: Spidev,
-    options: SpidevOptions,
+#[repr(u8)]
+#[rustfmt::skip]
+enum DCX {
+    Command   = 0b0,
+    Parameter = 0b1
 }
 
-impl HalfDuplexSPI {
-    pub fn create_spi(device: String, options: &SpidevOptions) -> io::Result<Spidev> {
-        let mut spi = Spidev::open(device)?;
-        spi.configure(options)?;
-        Ok(spi)
+pub type InstructionQueue = Vec<Transmission>;
+pub trait Protocol {
+    const OPTIONS: SpidevOptions;
+
+    fn connect(path: &Path) -> Spidev {
+        let mut connection = Spidev::open(path).unwrap();
+        connection.configure(&Self::OPTIONS);
+
+        connection
     }
 
-    pub fn new(device: String) -> HalfDuplexSPI {
-        let options = SpidevOptions::new()
-            .bits_per_word(9)
-            .lsb_first(false)
-            .max_speed_hz(20_000)
-            .mode(SpiModeFlags::SPI_MODE_0)
-            .build();
-        let spi = HalfDuplexSPI::create_spi(device, &options).unwrap();
-
-        HalfDuplexSPI { options, spi }
+    fn transmit_command(spi: &mut Spidev, address: u8) {
+        spi.write(&[DCX::Command as u8, address]);
     }
 
-    pub fn write_command(&mut self, command: Result<OldCommand, &'static str>) {
-        match command {
-            Ok(c) => {
-                self.spi
-                    .write(&c.serialize_address())
-                    .unwrap_or_else(|_| panic!("Failed to write to address {:#04X}", c.address));
+    fn transmit_write<const S: usize>(spi: &mut Spidev, address: u8, data: WriteData<S>) {
+        Self::transmit_command(spi, address);
 
-                for parameter in c.parameters {
-                    self.spi
-                        .write(&OldCommand::serialize_parameter(parameter))
-                        .unwrap_or_else(|_| panic!("Failed to write parameter {parameter:#04X}"));
-                }
-            }
-            Err(e) => error!("{e}"),
+        for byte in data {
+            spi.write(&[DCX::Parameter as u8, byte]);
         }
     }
 
-    pub fn read_command(&mut self, command: Result<OldCommand, &'static str>) {
-        match command {
-            Ok(c) => {
-                let mut rx_buf = [0_u8; 10];
-                self.spi
-                    .write(&c.serialize_address())
-                    .unwrap_or_else(|_| panic!("Failed to write to address {:#04X}", c.address));
-                self.spi
-                    .read(&mut rx_buf)
-                    .unwrap_or_else(|_| panic!("Failed to read from address {:#04X}", c.address));
-                println!("{rx_buf:?}");
+    fn transmit_read(_spi: &mut Spidev, _address: u8, _handler: ReadData) {
+        todo!()
+    }
+
+    fn enqueue(spi: &mut Spidev, queue: InstructionQueue) {
+        for transmission in queue {
+            match transmission.operation {
+                Operation::Command => Self::transmit_command(spi, transmission.address),
+                Operation::Write(data) => Self::transmit_write(spi, transmission.address, data),
+                Operation::Read(handler) => Self::transmit_read(spi, transmission.address, handler)
             }
-            Err(e) => println!("{e}"),
         }
     }
 }
+
+struct ThreeWireConnection(Spidev);
+
+impl Protocol for ThreeWireConnection {
+    const OPTIONS: SpidevOptions = SpidevOptions {
+        bits_per_word: Some(9),
+        max_speed_hz: Some(20_0000),
+        lsb_first: Some(false),
+        spi_mode: Some(SpiModeFlags::SPI_MODE_0)
+    };
+}
+
+impl ThreeWireConnection {
+    fn new(path: &Path) -> Self {
+        Self(Self::connect(path))
+    }
+}
+
