@@ -1,39 +1,16 @@
-use crate::st7701s_spi::interface::{Instruction, Transmission};
+use crate::st7701s_spi::interface::{Location, Operation};
 
 pub enum Toggle {
     On,
     Off,
 }
 
-pub struct ToggleCommands {
-    pub on: Instruction,
-    pub off: Instruction,
-}
-
-impl ToggleCommands {
-    pub const fn new(on: Instruction, off: Instruction) -> Self {
-        Self { on, off }
-    }
-
-    pub const fn toggle(&self, mode: Toggle) -> Transmission<0> {
-        match mode {
-            Toggle::Off => self.on.to_command(),
-            Toggle::On => self.off.to_command(),
-        }
+pub const fn toggle<ON: Location, OFF: Location>(mode: Toggle) -> Operation<0> {
+    match mode {
+        Toggle::Off => Operation::command::<OFF>(),
+        Toggle::On => Operation::command::<ON>(),
     }
 }
-
-pub struct SelectCommands {
-    pub select: Instruction,
-    pub disable: Instruction,
-}
-
-// pub const fn toggle_state(commands: ToggleCommands, mode: Toggle) -> Transmission {
-//     match mode {
-//         Toggle::Off => commands.on.to_command(),
-//         Toggle::On => commands.off.to_command(),
-//     }
-// }
 
 pub enum Logic {
     Low,
@@ -96,7 +73,3 @@ pub struct DriverState {
     enhancement_mode: (),
     enhancement_adaptive: (),
 }
-
-// const NO_OPERATION: Instruction =
-//     Instruction::from_location(Core::NOP.location(), Operation::Command);
-// const SLEEP_MODE: ToggleState = ToggleState::new(Core::SLPIN.location(), Core::SLPOUT.location());

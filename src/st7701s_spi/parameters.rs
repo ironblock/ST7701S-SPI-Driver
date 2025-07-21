@@ -1,23 +1,13 @@
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum GammaCurve {
-    /// Gamma Curve 1 (G=2.2)
-    One = 0x01,
-    /// Reserved
-    Two = 0x02,
-    /// Reserved
-    Three = 0x04,
-    /// Reserved
-    Four = 0x08,
+    One,
+    Two,
+    Three,
+    Four,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum TearingEffect {
-    /// V-blanking only
-    VBlank = 0x00,
-    /// V-blanking and H-blanking
-    VHBlank = 0x01,
+    VBlank,
+    VHBlank,
 }
 
 #[repr(u8)]

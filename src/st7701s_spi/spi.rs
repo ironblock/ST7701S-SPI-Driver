@@ -1,10 +1,11 @@
 extern crate spidev;
 
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
-use std::io::prelude::*;
+use std::any::Any;
+use std::{io::prelude::*};
 use std::path::Path;
 
-use crate::st7701s_spi::interface::{Operation, ReadData, Transmission, WriteData};
+use crate::st7701s_spi::interface::{Buffer, Reader};
 
 #[repr(u8)]
 #[rustfmt::skip]
@@ -13,7 +14,6 @@ enum DCX {
     Parameter = 0b1
 }
 
-pub type InstructionQueue = Vec<Transmission>;
 pub trait Protocol {
     const OPTIONS: SpidevOptions;
 
@@ -28,7 +28,7 @@ pub trait Protocol {
         spi.write(&[DCX::Command as u8, address]);
     }
 
-    fn transmit_write<const S: usize>(spi: &mut Spidev, address: u8, data: WriteData<S>) {
+    fn transmit_write<const N: usize>(spi: &mut Spidev, address: u8, data: Buffer<N>) {
         Self::transmit_command(spi, address);
 
         for byte in data {
@@ -36,16 +36,16 @@ pub trait Protocol {
         }
     }
 
-    fn transmit_read(_spi: &mut Spidev, _address: u8, _handler: ReadData) {
+    fn transmit_read(_spi: &mut Spidev, _address: u8, _handler: Reader) {
         todo!()
     }
 
     fn enqueue(spi: &mut Spidev, queue: InstructionQueue) {
         for transmission in queue {
             match transmission.operation {
-                Operation::Command => Self::transmit_command(spi, transmission.address),
-                Operation::Write(data) => Self::transmit_write(spi, transmission.address, data),
-                Operation::Read(handler) => Self::transmit_read(spi, transmission.address, handler)
+                Direction::Command => Self::transmit_command(spi, transmission.address),
+                Direction::TX(data) => Self::transmit_write(spi, transmission.address, data),
+                Direction::RX(handler) => Self::transmit_read(spi, transmission.address, handler)
             }
         }
     }
