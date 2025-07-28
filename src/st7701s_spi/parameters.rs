@@ -1,13 +1,40 @@
-pub enum GammaCurve {
-    One,
-    Two,
-    Three,
-    Four,
+pub mod gamma {
+    pub enum Curve {
+        GC1,
+        GC2,
+        GC3,
+        GC4,
+    }
 }
 
-pub enum TearingEffect {
-    VBlank,
-    VHBlank,
+pub mod tearing_effect {
+    pub enum Signal {
+        VBlank,
+        VHBlank,
+    }
+}
+
+pub mod data_access {
+    pub enum ScanDirection {
+        Normal,
+        Reverse,
+    }
+
+    pub enum ColorOrder {
+        Rgb,
+        Bgr,
+    }
+}
+
+pub mod pixel_format {
+    pub enum BitsPerPixel {
+        /// 16 bits per pixel (RGB565)
+        RGB565,
+        /// 18 bits per pixel (RGB666)
+        RGB666,
+        /// 24 bits per pixel (RGB888)
+        RGB888,
+    }
 }
 
 #[repr(u8)]
@@ -72,24 +99,6 @@ pub enum EndPixelFormat {
     One = 0x05,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum ScanDirection {
-    Normal = 0x00,
-    Reverse = 0x10,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum ColorOrder {
-    /// RGB mode
-    Rgb = 0x00,
-    /// BGR mode
-    Bgr = 0x08,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum BitsPerPixel {
     /// 16 bits per pixel (RGB565)
     Rgb565 = 0x50,

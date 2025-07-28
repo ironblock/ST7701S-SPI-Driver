@@ -1,5 +1,8 @@
 use crate::st7701s_spi::{
-    interface::{bk0::*, bk1::*, core::*, *}, panel::Mode, parameters::*, state::{toggle, Toggle}
+    interface::{bk0::*, bk1::*, core::*, *},
+    panel::Mode,
+    parameters::*,
+    state::{Toggle, toggle},
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -43,7 +46,7 @@ const fn no_operation() -> Operation<0> {
 ///     duration should be at least 120ms before sending the next command.
 ///   - SWRESET cannot be sent during SLPOUT
 ///   - (MIPI ONLY) Send a shutdown packet before SWRESET
-pub const fn software_reset() -> Operation<{SWRESET::BYTES}> {
+pub const fn software_reset() -> Operation<{ SWRESET::BYTES }> {
     Operation::write::<SWRESET>([0b0000_0001])
 }
 
@@ -107,7 +110,7 @@ pub const fn all_pixels_on() -> Operation<0> {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
-pub const fn gamma_curve_select(gc: GammaCurve) -> Operation<{GAMSET::BYTES}> {
+pub const fn gamma_curve_select(gc: GammaCurve) -> Operation<{ GAMSET::BYTES }> {
     let data = match gc {
         GammaCurve::One => 0x01,
         GammaCurve::Two => 0x02,
@@ -128,7 +131,7 @@ pub const fn display_output(mode: Toggle) -> Operation<0> {
     toggle::<DISPON, DISPOFF>(mode)
 }
 
-pub const fn tearing_effect(te: Option<TearingEffect>) -> Operation<{TEON::BYTES}> {
+pub const fn tearing_effect(te: Option<TearingEffect>) -> Operation<{ TEON::BYTES }> {
     if let Some(mode) = te {
         let data: u8 = match mode {
             TearingEffect::VBlank => 0x00,
@@ -146,7 +149,10 @@ pub const fn tearing_effect(te: Option<TearingEffect>) -> Operation<{TEON::BYTES
 /// * []
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
-pub const fn display_data_control(ml: ScanDirection, co: ColorOrder) -> Operation<{MADCTL::BYTES}> {
+pub const fn display_data_control(
+    ml: ScanDirection,
+    co: ColorOrder,
+) -> Operation<{ MADCTL::BYTES }> {
     Operation::write::<MADCTL>([ml as u8 | co as u8])
 }
 
@@ -167,7 +173,7 @@ pub const fn idle_mode(mode: Toggle) -> Operation<0> {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
-pub const fn set_color_mode(bpp: BitsPerPixel) -> Operation<{COLMOD::BYTES}> {
+pub const fn set_color_mode(bpp: BitsPerPixel) -> Operation<{ COLMOD::BYTES }> {
     Operation::write::<COLMOD>([bpp as u8])
 }
 
@@ -180,7 +186,7 @@ pub const fn set_color_mode(bpp: BitsPerPixel) -> Operation<{COLMOD::BYTES}> {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Display Brightness Value [7:0]                    |
-pub const fn set_display_brightness(dbv: u8) -> Operation<{WRDISBV::BYTES}> {
+pub const fn set_display_brightness(dbv: u8) -> Operation<{ WRDISBV::BYTES }> {
     Operation::write::<WRDISBV>([dbv as u8])
 }
 
@@ -198,7 +204,7 @@ pub const fn configure_brightness(
     bctrl: BrightnessControl,
     dd: DisplayDimming,
     bl: Backlight,
-) -> Operation<{WRCTRLD::BYTES}> {
+) -> Operation<{ WRCTRLD::BYTES }> {
     Operation::write::<WRCTRLD>([bctrl as u8 | dd as u8 | bl as u8])
 }
 
@@ -217,7 +223,7 @@ pub const fn configure_color_enhancement(
     ce: Enhancement,
     cemd: EnhancementMode,
     cabc: AdaptiveBrightness,
-) -> Operation<{WRCACE::BYTES}> {
+) -> Operation<{ WRCACE::BYTES }> {
     Operation::write::<WRCACE>([ce as u8 | cemd as u8 | cabc as u8])
 }
 
@@ -230,7 +236,7 @@ pub const fn configure_color_enhancement(
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Minimum Brightness Value [7:0]                    |
-pub const fn set_minimum_brightness(mbv: u8) -> Operation<{WRCABCMB::BYTES}> {
+pub const fn set_minimum_brightness(mbv: u8) -> Operation<{ WRCABCMB::BYTES }> {
     Operation::write::<WRCABCMB>([mbv as u8])
 }
 
@@ -250,33 +256,40 @@ pub const fn read_self_diagnostics() -> Operation<0> {
 /// approach, where set_command_2 will send the chip the updated Command2
 /// setting AND record it back to the local flag, which is required for
 /// static type checking in all Command2 operations locally.
-pub const fn select_command_extension(cn2: Toggle, bksel: Bank) -> Operation<{CND2BKXSEL::BYTES}> {
-      const P1: u8 = 0b0111_0111;
-      const P2: u8 = 0b0000_0001;
-      const P3: u8 = 0b0000_0000;
-      const P4: u8 = 0b0000_0000;
-      let P5A: u8 = match cn2 {
+pub const fn select_command_extension(
+    cn2: Toggle,
+    bksel: Bank,
+) -> Operation<{ CND2BKXSEL::BYTES }> {
+    const P1: u8 = 0b0111_0111;
+    const P2: u8 = 0b0000_0001;
+    const P3: u8 = 0b0000_0000;
+    const P4: u8 = 0b0000_0000;
+    let p5a: u8 = match cn2 {
         Toggle::Off => 0b0000_0000,
         Toggle::On => 0b0001_0000,
-      };
-      let P5B: u8 = match bksel {
+    };
+    let p5b: u8 = match bksel {
         Bank::BK0 => 0b0000_0000,
         Bank::BK1 => 0b0000_0001,
         Bank::BK3 => 0b0000_0011,
-      };
+    };
 
-    Operation::write::<CND2BKXSEL>([P1, P2, P3, P4, P5A | P5B])
+    Operation::write::<CND2BKXSEL>([P1, P2, P3, P4, p5a | p5b])
 }
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-pub const fn positive_gamma_control(parameters: [u8; {PVGAMCTRL::BYTES}]) -> Operation<{PVGAMCTRL::BYTES}> {
+pub const fn positive_gamma_control(
+    parameters: [u8;  PVGAMCTRL::BYTES ],
+) -> Operation<{ PVGAMCTRL::BYTES }> {
     Operation::write::<PVGAMCTRL>(parameters)
 }
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-pub const fn negative_gamma_control(parameters: [u8; {NVGAMCTRL::BYTES}]) -> Operation<{NVGAMCTRL::BYTES}> {
+pub const fn negative_gamma_control(
+    parameters: [u8; NVGAMCTRL::BYTES ],
+) -> Operation<{ NVGAMCTRL::BYTES }> {
     Operation::write::<NVGAMCTRL>(parameters)
 }
 
@@ -285,12 +298,12 @@ pub const fn display_line_setting(
     lde_en: u8,
     line: u8,
     line_delta: u8,
-) -> Operation<{LNESET::BYTES}> {
+) -> Operation<{ LNESET::BYTES }> {
     Operation::write::<LNESET>([lde_en | line, line_delta])
 }
 
 /// # PORCH CONTROL
-pub const fn porch_control(mode: &Mode) -> Operation<{PORCTRL::BYTES}> {
+pub const fn porch_control(mode: &Mode) -> Operation<{ PORCTRL::BYTES }> {
     let front_porch: u8 = (mode.vtotal - mode.vsync_end) as u8;
     let back_porch: u8 = (mode.vsync_start - mode.vdisplay) as u8;
 
@@ -300,7 +313,7 @@ pub const fn porch_control(mode: &Mode) -> Operation<{PORCTRL::BYTES}> {
 /// # INVERSION SELECT
 /// * [LINV] - the type of inversion
 /// * [RTNI] - minimum number of pclk in each line
-pub const fn inversion_select(nlinv: Inversion, rtni: u8) -> Operation<{INVSET::BYTES}> {
+pub const fn inversion_select(nlinv: Inversion, rtni: u8) -> Operation<{ INVSET::BYTES }> {
     Operation::write::<INVSET>([nlinv as u8, rtni])
 }
 
@@ -325,14 +338,13 @@ pub const fn inversion_select(nlinv: Inversion, rtni: u8) -> Operation<{INVSET::
 ///|                                  HBP                                  |
 ///|                                  VBP                                  |
 pub const fn rgb_control(
-
     dehv: DataEnable,
     vsp: VsyncActive,
     hsp: HsyncActive,
     dp: DataPolarity,
     ep: EnablePolarity,
     mode: &Mode,
-) -> Operation<{RGBCTRL::BYTES}> {
+) -> Operation<{ RGBCTRL::BYTES }> {
     let hbp: u8 = (mode.htotal - mode.hsync_end) as u8;
     let vbp: u8 = (mode.vsync_start - mode.vdisplay) as u8;
 
@@ -362,12 +374,11 @@ pub const fn rgb_control(
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   PWM  |   LED  |   MDT  |            EPF           |
 pub const fn color_control(
-
     pwm: PWMPolarity,
     led: LEDPolarity,
     mdt: PixelPinout,
     epf: EndPixelFormat,
-) -> Operation<{COLCTRL::BYTES}> {
+) -> Operation<{ COLCTRL::BYTES }> {
     Operation::write::<COLCTRL>([pwm as u8 | led as u8 | mdt as u8 | epf as u8])
 }
 
@@ -382,7 +393,7 @@ pub const fn color_control(
 pub const fn configure_sunlight_ehancement(
     sre: SunlightReadable,
     mut sre_alpha: u8,
-) -> Operation<{SECTRL::BYTES}> {
+) -> Operation<{ SECTRL::BYTES }> {
     if sre_alpha > 0x0F {
         sre_alpha = 0x0F;
     }
@@ -398,31 +409,29 @@ pub const fn set_vcom_amplitude(vcom: u8) -> Operation<{VCOMS::BYTES}> {
     Operation::write::<VCOMS>([vcom])
 }
 
-pub const fn set_vgh_voltage(vgh: u8) -> Operation<{VGHSS::BYTES}> {
+pub const fn set_vgh_voltage(vgh: u8) -> Operation<{ VGHSS::BYTES }> {
     Operation::write::<VGHSS>([vgh])
 }
-pub const fn test_command_setting() -> Operation<{TESTCMD::BYTES}> {
+pub const fn test_command_setting() -> Operation<{ TESTCMD::BYTES }> {
     Operation::write::<TESTCMD>([0x80])
 }
 
-pub const fn set_vgl_voltage(vgls: u8) -> Operation<{VGLS::BYTES}> {
+pub const fn set_vgl_voltage(vgls: u8) -> Operation<{ VGLS::BYTES }> {
     Operation::write::<VGLS>([0x40 | vgls])
 }
 
 pub const fn power_control_one(
-
     ap: GammaOPBias,
     apis: SourceOPInput,
     apos: SourceOPOutput,
-) -> Operation<{PWCTRL1::BYTES}> {
+) -> Operation<{ PWCTRL1::BYTES }> {
     Operation::write::<PWCTRL1>([ap as u8 | apis as u8 | apos as u8])
 }
 
 pub const fn power_control_two(
-
     avdd: VoltageAVDD,
     avcl: VoltageAVCL,
-) -> Operation<{PWCTRL2::BYTES}> {
+) -> Operation<{ PWCTRL2::BYTES }> {
     Operation::write::<PWCTRL2>([avdd as u8 | avcl as u8])
 }
 
@@ -431,12 +440,12 @@ pub const fn power_control_two(
 /// Adjust Range : 0 ~ 3 uS 1 step is 0.2uS
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |    1   |    1   |    1   |                T2D                |
-pub const fn set_pre_drive_timing_one(t2d: u8) -> Operation<{SPD1::BYTES}> {
+pub const fn set_pre_drive_timing_one(t2d: u8) -> Operation<{ SPD1::BYTES }> {
     Operation::write::<SPD1>([0x70 | t2d])
 }
 
 /// # SET SOURCE PRE DRIVE TIMING CONTROL
 /// Same parameters as SPD1
-pub const fn set_pre_drive_timing_two(t2d: u8) -> Operation<{SPD2::BYTES}> {
+pub const fn set_pre_drive_timing_two(t2d: u8) -> Operation<{ SPD2::BYTES }> {
     Operation::write::<SPD2>([0x70 | t2d])
 }

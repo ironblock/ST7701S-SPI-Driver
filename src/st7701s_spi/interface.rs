@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::fmt::Write;
 
 pub type Address = u8;
 pub type Extension = Option<Bank>;
@@ -29,6 +29,9 @@ pub trait Location: Sized {
 
 pub trait WriteData: Location {
     const BYTES: Bytes;
+    const INITIAL: Self::Parameters;
+
+    type Parameters;
 }
 
 pub trait ReadData: Location {
@@ -55,430 +58,749 @@ impl<const N: Bytes> Operation<N> {
     }
 }
 
-pub const fn allocate_buffer<const BYTES: usize>() -> [u8; BYTES] {
-    [0; BYTES]
-}
-
-#[rustfmt::skip]
+/**
+ * # System Commands
+ *
+ * Unless otherwise noted, any given page reference refers to the confidential
+ * Sitronix ST7701S Datatsheet v1.2 (Oct. 2017).
+ */
 pub mod core {
+    use crate::st7701s_spi::parameters::{data_access, gamma, pixel_format, tearing_effect};
+
     use super::*;
 
     /**
       ### `0x00` `NOP`  No Operation
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 187
+      > Reference: p. 187
     */
     pub struct NOP;
-    impl Location for NOP         { const ADDRESS: u8      = 0x00; }
+    impl Location for NOP {
+        const ADDRESS: u8 = 0x00;
+    }
 
     /**
       ### `0x01` `SWRESET`  Software Reset
 
-      #### Write Parameters
-
-      It's never stated anywhere why D0 is 1, but it's indicated in both the
-      primary reference table on p. 184 and again on SWRESET's detail page. As
-      an additional contradiction, p. 184 refers to SWRESET as a **command**
-      (with no arguments), and p. 188 refers to it as a **write**. As only a
-      write can have arguments and 0x01 is the constant argument in both
-      references, SWRESET's canonical representation here is as a **write**.
-
-      |   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-      |:------:|:------:|:------:|:------:|:------:|:------:|:------:|:------:|
-      |   --   |   --   |   --   |   --   |   --   |   --   |   --   |    1   |
-
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 188
+      > Reference: p. 188
     */
     pub struct SWRESET;
-    impl Location for SWRESET     { const ADDRESS: u8      = 0x01; }
-    impl WriteData for SWRESET    { const BYTES:   Bytes   = 1;    }
+    impl Location for SWRESET {
+        const ADDRESS: u8 = 0x01;
+    }
+    impl WriteData for SWRESET {
+        const BYTES: Bytes = 1;
+        const INITIAL: Self::Parameters = ();
+
+        type Parameters = ();
+    }
+    impl SWRESET {
+        /**
+            #### `SWRESET` Write Parameters
+
+            It's never stated anywhere why D0 is 1, but it's indicated in both the
+            primary reference table on p. 184 and again on SWRESET's detail page.
+
+            As an additional contradiction, p. 184 refers to SWRESET as a **command**
+            (with no arguments), and p. 188 refers to it as a **write**. As only a
+            write can have arguments and 0x01 is the constant argument in both
+            references, SWRESET's canonical representation here is as a **write**.
+
+            |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+            |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+            | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
+        */
+        pub const fn encode() -> Buffer<{ Self::BYTES }> {
+            const RESET_DATA: u8 = 1;
+            [RESET_DATA]
+        }
+    }
 
     /**
       ### `0x04` `RDDID`  Read Display ID
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 189
+      > Reference: p. 189
     */
     pub struct RDDID;
-    impl Location for RDDID       { const ADDRESS: Address = 0x04; }
-    impl ReadData for RDDID       { const BYTES:   Bytes   = 4;    }
+    impl Location for RDDID {
+        const ADDRESS: Address = 0x04;
+    }
+    impl ReadData for RDDID {
+        const BYTES: Bytes = 4;
+    }
+    impl RDDID {
+        /**
+            #### `RDDID` Read Parameters
+
+            |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+            |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+            | P1 |   -   |   -   |   -   |   -   |   -   |   -   |   -   |   -   |
+            | P2 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
+            | P3 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
+            | P4 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
+        */
+        const fn decode(_response: &[u8]) -> Buffer<{ Self::BYTES }> {
+            // P1 - IGNORE
+            // P2 - Manufacturer ID
+            // P2 - Version ID
+            // P3 - Module ID
+            todo!()
+        }
+    }
 
     /**
       ### `0x05` `RDNUMED`  Read Number of Errors on DSI
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 190
+
+      Only relevant for MIPI interfaces, not implemented here.
+
+      > Reference: p. 190
     */
     pub struct RDNUMED;
-    impl Location for RDNUMED     { const ADDRESS: Address = 0x05; }
-    impl ReadData for RDNUMED     { const BYTES:   Bytes   = 1;    }
+    impl Location for RDNUMED {
+        const ADDRESS: Address = 0x05;
+    }
 
     /**
       ### `0x06` `RDRED`  Read the first pixel of Red Color
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 191
+      > Reference: p. 191
     */
     pub struct RDRED;
-    impl Location for RDRED       { const ADDRESS: Address = 0x06; }
-    impl ReadData for RDRED       { const BYTES:   Bytes   = 1;    }
+    impl Location for RDRED {
+        const ADDRESS: Address = 0x06;
+    }
+    impl ReadData for RDRED {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x07` `RDGREEN`  Read the first pixel of Green Color
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 192
+      > Reference: p. 192
     */
     pub struct RDGREEN;
-    impl Location for RDGREEN     { const ADDRESS: Address = 0x07; }
-    impl ReadData for RDGREEN     { const BYTES:   Bytes   = 1;    }
+    impl Location for RDGREEN {
+        const ADDRESS: Address = 0x07;
+    }
+    impl ReadData for RDGREEN {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x08` `RDBLUE`  Read the first pixel of Blue Color
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 193
+      > Reference: p. 193
     */
     pub struct RDBLUE;
-    impl Location for RDBLUE      { const ADDRESS: Address = 0x08; }
-    impl ReadData for RDBLUE      { const BYTES:   Bytes   = 1;    }
+    impl Location for RDBLUE {
+        const ADDRESS: Address = 0x08;
+    }
+    impl ReadData for RDBLUE {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x0A` `RDDPM`  Read Display Power Mode
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 194
+      > Reference: p. 194
     */
     pub struct RDDPM;
-    impl Location for RDDPM       { const ADDRESS: Address = 0x0A; }
-    impl ReadData for RDDPM       { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDPM {
+        const ADDRESS: Address = 0x0A;
+    }
+    impl ReadData for RDDPM {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x0B` `RDDMADCTL`  Read Display MADCTL
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 195
+      > Reference: p. 195
     */
     pub struct RDDMADCTL;
-    impl Location for RDDMADCTL   { const ADDRESS: Address = 0x0B; }
-    impl ReadData for RDDMADCTL   { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDMADCTL {
+        const ADDRESS: Address = 0x0B;
+    }
+    impl ReadData for RDDMADCTL {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x0C` `RDDCOLMOD`  Read Display Pixel Format
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 196
+      > Reference: p. 196
     */
     pub struct RDDCOLMOD;
-    impl Location for RDDCOLMOD   { const ADDRESS: Address = 0x0C; }
-    impl ReadData for RDDCOLMOD   { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDCOLMOD {
+        const ADDRESS: Address = 0x0C;
+    }
+    impl ReadData for RDDCOLMOD {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x0D` `RDDIM`  Read Display Image Mode
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 197
+      > Reference: p. 197
     */
     pub struct RDDIM;
-    impl Location for RDDIM       { const ADDRESS: Address = 0x0D; }
-    impl ReadData for RDDIM       { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDIM {
+        const ADDRESS: Address = 0x0D;
+    }
+    impl ReadData for RDDIM {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x0E` `RDDSM`  Read Display Signal Mode
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 198
+      > Reference: p. 198
     */
     pub struct RDDSM;
-    impl Location for RDDSM       { const ADDRESS: Address = 0x0E; }
-    impl ReadData for RDDSM       { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDSM {
+        const ADDRESS: Address = 0x0E;
+    }
+    impl ReadData for RDDSM {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x0F` `RDDSDR`  Read Display Self-Diagnostic Result
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 199
+      > Reference: p. 199
     */
     pub struct RDDSDR;
-    impl Location for RDDSDR      { const ADDRESS: Address = 0x0F; }
-    impl ReadData for RDDSDR      { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDSDR {
+        const ADDRESS: Address = 0x0F;
+    }
+    impl ReadData for RDDSDR {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x10` `SLPIN`  Sleep in
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 200
+      > Reference: p. 200
     */
     pub struct SLPIN;
-    impl Location for SLPIN       { const ADDRESS: Address = 0x10; }
+    impl Location for SLPIN {
+        const ADDRESS: Address = 0x10;
+    }
 
     /**
       ### `0x11` `SLPOUT`  Sleep Out
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 201
+      > Reference: p. 201
     */
     pub struct SLPOUT;
-    impl Location for SLPOUT      { const ADDRESS: Address = 0x11; }
+    impl Location for SLPOUT {
+        const ADDRESS: Address = 0x11;
+    }
 
     /**
       ### `0x12` `PTLON`  Partial Display Mode On
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 202
+      > Reference: p. 202
     */
     pub struct PTLON;
-    impl Location for PTLON       { const ADDRESS: Address = 0x12; }
+    impl Location for PTLON {
+        const ADDRESS: Address = 0x12;
+    }
 
     /**
       ### `0x13` `NORON`  Normal Display Mode On
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 203
+      > Reference: p. 203
     */
     pub struct NORON;
-    impl Location for NORON       { const ADDRESS: Address = 0x13; }
+    impl Location for NORON {
+        const ADDRESS: Address = 0x13;
+    }
 
     /**
       ### `0x20` `INVOFF`  Display Inversion Off
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 204
+      > Reference: p. 204
     */
     pub struct INVOFF;
-    impl Location for INVOFF      { const ADDRESS: Address = 0x20; }
+    impl Location for INVOFF {
+        const ADDRESS: Address = 0x20;
+    }
 
     /**
       ### `0x21` `INVON`  Display Inversion On
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 205
+      > Reference: p. 205
     */
     pub struct INVON;
-    impl Location for INVON       { const ADDRESS: Address = 0x21; }
+    impl Location for INVON {
+        const ADDRESS: Address = 0x21;
+    }
 
     /**
       ### `0x22` `ALLPOFF`  All Pixel Off
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 206
+      > Reference: p. 206
     */
     pub struct ALLPOFF;
-    impl Location for ALLPOFF     { const ADDRESS: Address = 0x22; }
+    impl Location for ALLPOFF {
+        const ADDRESS: Address = 0x22;
+    }
 
     /**
       ### `0x23` `ALLPON`  All Pixel ON
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 207
+      > Reference: p. 207
     */
     pub struct ALLPON;
-    impl Location for ALLPON      { const ADDRESS: Address = 0x23; }
+    impl Location for ALLPON {
+        const ADDRESS: Address = 0x23;
+    }
 
     /**
       ### `0x26` `GAMSET`  Gamma Set
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 208
+      > Reference: p. 208
     */
     pub struct GAMSET;
-    impl Location for GAMSET      { const ADDRESS: Address = 0x26; }
-    impl WriteData for GAMSET     { const BYTES:   Bytes   = 1;    }
+    impl Location for GAMSET {
+        const ADDRESS: Address = 0x26;
+    }
+    impl WriteData for GAMSET {
+        const BYTES: Bytes = 1;
+        const INITIAL: Self::Parameters = (gamma::Curve::GC1,);
+        type Parameters = (gamma::Curve,);
+    }
+    impl GAMSET {
+        /**
+            #### Write Parameters
+
+            Curve 1: G=2.2
+            Curve 2: Reserved
+            Curve 3: Reserved
+            Curve 4: Reserved
+
+            |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+            |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+            | P1 |   -   |   -   |   -   |   -   | GC[3] | GC[2] | GC[1] | GC[0] |
+        */
+        const fn encode(
+            (gc,): <Self as WriteData>::Parameters,
+        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+            let gc_data = match gc {
+                gamma::Curve::GC1 => 0x01,
+                gamma::Curve::GC2 => 0x02,
+                gamma::Curve::GC3 => 0x04,
+                gamma::Curve::GC4 => 0x08,
+            };
+
+            [gc_data]
+        }
+    }
 
     /**
       ### `0x28` `DISPOFF`  Display Off
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 209
+      > Reference: p. 209
     */
     pub struct DISPOFF;
-    impl Location for DISPOFF     { const ADDRESS: Address = 0x28; }
+    impl Location for DISPOFF {
+        const ADDRESS: Address = 0x28;
+    }
 
     /**
       ### `0x29` `DISPON`  Display On
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 210
+      > Reference: p. 210
     */
     pub struct DISPON;
-    impl Location for DISPON      { const ADDRESS: Address = 0x29; }
+    impl Location for DISPON {
+        const ADDRESS: Address = 0x29;
+    }
 
     /**
       ### `0x34` `TEOFF`  Tearing Effect Line OFF
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 211
+      > Reference: p. 211
     */
     pub struct TEOFF;
-    impl Location for TEOFF       { const ADDRESS: Address = 0x34; }
+    impl Location for TEOFF {
+        const ADDRESS: Address = 0x34;
+    }
 
     /**
       ### `0x35` `TEON`  Tearing Effect Line ON
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 212
+      > Reference: p. 212
     */
     pub struct TEON;
-    impl Location for TEON        { const ADDRESS: Address = 0x35; }
-    impl WriteData for TEON       { const BYTES:   Bytes   = 1;    }
+    impl Location for TEON {
+        const ADDRESS: Address = 0x35;
+    }
+    impl WriteData for TEON {
+        const BYTES: Bytes = 1;
+        const INITIAL: Self::Parameters = (tearing_effect::Signal::VBlank,);
+        type Parameters = (tearing_effect::Signal,);
+    }
+    impl TEON {
+        /**
+            #### Write Parameters
+
+            0: V-Blanking
+            1: VH-Blanking
+
+            NOTE: This mode can also be disabled with TEOFF
+
+            |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+            |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+            | P1 |   -   |   -   |   -   |   -   |   -   |   -   |   -   |   TE  |
+        */
+        pub const fn encode(
+            (te,): <Self as WriteData>::Parameters,
+        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+            let te_data = match te {
+                tearing_effect::Signal::VBlank => 0,
+                tearing_effect::Signal::VHBlank => 1,
+            };
+
+            [te_data]
+        }
+    }
 
     /**
       ### `0x36` `MADCTL`  Display data access control
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 214
+      > Reference: p. 214
     */
     pub struct MADCTL;
-    impl Location for MADCTL      { const ADDRESS: Address = 0x36; }
-    impl WriteData for MADCTL     { const BYTES:   Bytes   = 1;    }
+    impl Location for MADCTL {
+        const ADDRESS: Address = 0x36;
+    }
+    /**
+        #### Write Parameters
+
+        ML:
+          0: Normal
+          1: Reverse
+        CO:
+          0: RGB
+          1: BGR
+
+        NOTE: This mode can also be disabled with TEOFF
+
+        |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+        |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+        | P1 |   -   |   -   |   -   |   ML  |   CO  |   -   |   -   |   -   |
+    */
+    impl WriteData for MADCTL {
+        const BYTES: Bytes = 1;
+        const INITIAL: Self::Parameters = (
+            data_access::ScanDirection::Normal,
+            data_access::ColorOrder::Rgb,
+        );
+        type Parameters = (data_access::ScanDirection, data_access::ColorOrder);
+    }
+
+    impl MADCTL {
+        pub const fn encode(
+            (ml, co): <Self as WriteData>::Parameters,
+        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+            let ml_data = match ml {
+                data_access::ScanDirection::Normal => 0,
+                data_access::ScanDirection::Reverse => 1 << 4,
+            };
+            let co_data = match co {
+                data_access::ColorOrder::Rgb => 0,
+                data_access::ColorOrder::Bgr => 1 << 3,
+            };
+
+            [ml_data | co_data]
+        }
+    }
 
     /**
       ### `0x38` `IDMOFF`  Idle Mode Off
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 215
+      > Reference: p. 215
     */
     pub struct IDMOFF;
-    impl Location for IDMOFF      { const ADDRESS: Address = 0x38; }
+    impl Location for IDMOFF {
+        const ADDRESS: Address = 0x38;
+    }
 
     /**
       ### `0x39` `IDMON`  Idle Mode On
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 216
+      > Reference: p. 216
     */
     pub struct IDMON;
-    impl Location for IDMON       { const ADDRESS: Address = 0x39; }
+    impl Location for IDMON {
+        const ADDRESS: Address = 0x39;
+    }
 
     /**
       ### `0x3A` `COLMOD`  Interface Pixel Format
-      > Sitronix ST7701S Datatsheet v1.2 (Oct. 2017), p. 218
+      > Reference: p. 218
     */
     pub struct COLMOD;
-    impl Location for COLMOD      { const ADDRESS: Address = 0x3A; }
-    impl WriteData for COLMOD     { const BYTES:   Bytes   = 1;    }
+    impl Location for COLMOD {
+        const ADDRESS: Address = 0x3A;
+    }
+    impl WriteData for COLMOD {
+        const BYTES: Bytes = 1;
+        const INITIAL: Self::Parameters = (pixel_format::BitsPerPixel::RGB888,);
+        type Parameters = (pixel_format::BitsPerPixel,);
+    }
+    impl COLMOD {
+        pub const fn encode(
+            (bpp,): <Self as WriteData>::Parameters,
+        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+            let bpp_data = match bpp {
+                pixel_format::BitsPerPixel::RGB565 => 101 << 4,
+                pixel_format::BitsPerPixel::RGB666 => 110 << 4,
+                pixel_format::BitsPerPixel::RGB888 => 111 << 4,
+            };
+
+            [bpp_data]
+        }
+    }
 
     /**
       ### `0x045` `GSL` Get Scan Line
       > v1.2, Page 219
     */
     pub struct GSL;
-    impl Location for GSL         { const ADDRESS: Address = 0x45; }
-    impl ReadData for GSL         { const BYTES:   Bytes   = 2;    }
+    impl Location for GSL {
+        const ADDRESS: Address = 0x45;
+    }
+    impl ReadData for GSL {
+        const BYTES: Bytes = 2;
+    }
 
     /**
       ### `0x051` `WRDISBV` Write Display Brightness
       > v1.2, Page 220
     */
     pub struct WRDISBV;
-    impl Location for WRDISBV     { const ADDRESS: Address = 0x51; }
-    impl WriteData for WRDISBV    { const BYTES:   Bytes   = 1;    }
+    impl Location for WRDISBV {
+        const ADDRESS: Address = 0x51;
+    }
+    impl WriteData for WRDISBV {
+        const BYTES: Bytes = 1;
+    }
 
-
-/**
-  ### `0x52` `RDDISBV` Read Display Brightness Value
-  > v1.2, Page 221
-*/
+    /**
+      ### `0x52` `RDDISBV` Read Display Brightness Value
+      > v1.2, Page 221
+    */
     pub struct RDDISBV;
-    impl Location for RDDISBV     { const ADDRESS: Address = 0x52; }
-    impl ReadData for RDDISBV     { const BYTES:   Bytes   = 1;    }
+    impl Location for RDDISBV {
+        const ADDRESS: Address = 0x52;
+    }
+    impl ReadData for RDDISBV {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x53` `WRCTRLD` Write CTRL Display
       > v1.2, Page 222
     */
     pub struct WRCTRLD;
-    impl Location for WRCTRLD     { const ADDRESS: Address = 0x53; }
-    impl WriteData for WRCTRLD    { const BYTES:   Bytes   = 1;    }
+    impl Location for WRCTRLD {
+        const ADDRESS: Address = 0x53;
+    }
+    impl WriteData for WRCTRLD {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x54` `RDCTRLD` Read CTRL Display
       > v1.2, Page 224
     */
     pub struct RDCTRLD;
-    impl Location for RDCTRLD     { const ADDRESS: Address = 0x54; }
-    impl ReadData for RDCTRLD     { const BYTES:   Bytes   = 1;    }
+    impl Location for RDCTRLD {
+        const ADDRESS: Address = 0x54;
+    }
+    impl ReadData for RDCTRLD {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x55` `WRCACE` Write Content Adaptive Brightness Control and Color Enhancement
       > v1.2, Page 225
     */
     pub struct WRCACE;
-    impl Location for WRCACE      { const ADDRESS: Address = 0x55; }
-    impl WriteData for WRCACE     { const BYTES:   Bytes   = 1;    }
+    impl Location for WRCACE {
+        const ADDRESS: Address = 0x55;
+    }
+    impl WriteData for WRCACE {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x56` `RDCABC` Read Content Adaptive Brightness Control
       > v1.2, Page 227
     */
     pub struct RDCABC;
-    impl Location for RDCABC      { const ADDRESS: Address = 0x56; }
-    impl ReadData for RDCABC      { const BYTES:   Bytes   = 1;    }
+    impl Location for RDCABC {
+        const ADDRESS: Address = 0x56;
+    }
+    impl ReadData for RDCABC {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x5E` `WRCABCMB` Write CABC Minimum Brightness
       > v1.2, Page 229
     */
     pub struct WRCABCMB;
-    impl Location for WRCABCMB    { const ADDRESS: Address = 0x5E; }
-    impl WriteData for WRCABCMB   { const BYTES:   Bytes   = 1;    }
+    impl Location for WRCABCMB {
+        const ADDRESS: Address = 0x5E;
+    }
+    impl WriteData for WRCABCMB {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x5F` `RDCABCMB` Read CABC Minimum Brightness
       > v1.2, Page 230
     */
     pub struct RDCABCMB;
-    impl Location for RDCABCMB    { const ADDRESS: Address = 0x5F; }
-    impl ReadData for RDCABCMB    { const BYTES:   Bytes   = 1;    }
+    impl Location for RDCABCMB {
+        const ADDRESS: Address = 0x5F;
+    }
+    impl ReadData for RDCABCMB {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x68` `RDABCSDR` Read Automatic Brightness Control Self-Diagnostic Result
       > v1.2, Page 231
     */
     pub struct RDABCSDR;
-    impl Location for RDABCSDR    { const ADDRESS: Address = 0x68; }
-    impl ReadData for RDABCSDR    { const BYTES:   Bytes   = 1;    }
+    impl Location for RDABCSDR {
+        const ADDRESS: Address = 0x68;
+    }
+    impl ReadData for RDABCSDR {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x70` `RDBWLB` Read Black/White Low Bits
       > v1.2, Page 232
     */
     pub struct RDBWLB;
-    impl Location for RDBWLB      { const ADDRESS: Address = 0x70; }
-    impl ReadData for RDBWLB      { const BYTES:   Bytes   = 1;    }
+    impl Location for RDBWLB {
+        const ADDRESS: Address = 0x70;
+    }
+    impl ReadData for RDBWLB {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x71` `RDBkx` Read Bkx
       > v1.2, Page 233
     */
     pub struct RDBKX;
-    impl Location for RDBKX       { const ADDRESS: Address = 0x71; }
-    impl ReadData for RDBKX       { const BYTES:   Bytes   = 1;    }
+    impl Location for RDBKX {
+        const ADDRESS: Address = 0x71;
+    }
+    impl ReadData for RDBKX {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x72` `RDBky` Read Bky
       > v1.2, Page 234
     */
     pub struct RDBKY;
-    impl Location for RDBKY       { const ADDRESS: Address = 0x72; }
-    impl ReadData for RDBKY       { const BYTES:   Bytes   = 1;    }
+    impl Location for RDBKY {
+        const ADDRESS: Address = 0x72;
+    }
+    impl ReadData for RDBKY {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x73` `RDWx` Read Wx
       > v1.2, Page 235
     */
     pub struct RDWX;
-    impl Location for RDWX        { const ADDRESS: Address = 0x73; }
-    impl ReadData for RDWX        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDWX {
+        const ADDRESS: Address = 0x73;
+    }
+    impl ReadData for RDWX {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x74` `RDWy` Read Wy
       > v1.2, Page 236
     */
     pub struct RDWY;
-    impl Location for RDWY        { const ADDRESS: Address = 0x74; }
-    impl ReadData for RDWY        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDWY {
+        const ADDRESS: Address = 0x74;
+    }
+    impl ReadData for RDWY {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x75` `RDRGLB` Read Red/Green Low Bits
       > v1.2, Page 237
     */
     pub struct RDRGLB;
-    impl Location for RDRGLB      { const ADDRESS: Address = 0x75; }
-    impl ReadData for RDRGLB      { const BYTES:   Bytes   = 1;    }
+    impl Location for RDRGLB {
+        const ADDRESS: Address = 0x75;
+    }
+    impl ReadData for RDRGLB {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x76` `RDRx` Read Rx
       > v1.2, Page 238
     */
     pub struct RDRX;
-    impl Location for RDRX        { const ADDRESS: Address = 0x76; }
-    impl ReadData for RDRX        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDRX {
+        const ADDRESS: Address = 0x76;
+    }
+    impl ReadData for RDRX {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x77` `RDRy` Read Ry
       > v1.2, Page 239
     */
     pub struct RDRY;
-    impl Location for RDRY        { const ADDRESS: Address = 0x77; }
-    impl ReadData for RDRY        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDRY {
+        const ADDRESS: Address = 0x77;
+    }
+    impl ReadData for RDRY {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x78` `RDGx` Read Gx
       > v1.2, Page 240
     */
     pub struct RDGX;
-    impl Location for RDGX        { const ADDRESS: Address = 0x78; }
-    impl ReadData for RDGX        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDGX {
+        const ADDRESS: Address = 0x78;
+    }
+    impl ReadData for RDGX {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x79` `RDGy` Read Gy
       > v1.2, Page 241
     */
     pub struct RDGY;
-    impl Location for RDGY        { const ADDRESS: Address = 0x79; }
-    impl ReadData for RDGY        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDGY {
+        const ADDRESS: Address = 0x79;
+    }
+    impl ReadData for RDGY {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x7A` `RDBALB` Read Blue/A Color Low Bits
       > v1.2, Page 242
     */
     pub struct RDBALB;
-    impl Location for RDBALB      { const ADDRESS: Address = 0x7A; }
-    impl ReadData for RDBALB      { const BYTES:   Bytes   = 1;    }
+    impl Location for RDBALB {
+        const ADDRESS: Address = 0x7A;
+    }
+    impl ReadData for RDBALB {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x7B` `RDBx` Read Bx
       > v1.2, Page 243
     */
     pub struct RDBX;
-    impl Location for RDBX        { const ADDRESS: Address = 0x7B; }
-    impl ReadData for RDBX        { const BYTES:   Bytes   = 1;    }
+    impl Location for RDBX {
+        const ADDRESS: Address = 0x7B;
+    }
+    impl ReadData for RDBX {
+        const BYTES: Bytes = 1;
+    }
 
     /**
       ### `0x7C` `RDBy` Read By
@@ -545,8 +867,12 @@ pub mod core {
       |    0   |    0   |    0   |   CN2  |    0   |    0   |    0   | BKxSEL |
     */
     pub struct CND2BKXSEL;
-    impl Location for CND2BKXSEL  { const ADDRESS: Address = 0xFF; }
-    impl WriteData for CND2BKXSEL { const BYTES:   Bytes   = 5;    }
+    impl Location for CND2BKXSEL {
+        const ADDRESS: Address = 0xFF;
+    }
+    impl WriteData for CND2BKXSEL {
+        const BYTES: Bytes = 5;
+    }
 }
 
 /**

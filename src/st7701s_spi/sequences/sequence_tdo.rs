@@ -1,23 +1,23 @@
 use std::{thread, time};
 
+use frunk::hlist;
+
 use crate::st7701s_spi::{
-    commands::{InstructionBK0, InstructionBK1, OldCommand, ExtensionRegister, Opcode},
-    panel::Mode,
-    parameters::{
+    commands::*, interface::*, panel::Mode, parameters::{
         BitsPerPixel, ColorOrder, EndPixelFormat, GammaOPBias, Inversion, LEDPolarity, PWMPolarity,
         PixelPinout, ScanDirection, SourceOPInput, SourceOPOutput, VoltageAVCL, VoltageAVDD,
-    },
-    spi::HalfDuplexSPI,
+    }, state::*
 };
+
 
 pub fn init(display: &mut HalfDuplexSPI, mode: Mode) {
     let mut cmd2: ExtensionRegister = ExtensionRegister::Disabled;
 
     // Set Command2 for BK0
-    display.write_command(Opcode::set_command_2(ExtensionRegister::BK0));
-    cmd2 = ExtensionRegister::BK0;
+    // display.write_command(Opcode::set_command_2(ExtensionRegister::BK0));
+    // cmd2 = ExtensionRegister::BK0;
 
-    display.write_command(InstructionBK0::display_line_setting(&cmd2, 0x3B, 0x00, 0x00));
+    // display.write_command(InstructionBK0::display_line_setting(&cmd2, 0x3B, 0x00, 0x00));
     // Note: This will be off by one from the TDO spec:
     // SPI_WriteComm(0xC1); // PORCTRL
     // 0x0B); // V,
