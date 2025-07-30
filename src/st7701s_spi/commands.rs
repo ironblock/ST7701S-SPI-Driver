@@ -47,7 +47,7 @@ const fn no_operation() -> Operation<0> {
 ///   - SWRESET cannot be sent during SLPOUT
 ///   - (MIPI ONLY) Send a shutdown packet before SWRESET
 pub const fn software_reset() -> Operation<{ SWRESET::BYTES }> {
-    Operation::write::<SWRESET>([0b0000_0001])
+    Operation::write::<SWRESET>(SWRESET::encode_data())
 }
 
 /// # SLEEP IN
@@ -88,7 +88,7 @@ pub const fn invert_display(mode: Toggle) -> Operation<0> {
 /// This command sets all pixel values to black.
 ///
 /// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-pub const fn all_pixels_off() -> Operation<0> {
+pub const fn all_pixels_black() -> Operation<0> {
     Operation::command::<ALLPOFF>()
 }
 
@@ -97,7 +97,7 @@ pub const fn all_pixels_off() -> Operation<0> {
 /// This command sets all pixel values to white.
 ///
 /// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-pub const fn all_pixels_on() -> Operation<0> {
+pub const fn all_pixels_white() -> Operation<0> {
     Operation::command::<ALLPON>()
 }
 
@@ -110,15 +110,8 @@ pub const fn all_pixels_on() -> Operation<0> {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
-pub const fn gamma_curve_select(gc: GammaCurve) -> Operation<{ GAMSET::BYTES }> {
-    let data = match gc {
-        GammaCurve::One => 0x01,
-        GammaCurve::Two => 0x02,
-        GammaCurve::Three => 0x04,
-        GammaCurve::Four => 0x08,
-    };
-
-    Operation::write::<GAMSET>([data])
+pub const fn gamma_curve_select(gc: gamma::Curve) -> Operation<{ GAMSET::BYTES }> {
+    Operation::write::<GAMSET>(GAMSET::encode_data((gc,)))
 }
 
 /// # DISPLAY OFF (DEFAULT?)
@@ -131,14 +124,9 @@ pub const fn display_output(mode: Toggle) -> Operation<0> {
     toggle::<DISPON, DISPOFF>(mode)
 }
 
-pub const fn tearing_effect(te: Option<TearingEffect>) -> Operation<{ TEON::BYTES }> {
-    if let Some(mode) = te {
-        let data: u8 = match mode {
-            TearingEffect::VBlank => 0x00,
-            TearingEffect::VHBlank => 0x01,
-        };
-
-        Operation::write::<TEON>([data])
+pub const fn tearing_effect(te: Option<tearing_effect::Signal>) -> Operation<{ TEON::BYTES }> {
+    if let Some(p1) = te {
+        Operation::write::<TEON>(TEON::encode_data((p1,)))
     } else {
         Operation::command::<TEOFF>()
     }
@@ -150,10 +138,10 @@ pub const fn tearing_effect(te: Option<TearingEffect>) -> Operation<{ TEON::BYTE
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
 pub const fn display_data_control(
-    ml: ScanDirection,
-    co: ColorOrder,
+    ml: data_access::ScanDirection,
+    co: data_access::ColorOrder,
 ) -> Operation<{ MADCTL::BYTES }> {
-    Operation::write::<MADCTL>([ml as u8 | co as u8])
+    Operation::write::<MADCTL>(MADCTL::encode_data((ml, co)))
 }
 
 /// # IDLE MODE OFF
@@ -258,23 +246,9 @@ pub const fn read_self_diagnostics() -> Operation<0> {
 /// static type checking in all Command2 operations locally.
 pub const fn select_command_extension(
     cn2: Toggle,
-    bksel: Bank,
+    bkxsel: Bank,
 ) -> Operation<{ CND2BKXSEL::BYTES }> {
-    const P1: u8 = 0b0111_0111;
-    const P2: u8 = 0b0000_0001;
-    const P3: u8 = 0b0000_0000;
-    const P4: u8 = 0b0000_0000;
-    let p5a: u8 = match cn2 {
-        Toggle::Off => 0b0000_0000,
-        Toggle::On => 0b0001_0000,
-    };
-    let p5b: u8 = match bksel {
-        Bank::BK0 => 0b0000_0000,
-        Bank::BK1 => 0b0000_0001,
-        Bank::BK3 => 0b0000_0011,
-    };
-
-    Operation::write::<CND2BKXSEL>([P1, P2, P3, P4, p5a | p5b])
+    Operation::write::<CND2BKXSEL>(CND2BKXSEL::encode_data((cn2,bkxsel,)))
 }
 
 /// # POSITIVE GAMMA CONTROL

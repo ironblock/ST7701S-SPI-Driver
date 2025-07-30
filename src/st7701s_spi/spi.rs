@@ -4,13 +4,25 @@ use spidev::{SpiModeFlags, Spidev, SpidevOptions};
 use std::{io::prelude::*};
 use std::path::Path;
 
-use crate::st7701s_spi::interface::{Buffer, Reader};
+use crate::st7701s_spi::interface::{Buffer, Location, Reader};
 
 #[repr(u8)]
 #[rustfmt::skip]
 enum DCX {
     Command   = 0,
     Parameter = 1
+}
+
+pub type Packet = [u8; 2];
+pub type Sequence<const N: usize> = [Packet; N];
+
+pub struct Transmission;
+impl Transmission {
+    pub const fn command<T: Location>() -> Packet {
+        [DCX::Command as u8, T::ADDRESS]
+    }
+
+    pub const fn data
 }
 
 
@@ -38,15 +50,15 @@ impl ST7701S {
         }
     }
 
-    fn command(&self, address: u8) {
+    fn command(&mut self, address: u8) {
         self.spi.write(&[DCX::Command as u8, address]);
     }
 
-    fn write_data<const N: usize>(&self, address: u8, data: Buffer<N>) {
+    fn write_data<const N: usize>(&mut self, address: u8, data: Buffer<N>) {
         self.command(address);
 
         for byte in data {
-            self.spi.write(&[DCX::Parameter as u8, byte]);
+            self.spi.write( &[DCX::Parameter as u8, byte]);
         }
     }
 

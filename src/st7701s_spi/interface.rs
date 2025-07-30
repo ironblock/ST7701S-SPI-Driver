@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 pub type Address = u8;
 pub type Extension = Option<Bank>;
 pub type Bytes = usize;
@@ -65,7 +63,10 @@ impl<const N: Bytes> Operation<N> {
  * Sitronix ST7701S Datatsheet v1.2 (Oct. 2017).
  */
 pub mod core {
-    use crate::st7701s_spi::parameters::{data_access, gamma, pixel_format, tearing_effect};
+    use crate::st7701s_spi::{
+        parameters::{data_access, gamma, pixel_format, tearing_effect},
+        state::Toggle,
+    };
 
     use super::*;
 
@@ -109,9 +110,9 @@ pub mod core {
             |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
             | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
         */
-        pub const fn encode() -> Buffer<{ Self::BYTES }> {
-            const RESET_DATA: u8 = 1;
-            [RESET_DATA]
+        pub const fn encode_data() -> Buffer<{ Self::BYTES }> {
+            const P1: u8 = 0b0000_0001;
+            [P1]
         }
     }
 
@@ -364,9 +365,9 @@ pub mod core {
             |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
             | P1 |   -   |   -   |   -   |   -   | GC[3] | GC[2] | GC[1] | GC[0] |
         */
-        const fn encode(
+        pub const fn encode_data(
             (gc,): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+        ) -> Buffer<{ Self::BYTES }> {
             let gc_data = match gc {
                 gamma::Curve::GC1 => 0x01,
                 gamma::Curve::GC2 => 0x02,
@@ -431,9 +432,9 @@ pub mod core {
             |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
             | P1 |   -   |   -   |   -   |   -   |   -   |   -   |   -   |   TE  |
         */
-        pub const fn encode(
+        pub const fn encode_data(
             (te,): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+        ) -> Buffer<{ Self::BYTES }> {
             let te_data = match te {
                 tearing_effect::Signal::VBlank => 0,
                 tearing_effect::Signal::VHBlank => 1,
@@ -475,21 +476,20 @@ pub mod core {
         );
         type Parameters = (data_access::ScanDirection, data_access::ColorOrder);
     }
-
     impl MADCTL {
-        pub const fn encode(
+        pub const fn encode_data(
             (ml, co): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
-            let ml_data = match ml {
+        ) -> Buffer<{ Self::BYTES }> {
+            let p1_scan = match ml {
                 data_access::ScanDirection::Normal => 0,
                 data_access::ScanDirection::Reverse => 1 << 4,
             };
-            let co_data = match co {
+            let p1_color = match co {
                 data_access::ColorOrder::Rgb => 0,
                 data_access::ColorOrder::Bgr => 1 << 3,
             };
 
-            [ml_data | co_data]
+            [p1_scan | p1_color]
         }
     }
 
@@ -525,9 +525,9 @@ pub mod core {
         type Parameters = (pixel_format::BitsPerPixel,);
     }
     impl COLMOD {
-        pub const fn encode(
+        pub const fn encode_data(
             (bpp,): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ <Self as WriteData>::BYTES }> {
+        ) -> Buffer<{ Self::BYTES }> {
             let bpp_data = match bpp {
                 pixel_format::BitsPerPixel::RGB565 => 101 << 4,
                 pixel_format::BitsPerPixel::RGB666 => 110 << 4,
@@ -540,7 +540,7 @@ pub mod core {
 
     /**
       ### `0x045` `GSL` Get Scan Line
-      > v1.2, Page 219
+      > See p. 219
     */
     pub struct GSL;
     impl Location for GSL {
@@ -552,7 +552,7 @@ pub mod core {
 
     /**
       ### `0x051` `WRDISBV` Write Display Brightness
-      > v1.2, Page 220
+      > See p. 220
     */
     pub struct WRDISBV;
     impl Location for WRDISBV {
@@ -564,7 +564,7 @@ pub mod core {
 
     /**
       ### `0x52` `RDDISBV` Read Display Brightness Value
-      > v1.2, Page 221
+      > See p. 221
     */
     pub struct RDDISBV;
     impl Location for RDDISBV {
@@ -576,7 +576,7 @@ pub mod core {
 
     /**
       ### `0x53` `WRCTRLD` Write CTRL Display
-      > v1.2, Page 222
+      > See p. 222
     */
     pub struct WRCTRLD;
     impl Location for WRCTRLD {
@@ -588,7 +588,7 @@ pub mod core {
 
     /**
       ### `0x54` `RDCTRLD` Read CTRL Display
-      > v1.2, Page 224
+      > See p. 224
     */
     pub struct RDCTRLD;
     impl Location for RDCTRLD {
@@ -600,7 +600,7 @@ pub mod core {
 
     /**
       ### `0x55` `WRCACE` Write Content Adaptive Brightness Control and Color Enhancement
-      > v1.2, Page 225
+      > See p. 225
     */
     pub struct WRCACE;
     impl Location for WRCACE {
@@ -612,7 +612,7 @@ pub mod core {
 
     /**
       ### `0x56` `RDCABC` Read Content Adaptive Brightness Control
-      > v1.2, Page 227
+      > See p. 227
     */
     pub struct RDCABC;
     impl Location for RDCABC {
@@ -624,7 +624,7 @@ pub mod core {
 
     /**
       ### `0x5E` `WRCABCMB` Write CABC Minimum Brightness
-      > v1.2, Page 229
+      > See p. 229
     */
     pub struct WRCABCMB;
     impl Location for WRCABCMB {
@@ -636,7 +636,7 @@ pub mod core {
 
     /**
       ### `0x5F` `RDCABCMB` Read CABC Minimum Brightness
-      > v1.2, Page 230
+      > See p. 230
     */
     pub struct RDCABCMB;
     impl Location for RDCABCMB {
@@ -648,7 +648,7 @@ pub mod core {
 
     /**
       ### `0x68` `RDABCSDR` Read Automatic Brightness Control Self-Diagnostic Result
-      > v1.2, Page 231
+      > See p. 231
     */
     pub struct RDABCSDR;
     impl Location for RDABCSDR {
@@ -660,7 +660,7 @@ pub mod core {
 
     /**
       ### `0x70` `RDBWLB` Read Black/White Low Bits
-      > v1.2, Page 232
+      > See p. 232
     */
     pub struct RDBWLB;
     impl Location for RDBWLB {
@@ -672,7 +672,7 @@ pub mod core {
 
     /**
       ### `0x71` `RDBkx` Read Bkx
-      > v1.2, Page 233
+      > See p. 233
     */
     pub struct RDBKX;
     impl Location for RDBKX {
@@ -684,7 +684,7 @@ pub mod core {
 
     /**
       ### `0x72` `RDBky` Read Bky
-      > v1.2, Page 234
+      > See p. 234
     */
     pub struct RDBKY;
     impl Location for RDBKY {
@@ -696,7 +696,7 @@ pub mod core {
 
     /**
       ### `0x73` `RDWx` Read Wx
-      > v1.2, Page 235
+      > See p. 235
     */
     pub struct RDWX;
     impl Location for RDWX {
@@ -708,7 +708,7 @@ pub mod core {
 
     /**
       ### `0x74` `RDWy` Read Wy
-      > v1.2, Page 236
+      > See p. 236
     */
     pub struct RDWY;
     impl Location for RDWY {
@@ -720,7 +720,7 @@ pub mod core {
 
     /**
       ### `0x75` `RDRGLB` Read Red/Green Low Bits
-      > v1.2, Page 237
+      > See p. 237
     */
     pub struct RDRGLB;
     impl Location for RDRGLB {
@@ -732,7 +732,7 @@ pub mod core {
 
     /**
       ### `0x76` `RDRx` Read Rx
-      > v1.2, Page 238
+      > See p. 238
     */
     pub struct RDRX;
     impl Location for RDRX {
@@ -744,7 +744,7 @@ pub mod core {
 
     /**
       ### `0x77` `RDRy` Read Ry
-      > v1.2, Page 239
+      > See p. 239
     */
     pub struct RDRY;
     impl Location for RDRY {
@@ -756,7 +756,7 @@ pub mod core {
 
     /**
       ### `0x78` `RDGx` Read Gx
-      > v1.2, Page 240
+      > See p. 240
     */
     pub struct RDGX;
     impl Location for RDGX {
@@ -768,7 +768,7 @@ pub mod core {
 
     /**
       ### `0x79` `RDGy` Read Gy
-      > v1.2, Page 241
+      > See p. 241
     */
     pub struct RDGY;
     impl Location for RDGY {
@@ -780,7 +780,7 @@ pub mod core {
 
     /**
       ### `0x7A` `RDBALB` Read Blue/A Color Low Bits
-      > v1.2, Page 242
+      > See p. 242
     */
     pub struct RDBALB;
     impl Location for RDBALB {
@@ -792,7 +792,7 @@ pub mod core {
 
     /**
       ### `0x7B` `RDBx` Read Bx
-      > v1.2, Page 243
+      > See p. 243
     */
     pub struct RDBX;
     impl Location for RDBX {
@@ -804,57 +804,97 @@ pub mod core {
 
     /**
       ### `0x7C` `RDBy` Read By
-      > v1.2, Page 244
+      > See p. 244
     */
+    pub struct RDBy;
+    impl Location for RDBy {
+        const ADDRESS: u8 = 0x7C;
+    }
 
     /**
       ### `0x7D` `RDAx` Read Ax
-      > v1.2, Page 245
+      > See p. 245
     */
+    pub struct RDAx;
+    impl Location for RDAx {
+        const ADDRESS: u8 = 0x7D;
+    }
 
     /**
       ### `0x7E` `RDAy` Read Ay
-      > v1.2, Page 246
+      > See p. 246
     */
+    pub struct RDAy;
+    impl Location for RDAy {
+        const ADDRESS: u8 = 0x7E;
+    }
 
     /**
       ### `0xA1` `RDDDBS` Read DDB Start
-      > v1.2, Page 247
+      > See p. 247
     */
+    pub struct RDDDBS;
+    impl Location for RDDDBS {
+        const ADDRESS: u8 = 0xA1;
+    }
 
     /**
       ### `0xA8` `RDDDBC` Read DDB Continue
-      > v1.2, Page 249
+      > See p. 249
     */
+    pub struct RDDDBC;
+    impl Location for RDDDBC {
+        const ADDRESS: u8 = 0xA8;
+    }
 
     /**
       ### `0xAA` `RDFCS` Read First Checksum
-      > v1.2, Page 250
+      > See p. 250
     */
+    pub struct RDFCS;
+    impl Location for RDFCS {
+        const ADDRESS: u8 = 0xAA;
+    }
 
     /**
       ### `0xAF` `RDCCS` Read Continue Checksum
-      > v1.2, Page 251
+      > See p. 251
     */
+    pub struct RDCCS;
+    impl Location for RDCCS {
+        const ADDRESS: u8 = 0xAF;
+    }
 
     /**
       ### `0xDA` `RDID1` Read ID1
-      > v1.2, Page 252
+      > See p. 252
     */
+    pub struct RDID1;
+    impl Location for RDID1 {
+        const ADDRESS: u8 = 0xDA;
+    }
 
     /**
       ### `0xDB` `RDID2` Read ID2
-      > v1.2, Page 253
+      > See p. 253
     */
+    pub struct RDID2;
+    impl Location for RDID2 {
+        const ADDRESS: u8 = 0xDB;
+    }
 
     /**
       ### `0xDC` `RDID3` Read ID3
-      > v1.2, Page 254
+      > See p. 254
     */
+    pub struct RDID3;
+    impl Location for RDID3 {
+        const ADDRESS: u8 = 0xDC;
+    }
 
     /**
       ### `0xFF` `CND2BKxSEL Command2 BKx Selection
-      > v1.2, Page 260
+      > See p. 260
 
       #### Write Parameters
 
@@ -872,6 +912,32 @@ pub mod core {
     }
     impl WriteData for CND2BKXSEL {
         const BYTES: Bytes = 5;
+        const INITIAL: Self::Parameters = (Toggle::Off, Bank::BK0);
+
+        type Parameters = (Toggle, Bank);
+    }
+    impl CND2BKXSEL {
+        pub const fn encode_data(
+            (cn2, bkxsel): <Self as WriteData>::Parameters,
+        ) -> Buffer<{ Self::BYTES }> {
+            const P1: u8 = 0b0111_0111;
+            const P2: u8 = 0b0000_0001;
+            const P3: u8 = 0b0000_0000;
+            const P4: u8 = 0b0000_0000;
+
+            let p5_toggle: u8 = match cn2 {
+                Toggle::Off => 0b0000_0000,
+                Toggle::On => 0b0001_0000,
+            };
+
+            let p5_bank: u8 = match bkxsel {
+                Bank::BK0 => 0b0000_0000,
+                Bank::BK1 => 0b0000_0001,
+                Bank::BK3 => 0b0000_0011,
+            };
+
+            [P1, P2, P3, P4, p5_toggle | p5_bank]
+        }
     }
 }
 
@@ -886,7 +952,7 @@ pub mod bk0 {
 
     /**
       ### `0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
-      > v1.2, Page 261
+      > See p. 261
     */
     pub struct PVGAMCTRL;
     impl Location for PVGAMCTRL  { const ADDRESS:   Address   = 0xB0;
@@ -895,7 +961,7 @@ pub mod bk0 {
 
     /**
       ### `0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
-      > v1.2, Page 263
+      > See p. 263
     */
     pub struct NVGAMCTRL;
     impl Location for NVGAMCTRL  { const ADDRESS:   Address   = 0xB1;
@@ -904,7 +970,7 @@ pub mod bk0 {
 
     /**
       ### `0xB8` `DGMEN` Digital Gamma Enable
-      > v1.2, Page 265
+      > See p. 265
     */
     pub struct DGMEN;
     impl Location for DGMEN      { const ADDRESS:   Address   = 0xB8;
@@ -913,7 +979,7 @@ pub mod bk0 {
 
     /**
       ### `0xB9` `DGMLUTR` Digital Gamma Look-up Table for Red
-      > v1.2, Page 266
+      > See p. 266
     */
     pub struct DGMLUTR;
     impl Location for DGMLUTR    { const ADDRESS:   Address   = 0xB9;
@@ -922,7 +988,7 @@ pub mod bk0 {
 
     /**
       ### `0xBA` `DGMLUTB` Digital Gamma Look-up Table for Blue
-      > v1.2, Page 267
+      > See p. 267
     */
     pub struct DGMLUTB;
     impl Location for DGMLUTB    { const ADDRESS:   Address   = 0xBA;
@@ -931,7 +997,7 @@ pub mod bk0 {
 
     /**
       ### `0xBC` `SEL` PWM CLK select
-      > v1.2, Page 268
+      > See p. 268
     */
     pub struct PWMCLK;
     impl Location for PWMCLK     { const ADDRESS:   Address   = 0xBC;
@@ -940,7 +1006,7 @@ pub mod bk0 {
 
     /**
       ### `0xC0` `LNESET` Display Line Setting
-      > v1.2, Page 269
+      > See p. 269
     */
     pub struct LNESET;
     impl Location for LNESET     { const ADDRESS:   Address   = 0xC0;
@@ -949,7 +1015,7 @@ pub mod bk0 {
 
     /**
       ### `0xC1` `PORCTRL` Porch Control
-      > v1.2, Page 270
+      > See p. 270
     */
     pub struct PORCTRL;
     impl Location for PORCTRL    { const ADDRESS:   Address   = 0xC1;
@@ -958,7 +1024,7 @@ pub mod bk0 {
 
     /**
       ### `0xC2` `INVSE` Inversion selection & Frame Rate Control
-      > v1.2, Page 271
+      > See p. 271
     */
     pub struct INVSET;
     impl Location for INVSET     { const ADDRESS:   Address   = 0xC2;
@@ -967,7 +1033,7 @@ pub mod bk0 {
 
     /**
       ### `0xC3` `RGBCTRL` RGB control
-      > v1.2, Page 272
+      > See p. 272
     */
     pub struct RGBCTRL;
     impl Location for RGBCTRL    { const ADDRESS:   Address   = 0xC3;
@@ -976,7 +1042,7 @@ pub mod bk0 {
 
     /**
       ### `0xC5` `PARCTRL` Partial Mode Control
-      > v1.2, Page 273
+      > See p. 273
     */
     pub struct PARCTRL;
     impl Location for PARCTRL    { const ADDRESS:   Address   = 0xC5;
@@ -985,7 +1051,7 @@ pub mod bk0 {
 
     /**
       ### `0xC7` `SDIR` X-direction Control
-      > v1.2, Page 274
+      > See p. 274
     */
     pub struct SDIR;
     impl Location for SDIR       { const ADDRESS:   Address   = 0xC7;
@@ -994,7 +1060,7 @@ pub mod bk0 {
 
     /**
       ### `0xC8` `PDOSET` Pseudo-Dot inversion diving setting
-      > v1.2, Page 275
+      > See p. 275
     */
     pub struct PDOSET;
     impl Location for PDOSET     { const ADDRESS:   Address   = 0xC8;
@@ -1003,7 +1069,7 @@ pub mod bk0 {
 
     /**
       ### `0xCD` `COLCTRL` Color Control
-      > v1.2, Page 276
+      > See p. 276
     */
     pub struct COLCTRL;
     impl Location for COLCTRL    { const ADDRESS:   Address   = 0xCD;
@@ -1017,7 +1083,7 @@ pub mod bk0 {
 
     /**
       ### `0xE0` `SECTRL` Sunlight Readable Enhancement
-      > v1.2, Page 278
+      > See p. 278
     */
     pub struct SRECTRL;
     impl Location for SRECTRL    { const ADDRESS:   Address   = 0xE0;
@@ -1026,7 +1092,7 @@ pub mod bk0 {
 
     /**
       ### `0xE1` `NRCTRL` Noise Reduce Control
-      > v1.2, Page 279
+      > See p. 279
     */
     pub struct NRCTRL;
     impl Location for NRCTRL     { const ADDRESS:   Address   = 0xE1;
@@ -1035,7 +1101,7 @@ pub mod bk0 {
 
     /**
       ### `0xE2` `SECTRL` Sharpness Control
-      > v1.2, Page 280
+      > See p. 280
     */
     pub struct SECTRL;
     impl Location for SECTRL     { const ADDRESS:   Address   = 0xE2;
@@ -1044,7 +1110,7 @@ pub mod bk0 {
 
     /**
       ### `0xE3` `CCCTRL` Color Calibration Control
-      > v1.2, Page 281
+      > See p. 281
     */
     pub struct CCCTRL;
     impl Location for CCCTRL     { const ADDRESS:   Address   = 0xE3;
@@ -1053,7 +1119,7 @@ pub mod bk0 {
 
     /**
       ### `0xE4` `SKCTRL` Skin Tone Preservation Control
-      > v1.2, Page 282
+      > See p. 282
     */
     pub struct SKCTRL;
     impl Location for SKCTRL     { const ADDRESS:   Address   = 0xE4;
