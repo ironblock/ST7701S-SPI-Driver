@@ -1,8 +1,7 @@
+use std::{thread, time};
+
 use crate::st7701s_spi::{
-    interface::{bk0::*, bk1::*, core::*, *},
-    panel::Mode,
-    parameters::*,
-    state::{Toggle, toggle},
+    interface::{bk0::*, bk1::*, core::*, *}, panel::Mode, parameters::*, spi::ST7701S, state::{toggle, Switch}
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -25,14 +24,26 @@ use crate::st7701s_spi::{
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
 
-/**
-  ## NO OPERATION
+impl ST7701S {
+    /**
+    ## NO OPERATION
 
-  This command is "empty". It has no effect on the display, but it can be used
-  to terminate parameter write commands.
-*/
-const fn no_operation() -> Operation<0> {
-    Operation::command::<NOP>()
+    This command is "empty". It has no effect on the display, but it can be used
+    to terminate parameter write commands.
+    */
+    pub fn no_operation(&mut self) {
+        self.command::<NOP>();
+    }
+
+    pub fn software_reset(&mut self) {
+        self.write::<SWRESET>(());
+
+        if self.state.is_some_and(|state| !matches(state.sleep_mode, Switch::On)) {
+            thread::sleep(time::Duration::from_millis(120));
+        } else {
+            thread::sleep(time::Duration::from_millis(120));
+        }
+    }
 }
 
 /// # SOFTWARE RESET
@@ -65,21 +76,21 @@ pub const fn software_reset() -> Operation<{ SWRESET::BYTES }> {
 ///
 /// Normally, sleep state can be read with RDDST, but MISO must be connected.
 ///
-pub const fn sleep_mode(mode: Toggle) -> Operation<0> {
+pub const fn sleep_mode(mode: Switch) -> Operation<0> {
     toggle::<SLPIN, SLPOUT>(mode)
 }
 
 /// # PARTIAL MODE ON
 ///
 /// This command turns on Partial Mode. See PARTIAL AREA (30h) command.
-pub const fn partial_mode(mode: Toggle) -> Operation<0> {
+pub const fn partial_mode(mode: Switch) -> Operation<0> {
     toggle::<PTLON, NORON>(mode)
 }
 
 /// # DISPLAY INVERSION OFF (DEFAULT)
 ///
 /// This command restores normal pixel values.
-pub const fn invert_display(mode: Toggle) -> Operation<0> {
+pub const fn invert_display(mode: Switch) -> Operation<0> {
     toggle::<INVON, INVOFF>(mode)
 }
 
@@ -120,11 +131,11 @@ pub const fn gamma_curve_select(gc: gamma::Curve) -> Operation<{ GAMSET::BYTES }
 /// data is disabled and all pixels are blanked.
 ///
 /// NOTE: It's possible that this is the default value.
-pub const fn display_output(mode: Toggle) -> Operation<0> {
+pub const fn display_output(mode: Switch) -> Operation<0> {
     toggle::<DISPON, DISPOFF>(mode)
 }
 
-pub const fn tearing_effect(te: Option<tearing_effect::Signal>) -> Operation<{ TEON::BYTES }> {
+pub const fn tearing_effect(te: Option<tearing_effect::Blank>) -> Operation<{ TEON::BYTES }> {
     if let Some(p1) = te {
         Operation::write::<TEON>(TEON::encode_data((p1,)))
     } else {
@@ -151,7 +162,7 @@ pub const fn display_data_control(
 /// Turns on Idle Mode. In idle mode the color palette is significantly
 /// reduced. The MSB of each color will be rounded up or down, creating a
 /// palette limited to 8 colors.
-pub const fn idle_mode(mode: Toggle) -> Operation<0> {
+pub const fn idle_mode(mode: Switch) -> Operation<0> {
     toggle::<IDMON, IDMOFF>(mode)
 }
 
@@ -245,7 +256,7 @@ pub const fn read_self_diagnostics() -> Operation<0> {
 /// setting AND record it back to the local flag, which is required for
 /// static type checking in all Command2 operations locally.
 pub const fn select_command_extension(
-    cn2: Toggle,
+    cn2: Switch,
     bkxsel: Bank,
 ) -> Operation<{ CND2BKXSEL::BYTES }> {
     Operation::write::<CND2BKXSEL>(CND2BKXSEL::encode_data((cn2,bkxsel,)))

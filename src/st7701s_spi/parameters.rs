@@ -1,3 +1,22 @@
+pub mod register {
+    pub type Address = u8;
+    pub type Extension = Option<Bank>;
+
+    /**
+        ## Extended Address Banks
+
+        The ST7701S exposes some extended command sets based on the setting of an
+        internal register, referred to in the datasheet as **Command2 BKx**.
+
+        > Section 12.3.1 `CND2BKxSEL`, page 260
+    */
+    pub enum Bank {
+        BK0,
+        BK1,
+        BK3,
+    }
+}
+
 pub mod gamma {
     pub enum Curve {
         GC1,
@@ -8,9 +27,9 @@ pub mod gamma {
 }
 
 pub mod tearing_effect {
-    pub enum Signal {
-        VBlank,
-        VHBlank,
+    pub enum Blank {
+        Vertical,
+        VerticalHorizontal,
     }
 }
 
@@ -21,8 +40,8 @@ pub mod data_access {
     }
 
     pub enum ColorOrder {
-        Rgb,
-        Bgr,
+        RGB,
+        BGR,
     }
 }
 

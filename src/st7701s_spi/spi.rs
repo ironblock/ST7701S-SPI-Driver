@@ -1,30 +1,21 @@
 extern crate spidev;
 
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
+use std::any::Any;
 use std::{io::prelude::*};
 use std::path::Path;
 
-use crate::st7701s_spi::interface::{Buffer, Location, Reader};
-
-#[repr(u8)]
-#[rustfmt::skip]
-enum DCX {
-    Command   = 0,
-    Parameter = 1
-}
+use crate::st7701s_spi::interface::{Buffer, Location, Reader, WriteData};
+use crate::st7701s_spi::state::State;
 
 pub type Packet = [u8; 2];
 pub type Sequence<const N: usize> = [Packet; N];
 
-pub struct Transmission;
-impl Transmission {
-    pub const fn command<T: Location>() -> Packet {
-        [DCX::Command as u8, T::ADDRESS]
-    }
-
-    pub const fn data
+#[repr(u8)]
+pub enum DCX {
+    Command = 0,
+    Parameter = 1
 }
-
 
 pub const THREE_WIRE_OPTIONS: SpidevOptions = SpidevOptions {
     bits_per_word: Some(9),
@@ -34,35 +25,51 @@ pub const THREE_WIRE_OPTIONS: SpidevOptions = SpidevOptions {
 };
 
 pub struct ST7701S {
-    pub spi: Spidev,
+    spi: Spidev,
+    pub state: Option<State>,
 }
 
 impl ST7701S {
-    fn new(path: &Path, options: &SpidevOptions) -> Self {
-        Self {
-            spi: Self::connect(path, options) }
-    }
-
-    fn connect(path: &Path, options: &SpidevOptions) -> Spidev {
-        match Spidev::open(path) {
+    pub fn new(spi_device: &Path, spi_options: &SpidevOptions, use_state: bool) -> Self {
+        let mut spi = match Spidev::open(spi_device) {
             Ok(connection) => connection,
             Err(_) => todo!()
+        };
+
+        spi.configure(spi_options);
+
+        let mut state = if use_state {
+            Some(State::default())
+        } else {
+            None
+        };
+
+        Self { spi, state }
+    }
+
+    pub fn state_is(&mut self, condition: fn(&State) -> bool) -> bool {
+        if let Some(current) = &self.state {
+            condition(current)
+        } else {
+            false
         }
     }
 
-    fn command(&mut self, address: u8) {
-        self.spi.write(&[DCX::Command as u8, address]);
+    pub fn command<T: Location>(&mut self) {
+        self.spi.write(&[DCX::Command as u8, T::ADDRESS]);
     }
 
-    fn write_data<const N: usize>(&mut self, address: u8, data: Buffer<N>) {
-        self.command(address);
+    pub fn write<T: WriteData>(&mut self, parameters: T::Parameters) {
+        self.command::<T>();
+
+        let data = T::encode(parameters);
 
         for byte in data {
             self.spi.write( &[DCX::Parameter as u8, byte]);
         }
     }
 
-    fn read_data(&self, _address: u8, _handler: Reader) {
+    pub fn read<T: Location>(&self, _address: u8, _handler: Reader) {
         todo!()
     }
 }

@@ -1,60 +1,48 @@
-pub type Address = u8;
-pub type Extension = Option<Bank>;
+use crate::st7701s_spi::parameters::{self, register::{Address, Extension}};
+
+
 pub type Bytes = usize;
 
 pub type Buffer<const N: usize> = [u8; N];
 pub type Reader = for<'a> fn(&'a [u8]);
 
-/**
-    ## Extended Address Banks
-
-    The ST7701S exposes some extended command sets based on the setting of an
-    internal register, referred to in the datasheet as **Command2 BKx**.
-
-    > Section 12.3.1 `CND2BKxSEL`, page 260
-*/
-#[repr(u8)]
-pub enum Bank {
-    BK0,
-    BK1,
-    BK3,
-}
 
 pub trait Location: Sized {
     const ADDRESS: Address;
     const EXTENSION: Extension = None;
 }
 
-pub trait WriteData: Location {
-    const BYTES: Bytes;
-    const INITIAL: Self::Parameters;
-
+pub trait WriteData<const N: usize = 0>: Location {
     type Parameters;
+
+    fn encode(parameters: Self::Parameters) -> Buffer<N>;
 }
+
+
 
 pub trait ReadData: Location {
     const BYTES: Bytes;
 }
 
-pub enum Operation<const N: Bytes> {
-    Command(Address, Extension),
-    Write(Address, Extension, Buffer<N>),
-    Read(Address, Extension, Reader),
-}
+// pub enum Operation<const N: Bytes> {
+//     Command(Address, Extension),
+//     Write(Address, Extension, Buffer<N>),
+//     Read(Address, Extension, Reader),
+// }
 
-impl<const N: Bytes> Operation<N> {
-    pub const fn command<L: Location>() -> Self {
-        Self::Command(L::ADDRESS, L::EXTENSION)
-    }
+// impl<const N: Bytes> Operation<N> {
+//     pub const fn command<L: Location>() -> Self {
+//         Self::Command(L::ADDRESS, L::EXTENSION)
+//     }
 
-    pub const fn write<L: Location>(buffer: Buffer<N>) -> Self {
-        Self::Write(L::ADDRESS, L::EXTENSION, buffer)
-    }
+//     pub const fn write<L: Location>(buffer: Buffer<N>) -> Self {
+//         Self::Write(L::ADDRESS, L::EXTENSION, buffer)
+//     }
 
-    pub const fn read<L: Location>(handler: Reader) -> Self {
-        Self::Read(L::ADDRESS, L::EXTENSION, handler)
-    }
-}
+//     pub const fn read<L: Location>(handler: Reader) -> Self {
+//         Self::Read(L::ADDRESS, L::EXTENSION, handler)
+//     }
+// }
 
 /**
  * # System Commands
@@ -64,8 +52,8 @@ impl<const N: Bytes> Operation<N> {
  */
 pub mod core {
     use crate::st7701s_spi::{
-        parameters::{data_access, gamma, pixel_format, tearing_effect},
-        state::Toggle,
+        parameters::{data_access, gamma, pixel_format, register::Bank, tearing_effect},
+        state::Switch,
     };
 
     use super::*;
@@ -88,30 +76,27 @@ pub mod core {
     impl Location for SWRESET {
         const ADDRESS: u8 = 0x01;
     }
+
+    /**
+        #### `SWRESET` Write Parameters
+
+        It's never stated anywhere why D0 is 1, but it's indicated in both the
+        primary reference table on p. 184 and again on SWRESET's detail page.
+
+        As an additional contradiction, p. 184 refers to SWRESET as a **command**
+        (with no arguments), and p. 188 refers to it as a **write**. As only a
+        write can have arguments and 0x01 is the constant argument in both
+        references, SWRESET's canonical representation here is as a **write**.
+
+        |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+        |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+        | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
+    */
     impl WriteData for SWRESET {
-        const BYTES: Bytes = 1;
-        const INITIAL: Self::Parameters = ();
-
         type Parameters = ();
-    }
-    impl SWRESET {
-        /**
-            #### `SWRESET` Write Parameters
-
-            It's never stated anywhere why D0 is 1, but it's indicated in both the
-            primary reference table on p. 184 and again on SWRESET's detail page.
-
-            As an additional contradiction, p. 184 refers to SWRESET as a **command**
-            (with no arguments), and p. 188 refers to it as a **write**. As only a
-            write can have arguments and 0x01 is the constant argument in both
-            references, SWRESET's canonical representation here is as a **write**.
-
-            |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
-            |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
-            | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
-        */
-        pub const fn encode_data() -> Buffer<{ Self::BYTES }> {
+        fn encode() -> Buffer<1>{
             const P1: u8 = 0b0000_0001;
+
             [P1]
         }
     }
@@ -348,8 +333,7 @@ pub mod core {
         const ADDRESS: Address = 0x26;
     }
     impl WriteData for GAMSET {
-        const BYTES: Bytes = 1;
-        const INITIAL: Self::Parameters = (gamma::Curve::GC1,);
+
         type Parameters = (gamma::Curve,);
     }
     impl GAMSET {
@@ -416,8 +400,8 @@ pub mod core {
     }
     impl WriteData for TEON {
         const BYTES: Bytes = 1;
-        const INITIAL: Self::Parameters = (tearing_effect::Signal::VBlank,);
-        type Parameters = (tearing_effect::Signal,);
+
+        type Parameters = (tearing_effect::Blank,);
     }
     impl TEON {
         /**
@@ -436,8 +420,8 @@ pub mod core {
             (te,): <Self as WriteData>::Parameters,
         ) -> Buffer<{ Self::BYTES }> {
             let te_data = match te {
-                tearing_effect::Signal::VBlank => 0,
-                tearing_effect::Signal::VHBlank => 1,
+                tearing_effect::Blank::Vertical => 0,
+                tearing_effect::Blank::VerticalHorizontal => 1,
             };
 
             [te_data]
@@ -470,10 +454,7 @@ pub mod core {
     */
     impl WriteData for MADCTL {
         const BYTES: Bytes = 1;
-        const INITIAL: Self::Parameters = (
-            data_access::ScanDirection::Normal,
-            data_access::ColorOrder::Rgb,
-        );
+
         type Parameters = (data_access::ScanDirection, data_access::ColorOrder);
     }
     impl MADCTL {
@@ -485,8 +466,8 @@ pub mod core {
                 data_access::ScanDirection::Reverse => 1 << 4,
             };
             let p1_color = match co {
-                data_access::ColorOrder::Rgb => 0,
-                data_access::ColorOrder::Bgr => 1 << 3,
+                data_access::ColorOrder::RGB => 0,
+                data_access::ColorOrder::BGR => 1 << 3,
             };
 
             [p1_scan | p1_color]
@@ -521,7 +502,6 @@ pub mod core {
     }
     impl WriteData for COLMOD {
         const BYTES: Bytes = 1;
-        const INITIAL: Self::Parameters = (pixel_format::BitsPerPixel::RGB888,);
         type Parameters = (pixel_format::BitsPerPixel,);
     }
     impl COLMOD {
@@ -912,9 +892,9 @@ pub mod core {
     }
     impl WriteData for CND2BKXSEL {
         const BYTES: Bytes = 5;
-        const INITIAL: Self::Parameters = (Toggle::Off, Bank::BK0);
+        const INITIAL: Self::Parameters = (Switch::Off, Bank::BK0);
 
-        type Parameters = (Toggle, Bank);
+        type Parameters = (Switch, Bank);
     }
     impl CND2BKXSEL {
         pub const fn encode_data(
@@ -926,8 +906,8 @@ pub mod core {
             const P4: u8 = 0b0000_0000;
 
             let p5_toggle: u8 = match cn2 {
-                Toggle::Off => 0b0000_0000,
-                Toggle::On => 0b0001_0000,
+                Switch::Off => 0b0000_0000,
+                Switch::On => 0b0001_0000,
             };
 
             let p5_bank: u8 = match bkxsel {
@@ -946,6 +926,8 @@ pub mod core {
 */
 #[rustfmt::skip]
 pub mod bk0 {
+    use crate::st7701s_spi::parameters::register::Bank;
+
     use super::*;
 
     const BK0: Extension = Some(Bank::BK0);
