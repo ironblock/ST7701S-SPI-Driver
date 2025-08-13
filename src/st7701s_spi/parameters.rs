@@ -10,6 +10,7 @@ pub mod register {
 
         > Section 12.3.1 `CND2BKxSEL`, page 260
     */
+#[derive(Debug)]
     pub enum Bank {
         BK0,
         BK1,
@@ -18,6 +19,7 @@ pub mod register {
 }
 
 pub mod gamma {
+#[derive(Debug)]
     pub enum Curve {
         GC1,
         GC2,
@@ -27,6 +29,7 @@ pub mod gamma {
 }
 
 pub mod tearing_effect {
+#[derive(Debug)]
     pub enum Blank {
         Vertical,
         VerticalHorizontal,
@@ -34,11 +37,13 @@ pub mod tearing_effect {
 }
 
 pub mod data_access {
+#[derive(Debug)]
     pub enum ScanDirection {
         Normal,
         Reverse,
     }
 
+#[derive(Debug)]
     pub enum ColorOrder {
         RGB,
         BGR,
@@ -46,6 +51,7 @@ pub mod data_access {
 }
 
 pub mod pixel_format {
+#[derive(Debug)]
     pub enum BitsPerPixel {
         /// 16 bits per pixel (RGB565)
         RGB565,

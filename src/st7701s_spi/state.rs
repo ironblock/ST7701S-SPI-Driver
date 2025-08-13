@@ -1,37 +1,42 @@
+use std::fmt::{self, DebugStruct};
+
 use crate::st7701s_spi::{
-    interface::{Location, Operation},
+    interface::Command,
     parameters::{data_access, gamma, pixel_format, register, tearing_effect},
 };
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Switch {
     On,
     Off,
 }
 
+// pub const fn toggle<ON: Location, OFF: Location>(mode: Switch) -> Operation<0> {
+//     match mode {
+//         Switch::Off => Operation::command::<OFF>(),
+//         Switch::On => Operation::command::<ON>(),
+//     }
+// }
 
-pub const fn toggle<ON: Location, OFF: Location>(mode: Switch) -> Operation<0> {
-    match mode {
-        Switch::Off => Operation::command::<OFF>(),
-        Switch::On => Operation::command::<ON>(),
-    }
-}
-
+#[derive(Debug)]
 pub enum Direction {
     Normal,
-    Reverse
+    Reverse,
 }
 
+#[derive(Debug)]
 pub enum Logic {
     Low,
     High,
 }
 
+#[derive(Debug)]
 pub enum Edge {
     Rising,
     Falling,
 }
 
+#[derive(Debug)]
 pub enum Power {
     L1,
     L2,
@@ -41,7 +46,7 @@ pub enum Power {
 }
 
 impl Power {
-    const fn determine(state: State) -> Self {
+    const fn level(state: State) -> Self {
         use Switch::*;
 
         match state {
@@ -103,20 +108,46 @@ impl Default for State {
             sleep_mode: Switch::Off,
             display_output: Switch::Off,
             invert_picture: Switch::Off,
-    brightness_control: Switch,
-    brightness_dimming: Switch,
-    brightness_backlight: Switch,
-    color_enhancement: Switch,
-    extended_commands: None,
+            brightness_control: Switch,
+            brightness_dimming: Switch,
+            brightness_backlight: Switch,
+            color_enhancement: Switch,
+            extended_commands: None,
             gamma_curve: gamma::Curve::GC1,
             tearing_effect: None,
-    color_order: data_access::ColorOrder::RGB,
-    scan_direction: data_access::ScanDirection::Normal,
-    color_mode: (),
-    enhancement_mode: (),
-    enhancement_adaptive: (),
-    bits_per_pixel: pixel_format::BitsPerPixel::RGB888,
+            color_order: data_access::ColorOrder::RGB,
+            scan_direction: data_access::ScanDirection::Normal,
+            color_mode: (),
+            enhancement_mode: (),
+            enhancement_adaptive: (),
+            bits_per_pixel: pixel_format::BitsPerPixel::RGB888,
         }
     }
 }
 
+impl fmt::Debug for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("State")
+            .field("Idle Mode", &self.idle_mode)
+            .field("Sleep Mode", &self.sleep_mode)
+            .field("Display Output", &self.display_output)
+            .field("Invert Picture", &self.invert_picture)
+            .field("Brightness Control", &self.brightness_control)
+            .field("Brightness Dimming", &self.brightness_dimming)
+            .field("Brightness Backlight", &self.brightness_backlight)
+            .field("Color Enhancement", &self.color_enhancement)
+            .field("Extended Commands", &self.extended_commands)
+            .field("Gamma Curve", &self.gamma_curve)
+            .field("Tearing Effect", &self.tearing_effect)
+            .field("Color Order", &self.color_order)
+            .field("Scan Direction", &self.scan_direction)
+            .field("Color Mode", &self.color_mode)
+            .field("Enhancement Mode", &self.enhancement_mode)
+            .field("Enhancement Adaptive", &self.enhancement_adaptive)
+            .field("Bits Per Pixel", &self.bits_per_pixel)
+            .finish()
+    }
+}
+
+pub type SelectField<T> = fn(&mut State) -> &mut T;
+pub type MutateField<T> = fn(&mut State, T);

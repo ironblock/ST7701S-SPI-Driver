@@ -1,7 +1,5 @@
 use std::{thread, time};
 
-use frunk::hlist;
-
 use crate::st7701s_spi::{
     commands::*, interface::*, panel::Mode, parameters::{
         BitsPerPixel, ColorOrder, EndPixelFormat, GammaOPBias, Inversion, LEDPolarity, PWMPolarity,

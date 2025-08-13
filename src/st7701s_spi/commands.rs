@@ -1,7 +1,13 @@
 use std::{thread, time};
 
+use log::info;
+
 use crate::st7701s_spi::{
-    interface::{bk0::*, bk1::*, core::*, *}, panel::Mode, parameters::*, spi::ST7701S, state::{toggle, Switch}
+    interface::{bk0::*, bk1::*, core::*, *},
+    panel::Mode,
+    parameters::*,
+    spi::ST7701S,
+    state::{State, Switch},
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -26,122 +32,93 @@ use crate::st7701s_spi::{
 
 impl ST7701S {
     /**
-    ## NO OPERATION
+      ## NO OPERATION
 
-    This command is "empty". It has no effect on the display, but it can be used
-    to terminate parameter write commands.
+      This command is "empty". It has no effect on the display, but it can be
+      used to terminate parameter write commands.
     */
     pub fn no_operation(&mut self) {
         self.command::<NOP>();
     }
 
+    /**
+      ## SOFTWARE RESET
+
+      Performs a software reset. All register values are reset to their initial
+      defaults. The framebuffer is unaffected.
+
+      ### Considerations
+        1. Wait at least 5ms before sending another command after the reset
+        2. If the display is sleeping (SLPIN), wait at least 120ms before
+           attempting to exit sleep mode (SLPOUT).
+        3. If the display is already in the process of exiting sleep, a reset
+           command will be ignored and have no effect.
+    */
     pub fn software_reset(&mut self) {
         self.write::<SWRESET>(());
 
-        if self.state.is_some_and(|state| !matches(state.sleep_mode, Switch::On)) {
-            thread::sleep(time::Duration::from_millis(120));
+        info!("Performing software reset, command queue will be paused for 5ms");
+
+        self.state.insert(State::default());
+            thread::sleep(time::Duration::from_millis(5));
+    }
+
+    /**
+      ## SLEEP MODE
+
+      The ST7701S is capable of entering a minimum-power "sleep" mode that shuts off
+      the DC-DC converter, stops the display oscillator, and stops panel scanning.
+
+      ### Considerations
+        1. Entering or exiting sleep mode takes ~120ms.
+        2. Pixel data can still be sent in sleep mode
+        3. Command registers are still available in sleep mode
+    */
+    pub fn sleep_mode(&mut self, mode: Switch) {
+        self.switch_command::<SLPIN, SLPOUT>(mode, |s| &mut s.sleep_mode);
+
+        thread::sleep(time::Duration::from_millis(120));
+    }
+
+    pub fn partial_mode(&mut self, mode: Switch) {
+        self.switch_command::<PTLON, NORON>(mode, |s| &mut s.partial_mode);
+    }
+
+    /**
+     ## INVERT PICTURE
+
+     Causes the image displayed on the LCD to have its colors inverted (INVON)
+     or display normally (INVOFF).
+    */
+    pub fn invert_picture(&mut self, mode: Switch) {
+        self.switch_command::<INVON, INVOFF>(mode, |s| &mut s.invert_picture);
+    }
+
+    pub fn all_pixels_black(&mut self) {
+        self.command::<ALLPOFF>();
+    }
+
+    pub fn all_pixels_white(&mut self) {
+        self.command::<ALLPON>();
+    }
+
+    pub fn gamma_curve(&mut self, gc: gamma::Curve) {
+        self.write::<GAMSET>((gc,));
+    }
+
+    pub fn display_output(&mut self, mode: Switch) {
+        self.switch_command::<DISPON, DISPOFF>(mode, |s| &mut s.display_output);
+    }
+
+    pub fn tearing_effect(&mut self, te: Option<tearing_effect::Blank>) {
+        if let Some(p1) = te {
+            self.write::<TEON>((p1,))
         } else {
-            thread::sleep(time::Duration::from_millis(120));
+            self.command::<TEOFF>()
         }
     }
 }
 
-/// # SOFTWARE RESET
-///
-/// The display module performs a software reset. Registers are written with
-/// the default "reset" values.
-///
-///   - Frame buffer contents are unaffected by this command
-///   - After a SWRESET command, sleep at least 5ms before the next command
-///   - If the display is sleeping when a SWRESET is sent, the sleep
-///     duration should be at least 120ms before sending the next command.
-///   - SWRESET cannot be sent during SLPOUT
-///   - (MIPI ONLY) Send a shutdown packet before SWRESET
-pub const fn software_reset() -> Operation<{ SWRESET::BYTES }> {
-    Operation::write::<SWRESET>(SWRESET::encode_data())
-}
-
-/// # SLEEP IN
-///
-/// This command causes the display module to enter a minimum power state.
-/// The buck converter, display oscilator, and panel scanning are all shut
-/// down.
-///
-/// The control interface, display data, and registers remain active.
-///
-/// The driver may send PCLK, HS, and CS information after SLPIN, and this
-/// data will be valid for the next two frames if Normal Mode is active.
-///
-/// Dimming will not work when changing from sleep out to sleep in.
-///
-/// Normally, sleep state can be read with RDDST, but MISO must be connected.
-///
-pub const fn sleep_mode(mode: Switch) -> Operation<0> {
-    toggle::<SLPIN, SLPOUT>(mode)
-}
-
-/// # PARTIAL MODE ON
-///
-/// This command turns on Partial Mode. See PARTIAL AREA (30h) command.
-pub const fn partial_mode(mode: Switch) -> Operation<0> {
-    toggle::<PTLON, NORON>(mode)
-}
-
-/// # DISPLAY INVERSION OFF (DEFAULT)
-///
-/// This command restores normal pixel values.
-pub const fn invert_display(mode: Switch) -> Operation<0> {
-    toggle::<INVON, INVOFF>(mode)
-}
-
-/// # ALL PIXELS OFF (BLACK)
-///
-/// This command sets all pixel values to black.
-///
-/// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-pub const fn all_pixels_black() -> Operation<0> {
-    Operation::command::<ALLPOFF>()
-}
-
-/// # ALL PIXELS ON (WHITE)
-///
-/// This command sets all pixel values to white.
-///
-/// ALLPOFF may be used in Sleep Mode, Normal Mode, or Partial Mode.
-pub const fn all_pixels_white() -> Operation<0> {
-    Operation::command::<ALLPON>()
-}
-
-/// # GAMMA CURVE SELECT
-///
-/// This command selects a predefined gamma curve from one of four values.
-///
-/// WARNING: It's not clear from the Sitronix documentation what any values
-/// are aside from 01.
-///
-///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
-///|   --   |   --   |   --   |   --   |   --   |         GC[3:0]          |
-pub const fn gamma_curve_select(gc: gamma::Curve) -> Operation<{ GAMSET::BYTES }> {
-    Operation::write::<GAMSET>(GAMSET::encode_data((gc,)))
-}
-
-/// # DISPLAY OFF (DEFAULT?)
-///
-/// This command is used to enter Display Off Mode. In this mode, display
-/// data is disabled and all pixels are blanked.
-///
-/// NOTE: It's possible that this is the default value.
-pub const fn display_output(mode: Switch) -> Operation<0> {
-    toggle::<DISPON, DISPOFF>(mode)
-}
-
-pub const fn tearing_effect(te: Option<tearing_effect::Blank>) -> Operation<{ TEON::BYTES }> {
-    if let Some(p1) = te {
-        Operation::write::<TEON>(TEON::encode_data((p1,)))
-    } else {
-        Operation::command::<TEOFF>()
-    }
-}
 
 /// # DISPLAY DATA ACCESS CONTROL
 /// * [ML] - Scan direction
@@ -259,13 +236,13 @@ pub const fn select_command_extension(
     cn2: Switch,
     bkxsel: Bank,
 ) -> Operation<{ CND2BKXSEL::BYTES }> {
-    Operation::write::<CND2BKXSEL>(CND2BKXSEL::encode_data((cn2,bkxsel,)))
+    Operation::write::<CND2BKXSEL>(CND2BKXSEL::encode_data((cn2, bkxsel)))
 }
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
 pub const fn positive_gamma_control(
-    parameters: [u8;  PVGAMCTRL::BYTES ],
+    parameters: [u8; PVGAMCTRL::BYTES],
 ) -> Operation<{ PVGAMCTRL::BYTES }> {
     Operation::write::<PVGAMCTRL>(parameters)
 }
@@ -273,7 +250,7 @@ pub const fn positive_gamma_control(
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
 pub const fn negative_gamma_control(
-    parameters: [u8; NVGAMCTRL::BYTES ],
+    parameters: [u8; NVGAMCTRL::BYTES],
 ) -> Operation<{ NVGAMCTRL::BYTES }> {
     Operation::write::<NVGAMCTRL>(parameters)
 }
@@ -390,7 +367,7 @@ pub const fn configure_sunlight_ehancement(
 //     Operation::write::<VRHS>([vrha])
 // }
 
-pub const fn set_vcom_amplitude(vcom: u8) -> Operation<{VCOMS::BYTES}> {
+pub const fn set_vcom_amplitude(vcom: u8) -> Operation<{ VCOMS::BYTES }> {
     Operation::write::<VCOMS>([vcom])
 }
 

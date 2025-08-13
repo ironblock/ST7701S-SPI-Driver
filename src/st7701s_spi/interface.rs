@@ -1,48 +1,29 @@
-use crate::st7701s_spi::parameters::{self, register::{Address, Extension}};
+use std::fmt::Debug;
 
+use crate::st7701s_spi::parameters::register::{Address, Extension};
 
 pub type Bytes = usize;
 
 pub type Buffer<const N: usize> = [u8; N];
 pub type Reader = for<'a> fn(&'a [u8]);
 
-
-pub trait Location: Sized {
+pub trait Command: Sized + Debug {
     const ADDRESS: Address;
     const EXTENSION: Extension = None;
 }
 
-pub trait WriteData<const N: usize = 0>: Location {
-    type Parameters;
-
-    fn encode(parameters: Self::Parameters) -> Buffer<N>;
+pub trait Data: Command {
+  type Parameters;
+  type Packets: Ord + IntoIterator<Item = u8>;
 }
 
-
-
-pub trait ReadData: Location {
-    const BYTES: Bytes;
+pub trait WriteData: Data {
+    fn encode(parameters: Self::Parameters) -> Self::Packets;
 }
 
-// pub enum Operation<const N: Bytes> {
-//     Command(Address, Extension),
-//     Write(Address, Extension, Buffer<N>),
-//     Read(Address, Extension, Reader),
-// }
-
-// impl<const N: Bytes> Operation<N> {
-//     pub const fn command<L: Location>() -> Self {
-//         Self::Command(L::ADDRESS, L::EXTENSION)
-//     }
-
-//     pub const fn write<L: Location>(buffer: Buffer<N>) -> Self {
-//         Self::Write(L::ADDRESS, L::EXTENSION, buffer)
-//     }
-
-//     pub const fn read<L: Location>(handler: Reader) -> Self {
-//         Self::Read(L::ADDRESS, L::EXTENSION, handler)
-//     }
-// }
+pub trait ReadData: Data {
+    fn decode(packets: Self::Packets) -> Self::Parameters;
+}
 
 /**
  * # System Commands
@@ -62,8 +43,9 @@ pub mod core {
       ### `0x00` `NOP`  No Operation
       > Reference: p. 187
     */
+    #[derive(Debug)]
     pub struct NOP;
-    impl Location for NOP {
+    impl Command for NOP {
         const ADDRESS: u8 = 0x00;
     }
 
@@ -72,29 +54,32 @@ pub mod core {
 
       > Reference: p. 188
     */
+    #[derive(Debug)]
     pub struct SWRESET;
-    impl Location for SWRESET {
+    impl Command for SWRESET {
         const ADDRESS: u8 = 0x01;
     }
-
+    impl Data for SWRESET {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
     /**
-        #### `SWRESET` Write Parameters
+      #### `SWRESET` Write Parameters
 
-        It's never stated anywhere why D0 is 1, but it's indicated in both the
-        primary reference table on p. 184 and again on SWRESET's detail page.
+      It's never stated anywhere why D0 is 1, but it's indicated in both the
+      primary reference table on p. 184 and again on SWRESET's detail page.
 
-        As an additional contradiction, p. 184 refers to SWRESET as a **command**
-        (with no arguments), and p. 188 refers to it as a **write**. As only a
-        write can have arguments and 0x01 is the constant argument in both
-        references, SWRESET's canonical representation here is as a **write**.
+      As an additional contradiction, p. 184 refers to SWRESET as a **command**
+      (with no arguments), and p. 188 refers to it as a **write**. As only a
+      write can have arguments and 0x01 is the constant argument in both
+      references, SWRESET's canonical representation here is as a **write**.
 
-        |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
-        |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
-        | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
+      |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+      |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+      | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
     */
     impl WriteData for SWRESET {
-        type Parameters = ();
-        fn encode() -> Buffer<1>{
+        fn encode(_: Self::Parameters) -> Self::Packets {
             const P1: u8 = 0b0000_0001;
 
             [P1]
@@ -105,14 +90,16 @@ pub mod core {
       ### `0x04` `RDDID`  Read Display ID
       > Reference: p. 189
     */
+    #[derive(Debug)]
     pub struct RDDID;
-    impl Location for RDDID {
+    impl Command for RDDID {
         const ADDRESS: Address = 0x04;
     }
-    impl ReadData for RDDID {
-        const BYTES: Bytes = 4;
+    impl Data for RDDID {
+        type Parameters = ();
+        type Packets = Buffer<4>;
     }
-    impl RDDID {
+    impl ReadData for RDDID {
         /**
             #### `RDDID` Read Parameters
 
@@ -123,7 +110,7 @@ pub mod core {
             | P3 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
             | P4 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
         */
-        const fn decode(_response: &[u8]) -> Buffer<{ Self::BYTES }> {
+        fn decode(_: Self::Packets) -> Self::Parameters {
             // P1 - IGNORE
             // P2 - Manufacturer ID
             // P2 - Version ID
@@ -139,8 +126,9 @@ pub mod core {
 
       > Reference: p. 190
     */
+    #[derive(Debug)]
     pub struct RDNUMED;
-    impl Location for RDNUMED {
+    impl Command for RDNUMED {
         const ADDRESS: Address = 0x05;
     }
 
@@ -148,116 +136,135 @@ pub mod core {
       ### `0x06` `RDRED`  Read the first pixel of Red Color
       > Reference: p. 191
     */
+    #[derive(Debug)]
     pub struct RDRED;
-    impl Location for RDRED {
+    impl Command for RDRED {
         const ADDRESS: Address = 0x06;
     }
-    impl ReadData for RDRED {
-        const BYTES: Bytes = 1;
+    impl Data for RDRED {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x07` `RDGREEN`  Read the first pixel of Green Color
       > Reference: p. 192
     */
+    #[derive(Debug)]
     pub struct RDGREEN;
-    impl Location for RDGREEN {
+    impl Command for RDGREEN {
         const ADDRESS: Address = 0x07;
     }
-    impl ReadData for RDGREEN {
-        const BYTES: Bytes = 1;
+    impl Data for RDGREEN {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x08` `RDBLUE`  Read the first pixel of Blue Color
       > Reference: p. 193
     */
+    #[derive(Debug)]
     pub struct RDBLUE;
-    impl Location for RDBLUE {
+    impl Command for RDBLUE {
         const ADDRESS: Address = 0x08;
     }
-    impl ReadData for RDBLUE {
-        const BYTES: Bytes = 1;
+    impl Data for RDBLUE {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x0A` `RDDPM`  Read Display Power Mode
       > Reference: p. 194
     */
+    #[derive(Debug)]
     pub struct RDDPM;
-    impl Location for RDDPM {
+    impl Command for RDDPM {
         const ADDRESS: Address = 0x0A;
     }
-    impl ReadData for RDDPM {
-        const BYTES: Bytes = 1;
+    impl Data for RDDPM {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x0B` `RDDMADCTL`  Read Display MADCTL
       > Reference: p. 195
     */
+    #[derive(Debug)]
     pub struct RDDMADCTL;
-    impl Location for RDDMADCTL {
+    impl Command for RDDMADCTL {
         const ADDRESS: Address = 0x0B;
     }
-    impl ReadData for RDDMADCTL {
-        const BYTES: Bytes = 1;
+    impl Data for RDDMADCTL {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x0C` `RDDCOLMOD`  Read Display Pixel Format
       > Reference: p. 196
     */
+    #[derive(Debug)]
     pub struct RDDCOLMOD;
-    impl Location for RDDCOLMOD {
+    impl Command for RDDCOLMOD {
         const ADDRESS: Address = 0x0C;
     }
-    impl ReadData for RDDCOLMOD {
-        const BYTES: Bytes = 1;
+    impl Data for RDDCOLMOD {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x0D` `RDDIM`  Read Display Image Mode
       > Reference: p. 197
     */
+    #[derive(Debug)]
     pub struct RDDIM;
-    impl Location for RDDIM {
+    impl Command for RDDIM {
         const ADDRESS: Address = 0x0D;
     }
-    impl ReadData for RDDIM {
-        const BYTES: Bytes = 1;
+    impl Data for RDDIM {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x0E` `RDDSM`  Read Display Signal Mode
       > Reference: p. 198
     */
+    #[derive(Debug)]
     pub struct RDDSM;
-    impl Location for RDDSM {
+    impl Command for RDDSM {
         const ADDRESS: Address = 0x0E;
     }
-    impl ReadData for RDDSM {
-        const BYTES: Bytes = 1;
+    impl Data for RDDSM {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x0F` `RDDSDR`  Read Display Self-Diagnostic Result
       > Reference: p. 199
     */
+    #[derive(Debug)]
     pub struct RDDSDR;
-    impl Location for RDDSDR {
+    impl Command for RDDSDR {
         const ADDRESS: Address = 0x0F;
     }
-    impl ReadData for RDDSDR {
-        const BYTES: Bytes = 1;
+    impl Data for RDDSDR {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x10` `SLPIN`  Sleep in
       > Reference: p. 200
     */
+    #[derive(Debug)]
     pub struct SLPIN;
-    impl Location for SLPIN {
+    impl Command for SLPIN {
         const ADDRESS: Address = 0x10;
     }
 
@@ -265,8 +272,9 @@ pub mod core {
       ### `0x11` `SLPOUT`  Sleep Out
       > Reference: p. 201
     */
+    #[derive(Debug)]
     pub struct SLPOUT;
-    impl Location for SLPOUT {
+    impl Command for SLPOUT {
         const ADDRESS: Address = 0x11;
     }
 
@@ -274,8 +282,9 @@ pub mod core {
       ### `0x12` `PTLON`  Partial Display Mode On
       > Reference: p. 202
     */
+    #[derive(Debug)]
     pub struct PTLON;
-    impl Location for PTLON {
+    impl Command for PTLON {
         const ADDRESS: Address = 0x12;
     }
 
@@ -283,8 +292,9 @@ pub mod core {
       ### `0x13` `NORON`  Normal Display Mode On
       > Reference: p. 203
     */
+    #[derive(Debug)]
     pub struct NORON;
-    impl Location for NORON {
+    impl Command for NORON {
         const ADDRESS: Address = 0x13;
     }
 
@@ -292,8 +302,9 @@ pub mod core {
       ### `0x20` `INVOFF`  Display Inversion Off
       > Reference: p. 204
     */
+    #[derive(Debug)]
     pub struct INVOFF;
-    impl Location for INVOFF {
+    impl Command for INVOFF {
         const ADDRESS: Address = 0x20;
     }
 
@@ -301,8 +312,9 @@ pub mod core {
       ### `0x21` `INVON`  Display Inversion On
       > Reference: p. 205
     */
+    #[derive(Debug)]
     pub struct INVON;
-    impl Location for INVON {
+    impl Command for INVON {
         const ADDRESS: Address = 0x21;
     }
 
@@ -310,8 +322,9 @@ pub mod core {
       ### `0x22` `ALLPOFF`  All Pixel Off
       > Reference: p. 206
     */
+    #[derive(Debug)]
     pub struct ALLPOFF;
-    impl Location for ALLPOFF {
+    impl Command for ALLPOFF {
         const ADDRESS: Address = 0x22;
     }
 
@@ -319,8 +332,9 @@ pub mod core {
       ### `0x23` `ALLPON`  All Pixel ON
       > Reference: p. 207
     */
+    #[derive(Debug)]
     pub struct ALLPON;
-    impl Location for ALLPON {
+    impl Command for ALLPON {
         const ADDRESS: Address = 0x23;
     }
 
@@ -328,30 +342,29 @@ pub mod core {
       ### `0x26` `GAMSET`  Gamma Set
       > Reference: p. 208
     */
+    #[derive(Debug)]
     pub struct GAMSET;
-    impl Location for GAMSET {
+    impl Command for GAMSET {
         const ADDRESS: Address = 0x26;
     }
-    impl WriteData for GAMSET {
+    /**
+        #### Write Parameters
 
+        Curve 1: G=2.2
+        Curve 2: Reserved
+        Curve 3: Reserved
+        Curve 4: Reserved
+
+        |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
+        |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
+        | P1 |   -   |   -   |   -   |   -   | GC[3] | GC[2] | GC[1] | GC[0] |
+    */
+    impl Data for GAMSET {
         type Parameters = (gamma::Curve,);
+        type Packets = Buffer<1>;
     }
-    impl GAMSET {
-        /**
-            #### Write Parameters
-
-            Curve 1: G=2.2
-            Curve 2: Reserved
-            Curve 3: Reserved
-            Curve 4: Reserved
-
-            |    |   D7  |   D6  |   D5  |   D4  |   D3  |   D2  |   D1  |   D0  |
-            |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
-            | P1 |   -   |   -   |   -   |   -   | GC[3] | GC[2] | GC[1] | GC[0] |
-        */
-        pub const fn encode_data(
-            (gc,): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ Self::BYTES }> {
+    impl WriteData for GAMSET {
+        fn encode((gc,): Self::Parameters) -> Self::Packets {
             let gc_data = match gc {
                 gamma::Curve::GC1 => 0x01,
                 gamma::Curve::GC2 => 0x02,
@@ -367,8 +380,9 @@ pub mod core {
       ### `0x28` `DISPOFF`  Display Off
       > Reference: p. 209
     */
+    #[derive(Debug)]
     pub struct DISPOFF;
-    impl Location for DISPOFF {
+    impl Command for DISPOFF {
         const ADDRESS: Address = 0x28;
     }
 
@@ -376,8 +390,9 @@ pub mod core {
       ### `0x29` `DISPON`  Display On
       > Reference: p. 210
     */
+    #[derive(Debug)]
     pub struct DISPON;
-    impl Location for DISPON {
+    impl Command for DISPON {
         const ADDRESS: Address = 0x29;
     }
 
@@ -385,8 +400,9 @@ pub mod core {
       ### `0x34` `TEOFF`  Tearing Effect Line OFF
       > Reference: p. 211
     */
+    #[derive(Debug)]
     pub struct TEOFF;
-    impl Location for TEOFF {
+    impl Command for TEOFF {
         const ADDRESS: Address = 0x34;
     }
 
@@ -394,16 +410,17 @@ pub mod core {
       ### `0x35` `TEON`  Tearing Effect Line ON
       > Reference: p. 212
     */
+    #[derive(Debug)]
     pub struct TEON;
-    impl Location for TEON {
+    impl Command for TEON {
         const ADDRESS: Address = 0x35;
     }
-    impl WriteData for TEON {
-        const BYTES: Bytes = 1;
+    impl Data for TEON {
+        type Packets = Buffer<1>;
 
         type Parameters = (tearing_effect::Blank,);
     }
-    impl TEON {
+    impl WriteData for TEON {
         /**
             #### Write Parameters
 
@@ -416,9 +433,7 @@ pub mod core {
             |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
             | P1 |   -   |   -   |   -   |   -   |   -   |   -   |   -   |   TE  |
         */
-        pub const fn encode_data(
-            (te,): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ Self::BYTES }> {
+        fn encode((te,): Self::Parameters) -> Self::Packets {
             let te_data = match te {
                 tearing_effect::Blank::Vertical => 0,
                 tearing_effect::Blank::VerticalHorizontal => 1,
@@ -432,8 +447,9 @@ pub mod core {
       ### `0x36` `MADCTL`  Display data access control
       > Reference: p. 214
     */
+    #[derive(Debug)]
     pub struct MADCTL;
-    impl Location for MADCTL {
+    impl Command for MADCTL {
         const ADDRESS: Address = 0x36;
     }
     /**
@@ -452,15 +468,13 @@ pub mod core {
         |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
         | P1 |   -   |   -   |   -   |   ML  |   CO  |   -   |   -   |   -   |
     */
-    impl WriteData for MADCTL {
-        const BYTES: Bytes = 1;
+    impl Data for MADCTL {
+        type Packets = Buffer<1>;
 
         type Parameters = (data_access::ScanDirection, data_access::ColorOrder);
     }
-    impl MADCTL {
-        pub const fn encode_data(
-            (ml, co): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ Self::BYTES }> {
+    impl WriteData for MADCTL {
+        fn encode((ml, co): Self::Parameters) -> Self::Packets {
             let p1_scan = match ml {
                 data_access::ScanDirection::Normal => 0,
                 data_access::ScanDirection::Reverse => 1 << 4,
@@ -478,8 +492,9 @@ pub mod core {
       ### `0x38` `IDMOFF`  Idle Mode Off
       > Reference: p. 215
     */
+    #[derive(Debug)]
     pub struct IDMOFF;
-    impl Location for IDMOFF {
+    impl Command for IDMOFF {
         const ADDRESS: Address = 0x38;
     }
 
@@ -487,8 +502,9 @@ pub mod core {
       ### `0x39` `IDMON`  Idle Mode On
       > Reference: p. 216
     */
+    #[derive(Debug)]
     pub struct IDMON;
-    impl Location for IDMON {
+    impl Command for IDMON {
         const ADDRESS: Address = 0x39;
     }
 
@@ -496,18 +512,17 @@ pub mod core {
       ### `0x3A` `COLMOD`  Interface Pixel Format
       > Reference: p. 218
     */
+    #[derive(Debug)]
     pub struct COLMOD;
-    impl Location for COLMOD {
+    impl Command for COLMOD {
         const ADDRESS: Address = 0x3A;
     }
-    impl WriteData for COLMOD {
-        const BYTES: Bytes = 1;
+    impl Data for COLMOD {
+        type Packets = Buffer<1>;
         type Parameters = (pixel_format::BitsPerPixel,);
     }
-    impl COLMOD {
-        pub const fn encode_data(
-            (bpp,): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ Self::BYTES }> {
+    impl WriteData for COLMOD {
+        fn encode((bpp,): Self::Parameters) -> Self::Packets {
             let bpp_data = match bpp {
                 pixel_format::BitsPerPixel::RGB565 => 101 << 4,
                 pixel_format::BitsPerPixel::RGB666 => 110 << 4,
@@ -522,272 +537,317 @@ pub mod core {
       ### `0x045` `GSL` Get Scan Line
       > See p. 219
     */
+    #[derive(Debug)]
     pub struct GSL;
-    impl Location for GSL {
+    impl Command for GSL {
         const ADDRESS: Address = 0x45;
     }
-    impl ReadData for GSL {
-        const BYTES: Bytes = 2;
+    impl Data for GSL {
+      type Parameters = ();
+        type Packets = Buffer<2>;
     }
 
     /**
       ### `0x051` `WRDISBV` Write Display Brightness
       > See p. 220
     */
+    #[derive(Debug)]
     pub struct WRDISBV;
-    impl Location for WRDISBV {
+    impl Command for WRDISBV {
         const ADDRESS: Address = 0x51;
     }
-    impl WriteData for WRDISBV {
-        const BYTES: Bytes = 1;
+    impl Data for WRDISBV {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x52` `RDDISBV` Read Display Brightness Value
       > See p. 221
     */
+    #[derive(Debug)]
     pub struct RDDISBV;
-    impl Location for RDDISBV {
+    impl Command for RDDISBV {
         const ADDRESS: Address = 0x52;
     }
-    impl ReadData for RDDISBV {
-        const BYTES: Bytes = 1;
+    impl Data for RDDISBV {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x53` `WRCTRLD` Write CTRL Display
       > See p. 222
     */
+    #[derive(Debug)]
     pub struct WRCTRLD;
-    impl Location for WRCTRLD {
+    impl Command for WRCTRLD {
         const ADDRESS: Address = 0x53;
     }
-    impl WriteData for WRCTRLD {
-        const BYTES: Bytes = 1;
+    impl Data for WRCTRLD {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x54` `RDCTRLD` Read CTRL Display
       > See p. 224
     */
+    #[derive(Debug)]
     pub struct RDCTRLD;
-    impl Location for RDCTRLD {
+    impl Command for RDCTRLD {
         const ADDRESS: Address = 0x54;
     }
-    impl ReadData for RDCTRLD {
-        const BYTES: Bytes = 1;
+    impl Data for RDCTRLD {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x55` `WRCACE` Write Content Adaptive Brightness Control and Color Enhancement
       > See p. 225
     */
+    #[derive(Debug)]
     pub struct WRCACE;
-    impl Location for WRCACE {
+    impl Command for WRCACE {
         const ADDRESS: Address = 0x55;
     }
-    impl WriteData for WRCACE {
-        const BYTES: Bytes = 1;
+    impl Data for WRCACE {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x56` `RDCABC` Read Content Adaptive Brightness Control
       > See p. 227
     */
+    #[derive(Debug)]
     pub struct RDCABC;
-    impl Location for RDCABC {
+    impl Command for RDCABC {
         const ADDRESS: Address = 0x56;
     }
-    impl ReadData for RDCABC {
-        const BYTES: Bytes = 1;
+    impl Data for RDCABC {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x5E` `WRCABCMB` Write CABC Minimum Brightness
       > See p. 229
     */
+    #[derive(Debug)]
     pub struct WRCABCMB;
-    impl Location for WRCABCMB {
+    impl Command for WRCABCMB {
         const ADDRESS: Address = 0x5E;
     }
-    impl WriteData for WRCABCMB {
-        const BYTES: Bytes = 1;
+    impl Data for WRCABCMB {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x5F` `RDCABCMB` Read CABC Minimum Brightness
       > See p. 230
     */
+    #[derive(Debug)]
     pub struct RDCABCMB;
-    impl Location for RDCABCMB {
+    impl Command for RDCABCMB {
         const ADDRESS: Address = 0x5F;
     }
-    impl ReadData for RDCABCMB {
-        const BYTES: Bytes = 1;
+    impl Data for RDCABCMB {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x68` `RDABCSDR` Read Automatic Brightness Control Self-Diagnostic Result
       > See p. 231
     */
+    #[derive(Debug)]
     pub struct RDABCSDR;
-    impl Location for RDABCSDR {
+    impl Command for RDABCSDR {
         const ADDRESS: Address = 0x68;
     }
-    impl ReadData for RDABCSDR {
-        const BYTES: Bytes = 1;
+    impl Data for RDABCSDR {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x70` `RDBWLB` Read Black/White Low Bits
       > See p. 232
     */
+    #[derive(Debug)]
     pub struct RDBWLB;
-    impl Location for RDBWLB {
+    impl Command for RDBWLB {
         const ADDRESS: Address = 0x70;
     }
-    impl ReadData for RDBWLB {
-        const BYTES: Bytes = 1;
+    impl Data for RDBWLB {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x71` `RDBkx` Read Bkx
       > See p. 233
     */
+    #[derive(Debug)]
     pub struct RDBKX;
-    impl Location for RDBKX {
+    impl Command for RDBKX {
         const ADDRESS: Address = 0x71;
     }
-    impl ReadData for RDBKX {
-        const BYTES: Bytes = 1;
+    impl Data for RDBKX {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x72` `RDBky` Read Bky
       > See p. 234
     */
+    #[derive(Debug)]
     pub struct RDBKY;
-    impl Location for RDBKY {
+    impl Command for RDBKY {
         const ADDRESS: Address = 0x72;
     }
-    impl ReadData for RDBKY {
-        const BYTES: Bytes = 1;
+    impl Data for RDBKY {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x73` `RDWx` Read Wx
       > See p. 235
     */
+    #[derive(Debug)]
     pub struct RDWX;
-    impl Location for RDWX {
+    impl Command for RDWX {
         const ADDRESS: Address = 0x73;
     }
-    impl ReadData for RDWX {
-        const BYTES: Bytes = 1;
+    impl Data for RDWX {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x74` `RDWy` Read Wy
       > See p. 236
     */
+    #[derive(Debug)]
     pub struct RDWY;
-    impl Location for RDWY {
+    impl Command for RDWY {
         const ADDRESS: Address = 0x74;
     }
-    impl ReadData for RDWY {
-        const BYTES: Bytes = 1;
+    impl Data for RDWY {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x75` `RDRGLB` Read Red/Green Low Bits
       > See p. 237
     */
+    #[derive(Debug)]
     pub struct RDRGLB;
-    impl Location for RDRGLB {
+    impl Command for RDRGLB {
         const ADDRESS: Address = 0x75;
     }
-    impl ReadData for RDRGLB {
-        const BYTES: Bytes = 1;
+    impl Data for RDRGLB {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x76` `RDRx` Read Rx
       > See p. 238
     */
+    #[derive(Debug)]
     pub struct RDRX;
-    impl Location for RDRX {
+    impl Command for RDRX {
         const ADDRESS: Address = 0x76;
     }
-    impl ReadData for RDRX {
-        const BYTES: Bytes = 1;
+    impl Data for RDRX {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x77` `RDRy` Read Ry
       > See p. 239
     */
+    #[derive(Debug)]
     pub struct RDRY;
-    impl Location for RDRY {
+    impl Command for RDRY {
         const ADDRESS: Address = 0x77;
     }
-    impl ReadData for RDRY {
-        const BYTES: Bytes = 1;
+    impl Data for RDRY {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x78` `RDGx` Read Gx
       > See p. 240
     */
+    #[derive(Debug)]
     pub struct RDGX;
-    impl Location for RDGX {
+    impl Command for RDGX {
         const ADDRESS: Address = 0x78;
     }
-    impl ReadData for RDGX {
-        const BYTES: Bytes = 1;
+    impl Data for RDGX {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x79` `RDGy` Read Gy
       > See p. 241
     */
+    #[derive(Debug)]
     pub struct RDGY;
-    impl Location for RDGY {
+    impl Command for RDGY {
         const ADDRESS: Address = 0x79;
     }
-    impl ReadData for RDGY {
-        const BYTES: Bytes = 1;
+    impl Data for RDGY {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x7A` `RDBALB` Read Blue/A Color Low Bits
       > See p. 242
     */
+    #[derive(Debug)]
     pub struct RDBALB;
-    impl Location for RDBALB {
+    impl Command for RDBALB {
         const ADDRESS: Address = 0x7A;
     }
-    impl ReadData for RDBALB {
-        const BYTES: Bytes = 1;
+    impl Data for RDBALB {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x7B` `RDBx` Read Bx
       > See p. 243
     */
+    #[derive(Debug)]
     pub struct RDBX;
-    impl Location for RDBX {
+    impl Command for RDBX {
         const ADDRESS: Address = 0x7B;
     }
-    impl ReadData for RDBX {
-        const BYTES: Bytes = 1;
+    impl Data for RDBX {
+      type Parameters = ();
+        type Packets = Buffer<1>;
     }
 
     /**
       ### `0x7C` `RDBy` Read By
       > See p. 244
     */
+    #[derive(Debug)]
     pub struct RDBy;
-    impl Location for RDBy {
+    impl Command for RDBy {
         const ADDRESS: u8 = 0x7C;
     }
 
@@ -795,8 +855,9 @@ pub mod core {
       ### `0x7D` `RDAx` Read Ax
       > See p. 245
     */
+    #[derive(Debug)]
     pub struct RDAx;
-    impl Location for RDAx {
+    impl Command for RDAx {
         const ADDRESS: u8 = 0x7D;
     }
 
@@ -804,8 +865,9 @@ pub mod core {
       ### `0x7E` `RDAy` Read Ay
       > See p. 246
     */
+    #[derive(Debug)]
     pub struct RDAy;
-    impl Location for RDAy {
+    impl Command for RDAy {
         const ADDRESS: u8 = 0x7E;
     }
 
@@ -813,8 +875,9 @@ pub mod core {
       ### `0xA1` `RDDDBS` Read DDB Start
       > See p. 247
     */
+    #[derive(Debug)]
     pub struct RDDDBS;
-    impl Location for RDDDBS {
+    impl Command for RDDDBS {
         const ADDRESS: u8 = 0xA1;
     }
 
@@ -822,8 +885,9 @@ pub mod core {
       ### `0xA8` `RDDDBC` Read DDB Continue
       > See p. 249
     */
+    #[derive(Debug)]
     pub struct RDDDBC;
-    impl Location for RDDDBC {
+    impl Command for RDDDBC {
         const ADDRESS: u8 = 0xA8;
     }
 
@@ -831,8 +895,9 @@ pub mod core {
       ### `0xAA` `RDFCS` Read First Checksum
       > See p. 250
     */
+    #[derive(Debug)]
     pub struct RDFCS;
-    impl Location for RDFCS {
+    impl Command for RDFCS {
         const ADDRESS: u8 = 0xAA;
     }
 
@@ -840,8 +905,9 @@ pub mod core {
       ### `0xAF` `RDCCS` Read Continue Checksum
       > See p. 251
     */
+    #[derive(Debug)]
     pub struct RDCCS;
-    impl Location for RDCCS {
+    impl Command for RDCCS {
         const ADDRESS: u8 = 0xAF;
     }
 
@@ -849,8 +915,9 @@ pub mod core {
       ### `0xDA` `RDID1` Read ID1
       > See p. 252
     */
+    #[derive(Debug)]
     pub struct RDID1;
-    impl Location for RDID1 {
+    impl Command for RDID1 {
         const ADDRESS: u8 = 0xDA;
     }
 
@@ -858,8 +925,9 @@ pub mod core {
       ### `0xDB` `RDID2` Read ID2
       > See p. 253
     */
+    #[derive(Debug)]
     pub struct RDID2;
-    impl Location for RDID2 {
+    impl Command for RDID2 {
         const ADDRESS: u8 = 0xDB;
     }
 
@@ -867,8 +935,9 @@ pub mod core {
       ### `0xDC` `RDID3` Read ID3
       > See p. 254
     */
+    #[derive(Debug)]
     pub struct RDID3;
-    impl Location for RDID3 {
+    impl Command for RDID3 {
         const ADDRESS: u8 = 0xDC;
     }
 
@@ -886,20 +955,19 @@ pub mod core {
       |    0   |    0   |    0   |    0   |    0   |    0   |    0   |    0   |
       |    0   |    0   |    0   |   CN2  |    0   |    0   |    0   | BKxSEL |
     */
+    #[derive(Debug)]
     pub struct CND2BKXSEL;
-    impl Location for CND2BKXSEL {
+    impl Command for CND2BKXSEL {
         const ADDRESS: Address = 0xFF;
     }
-    impl WriteData for CND2BKXSEL {
-        const BYTES: Bytes = 5;
-        const INITIAL: Self::Parameters = (Switch::Off, Bank::BK0);
-
+    impl Data for CND2BKXSEL {
         type Parameters = (Switch, Bank);
+        type Packets = Buffer<5>;
     }
-    impl CND2BKXSEL {
-        pub const fn encode_data(
-            (cn2, bkxsel): <Self as WriteData>::Parameters,
-        ) -> Buffer<{ Self::BYTES }> {
+    impl WriteData for CND2BKXSEL {
+        fn encode(
+            (cn2, bkxsel): Self::Parameters,
+        ) -> Self::Packets {
             const P1: u8 = 0b0111_0111;
             const P2: u8 = 0b0000_0001;
             const P3: u8 = 0b0000_0000;
@@ -924,7 +992,6 @@ pub mod core {
 /**
  ## BK0 COMMANDS
 */
-#[rustfmt::skip]
 pub mod bk0 {
     use crate::st7701s_spi::parameters::register::Bank;
 
@@ -936,278 +1003,506 @@ pub mod bk0 {
       ### `0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
       > See p. 261
     */
+    #[derive(Debug)]
     pub struct PVGAMCTRL;
-    impl Location for PVGAMCTRL  { const ADDRESS:   Address   = 0xB0;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for PVGAMCTRL { const BYTES:     Bytes     = 16;  }
+    impl Command for PVGAMCTRL {
+        const ADDRESS: Address = 0xB0;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for PVGAMCTRL {
+        type Parameters = ();
+        type Packets = Buffer<16>;
+    }
 
     /**
       ### `0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
       > See p. 263
     */
+    #[derive(Debug)]
     pub struct NVGAMCTRL;
-    impl Location for NVGAMCTRL  { const ADDRESS:   Address   = 0xB1;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for NVGAMCTRL { const BYTES:     Bytes     = 16;  }
+    impl Command for NVGAMCTRL {
+        const ADDRESS: Address = 0xB1;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for NVGAMCTRL {
+        type Parameters = ();
+        type Packets = Buffer<16>;
+    }
 
     /**
       ### `0xB8` `DGMEN` Digital Gamma Enable
       > See p. 265
     */
+    #[derive(Debug)]
     pub struct DGMEN;
-    impl Location for DGMEN      { const ADDRESS:   Address   = 0xB8;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for DGMEN     { const BYTES:     Bytes     = 1;   }
+    impl Command for DGMEN {
+        const ADDRESS: Address = 0xB8;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for DGMEN {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xB9` `DGMLUTR` Digital Gamma Look-up Table for Red
       > See p. 266
     */
+    #[derive(Debug)]
     pub struct DGMLUTR;
-    impl Location for DGMLUTR    { const ADDRESS:   Address   = 0xB9;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for DGMLUTR   { const BYTES:     Bytes     = 130; }
+    impl Command for DGMLUTR {
+        const ADDRESS: Address = 0xB9;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for DGMLUTR {
+        type Parameters = ();
+        type Packets = Buffer<130>;
+    }
 
     /**
       ### `0xBA` `DGMLUTB` Digital Gamma Look-up Table for Blue
       > See p. 267
     */
+    #[derive(Debug)]
     pub struct DGMLUTB;
-    impl Location for DGMLUTB    { const ADDRESS:   Address   = 0xBA;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for DGMLUTB   { const BYTES:     Bytes     = 130; }
+    impl Command for DGMLUTB {
+        const ADDRESS: Address = 0xBA;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for DGMLUTB {
+        type Parameters = ();
+        type Packets = Buffer<130>;
+    }
 
     /**
       ### `0xBC` `SEL` PWM CLK select
       > See p. 268
     */
+    #[derive(Debug)]
     pub struct PWMCLK;
-    impl Location for PWMCLK     { const ADDRESS:   Address   = 0xBC;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for PWMCLK    { const BYTES:     Bytes     = 1;   }
+    impl Command for PWMCLK {
+        const ADDRESS: Address = 0xBC;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for PWMCLK {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xC0` `LNESET` Display Line Setting
       > See p. 269
     */
+    #[derive(Debug)]
     pub struct LNESET;
-    impl Location for LNESET     { const ADDRESS:   Address   = 0xC0;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for LNESET    { const BYTES:     Bytes     = 2;   }
+    impl Command for LNESET {
+        const ADDRESS: Address = 0xC0;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for LNESET {
+        type Parameters = ();
+        type Packets = Buffer<2>;
+    }
 
     /**
       ### `0xC1` `PORCTRL` Porch Control
       > See p. 270
     */
+    #[derive(Debug)]
     pub struct PORCTRL;
-    impl Location for PORCTRL    { const ADDRESS:   Address   = 0xC1;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for PORCTRL   { const BYTES:     Bytes     = 2;   }
+    impl Command for PORCTRL {
+        const ADDRESS: Address = 0xC1;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for PORCTRL {
+        type Parameters = ();
+        type Packets = Buffer<2>;
+    }
 
     /**
       ### `0xC2` `INVSE` Inversion selection & Frame Rate Control
       > See p. 271
     */
+    #[derive(Debug)]
     pub struct INVSET;
-    impl Location for INVSET     { const ADDRESS:   Address   = 0xC2;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for INVSET    { const BYTES:     Bytes     = 2;   }
+    impl Command for INVSET {
+        const ADDRESS: Address = 0xC2;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for INVSET {
+        type Parameters = ();
+        type Packets = Buffer<2>;
+    }
 
     /**
       ### `0xC3` `RGBCTRL` RGB control
       > See p. 272
     */
+    #[derive(Debug)]
     pub struct RGBCTRL;
-    impl Location for RGBCTRL    { const ADDRESS:   Address   = 0xC3;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for RGBCTRL   { const BYTES:     Bytes     = 3;   }
+    impl Command for RGBCTRL {
+        const ADDRESS: Address = 0xC3;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for RGBCTRL {
+        type Parameters = ();
+        type Packets = Buffer<3>;
+    }
 
     /**
       ### `0xC5` `PARCTRL` Partial Mode Control
       > See p. 273
     */
+    #[derive(Debug)]
     pub struct PARCTRL;
-    impl Location for PARCTRL    { const ADDRESS:   Address   = 0xC5;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for PARCTRL   { const BYTES:     Bytes     = 4;   }
+    impl Command for PARCTRL {
+        const ADDRESS: Address = 0xC5;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for PARCTRL {
+        type Parameters = ();
+        type Packets = Buffer<4>;
+    }
 
     /**
       ### `0xC7` `SDIR` X-direction Control
       > See p. 274
     */
+    #[derive(Debug)]
     pub struct SDIR;
-    impl Location for SDIR       { const ADDRESS:   Address   = 0xC7;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for SDIR      { const BYTES:     Bytes     = 1;   }
+    impl Command for SDIR {
+        const ADDRESS: Address = 0xC7;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for SDIR {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xC8` `PDOSET` Pseudo-Dot inversion diving setting
       > See p. 275
     */
+    #[derive(Debug)]
     pub struct PDOSET;
-    impl Location for PDOSET     { const ADDRESS:   Address   = 0xC8;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for PDOSET    { const BYTES:     Bytes     = 1;   }
+    impl Command for PDOSET {
+        const ADDRESS: Address = 0xC8;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for PDOSET {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xCD` `COLCTRL` Color Control
       > See p. 276
     */
+    #[derive(Debug)]
     pub struct COLCTRL;
-    impl Location for COLCTRL    { const ADDRESS:   Address   = 0xCD;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for COLCTRL   { const BYTES:     Bytes     = 1;   }
+    impl Command for COLCTRL {
+        const ADDRESS: Address = 0xCD;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for COLCTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct SSCTRL;
-    impl Location for SSCTRL     { const ADDRESS:   Address   = 0xCE;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for SSCTRL    { const BYTES:     Bytes     = 1;   }
+    impl Command for SSCTRL {
+        const ADDRESS: Address = 0xCE;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for SSCTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xE0` `SECTRL` Sunlight Readable Enhancement
       > See p. 278
     */
+    #[derive(Debug)]
     pub struct SRECTRL;
-    impl Location for SRECTRL    { const ADDRESS:   Address   = 0xE0;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for SRECTRL   { const BYTES:     Bytes     = 1;   }
+    impl Command for SRECTRL {
+        const ADDRESS: Address = 0xE0;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for SRECTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xE1` `NRCTRL` Noise Reduce Control
       > See p. 279
     */
+    #[derive(Debug)]
     pub struct NRCTRL;
-    impl Location for NRCTRL     { const ADDRESS:   Address   = 0xE1;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for NRCTRL    { const BYTES:     Bytes     = 1;   }
+    impl Command for NRCTRL {
+        const ADDRESS: Address = 0xE1;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for NRCTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xE2` `SECTRL` Sharpness Control
       > See p. 280
     */
+    #[derive(Debug)]
     pub struct SECTRL;
-    impl Location for SECTRL     { const ADDRESS:   Address   = 0xE2;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for SECTRL    { const BYTES:     Bytes     = 1;   }
+    impl Command for SECTRL {
+        const ADDRESS: Address = 0xE2;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for SECTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xE3` `CCCTRL` Color Calibration Control
       > See p. 281
     */
+    #[derive(Debug)]
     pub struct CCCTRL;
-    impl Location for CCCTRL     { const ADDRESS:   Address   = 0xE3;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for CCCTRL    { const BYTES:     Bytes     = 1;   }
+    impl Command for CCCTRL {
+        const ADDRESS: Address = 0xE3;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for CCCTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
     /**
       ### `0xE4` `SKCTRL` Skin Tone Preservation Control
       > See p. 282
     */
+    #[derive(Debug)]
     pub struct SKCTRL;
-    impl Location for SKCTRL     { const ADDRESS:   Address   = 0xE4;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for SKCTRL    { const BYTES:     Bytes     = 1;   }
+    impl Command for SKCTRL {
+        const ADDRESS: Address = 0xE4;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for SKCTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct NVMSETE;
-    impl Location for NVMSETE    { const ADDRESS:   Address   = 0xEA;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for NVMSETE   { const BYTES:     Bytes     = 1;   }
+    impl Command for NVMSETE {
+        const ADDRESS: Address = 0xEA;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for NVMSETE {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct CABCCTRL;
-    impl Location for CABCCTRL   { const ADDRESS:   Address   = 0xEE;
-                                   const EXTENSION: Extension = BK0; }
-    impl WriteData for CABCCTRL  { const BYTES:     Bytes     = 1;   }
+    impl Command for CABCCTRL {
+        const ADDRESS: Address = 0xEE;
+        const EXTENSION: Extension = BK0;
+    }
+    impl Data for CABCCTRL {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 }
 
 /**
  ## BK1 COMMANDS
 */
-#[rustfmt::skip]
 pub mod bk1 {
+    use crate::st7701s_spi::parameters::register::Bank;
+
     use super::*;
 
     const BK1: Extension = Some(Bank::BK1);
 
+    #[derive(Debug)]
     pub struct VCOMS;
-    impl Location for VCOMS      { const ADDRESS:   Address   = 0xB1;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for VCOMS     { const BYTES:     Bytes     = 1;   }
+    impl Command for VCOMS {
+        const ADDRESS: Address = 0xB1;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for VCOMS {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct VGHSS;
-    impl Location for VGHSS      { const ADDRESS:   Address   = 0xB2;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for VGHSS     { const BYTES:     Bytes     = 1;   }
+    impl Command for VGHSS {
+        const ADDRESS: Address = 0xB2;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for VGHSS {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct TESTCMD;
-    impl Location for TESTCMD    { const ADDRESS:   Address   = 0xB3;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for TESTCMD   { const BYTES:     Bytes     = 1;   }
+    impl Command for TESTCMD {
+        const ADDRESS: Address = 0xB3;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for TESTCMD {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct VGLS;
-    impl Location for VGLS       { const ADDRESS:   Address   = 0xB5;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for VGLS      { const BYTES:     Bytes     = 1;   }
+    impl Command for VGLS {
+        const ADDRESS: Address = 0xB5;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for VGLS {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct PWCTRL1;
-    impl Location for PWCTRL1    { const ADDRESS:   Address   = 0xB7;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for PWCTRL1   { const BYTES:     Bytes     = 1;   }
+    impl Command for PWCTRL1 {
+        const ADDRESS: Address = 0xB7;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for PWCTRL1 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct PWCTRL2;
-    impl Location for PWCTRL2    { const ADDRESS:   Address   = 0xB8;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for PWCTRL2   { const BYTES:     Bytes     = 1;   }
+    impl Command for PWCTRL2 {
+        const ADDRESS: Address = 0xB8;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for PWCTRL2 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct PCLKS1;
-    impl Location for PCLKS1     { const ADDRESS:   Address   = 0xBA;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for PCLKS1    { const BYTES:     Bytes     = 1;   }
+    impl Command for PCLKS1 {
+        const ADDRESS: Address = 0xBA;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for PCLKS1 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct PCLKS3;
-    impl Location for PCLKS3     { const ADDRESS:   Address   = 0xBC;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for PCLKS3    { const BYTES:     Bytes     = 1;   }
+    impl Command for PCLKS3 {
+        const ADDRESS: Address = 0xBC;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for PCLKS3 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct SPD1;
-    impl Location for SPD1       { const ADDRESS:   Address   = 0xC1;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for SPD1      { const BYTES:     Bytes     = 1;   }
+    impl Command for SPD1 {
+        const ADDRESS: Address = 0xC1;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for SPD1 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct SPD2;
-    impl Location for SPD2       { const ADDRESS:   Address   = 0xC2;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for SPD2      { const BYTES:     Bytes     = 1;   }
+    impl Command for SPD2 {
+        const ADDRESS: Address = 0xC2;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for SPD2 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct MIPISET1;
-    impl Location for MIPISET1   { const ADDRESS:   Address   = 0xD0;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for MIPISET1  { const BYTES:     Bytes     = 1;   }
+    impl Command for MIPISET1 {
+        const ADDRESS: Address = 0xD0;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for MIPISET1 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct MIPISET2;
-    impl Location for MIPISET2   { const ADDRESS:   Address   = 0xD1;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for MIPISET2  { const BYTES:     Bytes     = 4;   }
+    impl Command for MIPISET2 {
+        const ADDRESS: Address = 0xD1;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for MIPISET2 {
+        type Parameters = ();
+        type Packets = Buffer<4>;
+    }
 
+    #[derive(Debug)]
     pub struct MIPISET3;
-    impl Location for MIPISET3   { const ADDRESS:   Address   = 0xD2;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for MIPISET3  { const BYTES:     Bytes     = 1;   }
+    impl Command for MIPISET3 {
+        const ADDRESS: Address = 0xD2;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for MIPISET3 {
+        type Parameters = ();
+        type Packets = Buffer<1>;
+    }
 
+    #[derive(Debug)]
     pub struct MIPISET4;
-    impl Location for MIPISET4   { const ADDRESS:   Address   = 0xD3;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for MIPISET4  { const BYTES:     Bytes     = 2;   }
+    impl Command for MIPISET4 {
+        const ADDRESS: Address = 0xD3;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for MIPISET4 {
+        type Parameters = ();
+        type Packets = Buffer<2>;
+    }
 
+    #[derive(Debug)]
     pub struct NVMEN;
-    impl Location for NVMEN      { const ADDRESS:   Address   = 0xC8;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for NVMEN     { const BYTES:     Bytes     = 4;   }
+    impl Command for NVMEN {
+        const ADDRESS: Address = 0xC8;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for NVMEN {
+        type Parameters = ();
+        type Packets = Buffer<4>;
+    }
 
+    #[derive(Debug)]
     pub struct NVMSET;
-    impl Location for NVMSET     { const ADDRESS:   Address   = 0xCA;
-                                   const EXTENSION: Extension = BK1; }
-    impl WriteData for NVMSET    { const BYTES:     Bytes     = 3;   }
-
+    impl Command for NVMSET {
+        const ADDRESS: Address = 0xCA;
+        const EXTENSION: Extension = BK1;
+    }
+    impl Data for NVMSET {
+        type Parameters = ();
+        type Packets = Buffer<3>;
+    }
 }
 
 /**
