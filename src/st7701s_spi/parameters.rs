@@ -1,6 +1,18 @@
 pub mod register {
-    pub type Address = u8;
-    pub type Extension = Option<Bank>;
+    use std::fmt::{self, Display};
+
+    #[derive(Debug)]
+    pub struct Address(pub u8);
+    impl Display for Address {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "0x{:02X}", self.0)
+        }
+    }
+    impl From<Address> for u8 {
+        fn from(value: Address) -> Self {
+            value.0
+        }
+    }
 
     /**
         ## Extended Address Banks
@@ -10,16 +22,31 @@ pub mod register {
 
         > Section 12.3.1 `CND2BKxSEL`, page 260
     */
-#[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum Bank {
         BK0,
         BK1,
         BK3,
     }
+
+    #[derive(Debug)]
+    pub struct Extension(pub Option<Bank>);
+    impl Display for Extension {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self.0 {
+                Some(Bank::BK0) => write!(f, "BK0/"),
+                Some(Bank::BK1) => write!(f, "BK1/"),
+                Some(Bank::BK3) => write!(f, "BK3/"),
+                None => write!(f, ""),
+            }
+        }
+    }
+
+
 }
 
 pub mod gamma {
-#[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum Curve {
         GC1,
         GC2,
@@ -29,7 +56,7 @@ pub mod gamma {
 }
 
 pub mod tearing_effect {
-#[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum Blank {
         Vertical,
         VerticalHorizontal,
@@ -37,13 +64,13 @@ pub mod tearing_effect {
 }
 
 pub mod data_access {
-#[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum ScanDirection {
         Normal,
         Reverse,
     }
 
-#[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum ColorOrder {
         RGB,
         BGR,
@@ -51,7 +78,7 @@ pub mod data_access {
 }
 
 pub mod pixel_format {
-#[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     pub enum BitsPerPixel {
         /// 16 bits per pixel (RGB565)
         RGB565,

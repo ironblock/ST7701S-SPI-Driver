@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug};
 
 use crate::st7701s_spi::parameters::register::{Address, Extension};
 
@@ -8,21 +8,27 @@ pub type Buffer<const N: usize> = [u8; N];
 pub type Reader = for<'a> fn(&'a [u8]);
 
 pub trait Command: Sized + Debug {
+    const NAME: &str;
     const ADDRESS: Address;
-    const EXTENSION: Extension = None;
+    const EXTENSION: Extension = Extension(None);
+
+    fn id_tag() -> String {
+        format!("[{} ({}{})]", Self::NAME, Self::EXTENSION, Self::ADDRESS)
+    }
 }
 
+
 pub trait Data: Command {
-  type Parameters;
-  type Packets: Ord + IntoIterator<Item = u8>;
+    type Parameters: PartialEq + Debug;
+    type Packets: Ord + IntoIterator<Item = u8>;
 }
 
 pub trait WriteData: Data {
-    fn encode(parameters: Self::Parameters) -> Self::Packets;
+    fn encode(parameters: &Self::Parameters) -> Self::Packets;
 }
 
 pub trait ReadData: Data {
-    fn decode(packets: Self::Packets) -> Self::Parameters;
+    fn decode(packets: &Self::Packets) -> Self::Parameters;
 }
 
 /**
@@ -46,7 +52,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct NOP;
     impl Command for NOP {
-        const ADDRESS: u8 = 0x00;
+        const NAME: &str = "NOP";
+        const ADDRESS: Address = Address(0x00);
     }
 
     /**
@@ -57,7 +64,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct SWRESET;
     impl Command for SWRESET {
-        const ADDRESS: u8 = 0x01;
+        const NAME: &str = "SWRESET";
+        const ADDRESS: Address = Address(0x01);
     }
     impl Data for SWRESET {
         type Parameters = ();
@@ -79,7 +87,7 @@ pub mod core {
       | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
     */
     impl WriteData for SWRESET {
-        fn encode(_: Self::Parameters) -> Self::Packets {
+        fn encode(_: &Self::Parameters) -> Self::Packets {
             const P1: u8 = 0b0000_0001;
 
             [P1]
@@ -93,7 +101,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDID;
     impl Command for RDDID {
-        const ADDRESS: Address = 0x04;
+        const NAME: &str = "RDDID";
+        const ADDRESS: Address = Address(0x04);
     }
     impl Data for RDDID {
         type Parameters = ();
@@ -110,7 +119,7 @@ pub mod core {
             | P3 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
             | P4 |   *   |   *   |   *   |   *   |   *   |   *   |   *   |   *   |
         */
-        fn decode(_: Self::Packets) -> Self::Parameters {
+        fn decode(_: &Self::Packets) -> Self::Parameters {
             // P1 - IGNORE
             // P2 - Manufacturer ID
             // P2 - Version ID
@@ -129,7 +138,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDNUMED;
     impl Command for RDNUMED {
-        const ADDRESS: Address = 0x05;
+        const NAME: &str = "RDNUMED";
+        const ADDRESS: Address = Address(0x05);
     }
 
     /**
@@ -139,10 +149,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDRED;
     impl Command for RDRED {
-        const ADDRESS: Address = 0x06;
+        const NAME: &str = "RDRED";
+        const ADDRESS: Address = Address(0x06);
     }
     impl Data for RDRED {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -153,10 +164,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDGREEN;
     impl Command for RDGREEN {
-        const ADDRESS: Address = 0x07;
+        const NAME: &str = "RDGREEN";
+        const ADDRESS: Address = Address(0x07);
     }
     impl Data for RDGREEN {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -167,10 +179,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBLUE;
     impl Command for RDBLUE {
-        const ADDRESS: Address = 0x08;
+        const NAME: &str = "RDBLUE";
+        const ADDRESS: Address = Address(0x08);
     }
     impl Data for RDBLUE {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -181,10 +194,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDPM;
     impl Command for RDDPM {
-        const ADDRESS: Address = 0x0A;
+        const NAME: &str = "RDDPM";
+        const ADDRESS: Address = Address(0x0A);
     }
     impl Data for RDDPM {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -195,10 +209,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDMADCTL;
     impl Command for RDDMADCTL {
-        const ADDRESS: Address = 0x0B;
+        const NAME: &str = "RDDMADCTL";
+        const ADDRESS: Address = Address(0x0B);
     }
     impl Data for RDDMADCTL {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -209,10 +224,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDCOLMOD;
     impl Command for RDDCOLMOD {
-        const ADDRESS: Address = 0x0C;
+        const NAME: &str = "RDDCOLMOD";
+        const ADDRESS: Address = Address(0x0C);
     }
     impl Data for RDDCOLMOD {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -223,10 +239,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDIM;
     impl Command for RDDIM {
-        const ADDRESS: Address = 0x0D;
+        const NAME: &str = "RDDIM";
+        const ADDRESS: Address = Address(0x0D);
     }
     impl Data for RDDIM {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -237,10 +254,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDSM;
     impl Command for RDDSM {
-        const ADDRESS: Address = 0x0E;
+        const NAME: &str = "RDDSM";
+        const ADDRESS: Address = Address(0x0E);
     }
     impl Data for RDDSM {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -251,10 +269,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDSDR;
     impl Command for RDDSDR {
-        const ADDRESS: Address = 0x0F;
+        const NAME: &str = "RDDSDR";
+        const ADDRESS: Address = Address(0x0F);
     }
     impl Data for RDDSDR {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -265,7 +284,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct SLPIN;
     impl Command for SLPIN {
-        const ADDRESS: Address = 0x10;
+        const NAME: &str = "SLPIN";
+        const ADDRESS: Address = Address(0x10);
     }
 
     /**
@@ -275,7 +295,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct SLPOUT;
     impl Command for SLPOUT {
-        const ADDRESS: Address = 0x11;
+        const NAME: &str = "SLPOUT";
+        const ADDRESS: Address = Address(0x11);
     }
 
     /**
@@ -285,7 +306,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct PTLON;
     impl Command for PTLON {
-        const ADDRESS: Address = 0x12;
+        const NAME: &str = "PTLON";
+        const ADDRESS: Address = Address(0x12);
     }
 
     /**
@@ -295,7 +317,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct NORON;
     impl Command for NORON {
-        const ADDRESS: Address = 0x13;
+        const NAME: &str = "NORON";
+        const ADDRESS: Address = Address(0x13);
     }
 
     /**
@@ -305,7 +328,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct INVOFF;
     impl Command for INVOFF {
-        const ADDRESS: Address = 0x20;
+        const NAME: &str = "INVOFF";
+        const ADDRESS: Address = Address(0x20);
     }
 
     /**
@@ -315,7 +339,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct INVON;
     impl Command for INVON {
-        const ADDRESS: Address = 0x21;
+        const NAME: &str = "INVON";
+        const ADDRESS: Address = Address(0x21);
     }
 
     /**
@@ -325,7 +350,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct ALLPOFF;
     impl Command for ALLPOFF {
-        const ADDRESS: Address = 0x22;
+        const NAME: &str = "ALLPOFF";
+        const ADDRESS: Address = Address(0x22);
     }
 
     /**
@@ -335,7 +361,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct ALLPON;
     impl Command for ALLPON {
-        const ADDRESS: Address = 0x23;
+        const NAME: &str = "ALLPON";
+        const ADDRESS: Address = Address(0x23);
     }
 
     /**
@@ -345,7 +372,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct GAMSET;
     impl Command for GAMSET {
-        const ADDRESS: Address = 0x26;
+        const NAME: &str = "GAMSET";
+        const ADDRESS: Address = Address(0x26);
     }
     /**
         #### Write Parameters
@@ -364,7 +392,7 @@ pub mod core {
         type Packets = Buffer<1>;
     }
     impl WriteData for GAMSET {
-        fn encode((gc,): Self::Parameters) -> Self::Packets {
+        fn encode((gc,): &Self::Parameters) -> Self::Packets {
             let gc_data = match gc {
                 gamma::Curve::GC1 => 0x01,
                 gamma::Curve::GC2 => 0x02,
@@ -383,7 +411,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct DISPOFF;
     impl Command for DISPOFF {
-        const ADDRESS: Address = 0x28;
+        const NAME: &str = "DISPOFF";
+        const ADDRESS: Address = Address(0x28);
     }
 
     /**
@@ -393,7 +422,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct DISPON;
     impl Command for DISPON {
-        const ADDRESS: Address = 0x29;
+        const NAME: &str = "DISPON";
+        const ADDRESS: Address = Address(0x29);
     }
 
     /**
@@ -403,7 +433,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct TEOFF;
     impl Command for TEOFF {
-        const ADDRESS: Address = 0x34;
+        const NAME: &str = "TEOFF";
+        const ADDRESS: Address = Address(0x34);
     }
 
     /**
@@ -413,7 +444,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct TEON;
     impl Command for TEON {
-        const ADDRESS: Address = 0x35;
+        const NAME: &str = "TEON";
+        const ADDRESS: Address = Address(0x35);
     }
     impl Data for TEON {
         type Packets = Buffer<1>;
@@ -433,7 +465,7 @@ pub mod core {
             |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
             | P1 |   -   |   -   |   -   |   -   |   -   |   -   |   -   |   TE  |
         */
-        fn encode((te,): Self::Parameters) -> Self::Packets {
+        fn encode((te,): &Self::Parameters) -> Self::Packets {
             let te_data = match te {
                 tearing_effect::Blank::Vertical => 0,
                 tearing_effect::Blank::VerticalHorizontal => 1,
@@ -450,7 +482,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct MADCTL;
     impl Command for MADCTL {
-        const ADDRESS: Address = 0x36;
+        const NAME: &str = "MADCTL";
+        const ADDRESS: Address = Address(0x36);
     }
     /**
         #### Write Parameters
@@ -474,7 +507,7 @@ pub mod core {
         type Parameters = (data_access::ScanDirection, data_access::ColorOrder);
     }
     impl WriteData for MADCTL {
-        fn encode((ml, co): Self::Parameters) -> Self::Packets {
+        fn encode((ml, co): &Self::Parameters) -> Self::Packets {
             let p1_scan = match ml {
                 data_access::ScanDirection::Normal => 0,
                 data_access::ScanDirection::Reverse => 1 << 4,
@@ -495,7 +528,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct IDMOFF;
     impl Command for IDMOFF {
-        const ADDRESS: Address = 0x38;
+        const NAME: &str = "IDMOFF";
+        const ADDRESS: Address = Address(0x38);
     }
 
     /**
@@ -505,7 +539,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct IDMON;
     impl Command for IDMON {
-        const ADDRESS: Address = 0x39;
+        const NAME: &str = "IDMON";
+        const ADDRESS: Address = Address(0x39);
     }
 
     /**
@@ -515,14 +550,15 @@ pub mod core {
     #[derive(Debug)]
     pub struct COLMOD;
     impl Command for COLMOD {
-        const ADDRESS: Address = 0x3A;
+        const NAME: &str = "COLMOD";
+        const ADDRESS: Address = Address(0x3A);
     }
     impl Data for COLMOD {
         type Packets = Buffer<1>;
         type Parameters = (pixel_format::BitsPerPixel,);
     }
     impl WriteData for COLMOD {
-        fn encode((bpp,): Self::Parameters) -> Self::Packets {
+        fn encode((bpp,): &Self::Parameters) -> Self::Packets {
             let bpp_data = match bpp {
                 pixel_format::BitsPerPixel::RGB565 => 101 << 4,
                 pixel_format::BitsPerPixel::RGB666 => 110 << 4,
@@ -540,10 +576,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct GSL;
     impl Command for GSL {
-        const ADDRESS: Address = 0x45;
+        const NAME: &str = "GSL";
+        const ADDRESS: Address = Address(0x45);
     }
     impl Data for GSL {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<2>;
     }
 
@@ -554,10 +591,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct WRDISBV;
     impl Command for WRDISBV {
-        const ADDRESS: Address = 0x51;
+        const NAME: &str = "WRDISBV";
+        const ADDRESS: Address = Address(0x51);
     }
     impl Data for WRDISBV {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -568,10 +606,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDISBV;
     impl Command for RDDISBV {
-        const ADDRESS: Address = 0x52;
+        const NAME: &str = "RDDISBV";
+        const ADDRESS: Address = Address(0x52);
     }
     impl Data for RDDISBV {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -582,10 +621,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct WRCTRLD;
     impl Command for WRCTRLD {
-        const ADDRESS: Address = 0x53;
+        const NAME: &str = "WRCTRLD";
+        const ADDRESS: Address = Address(0x53);
     }
     impl Data for WRCTRLD {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -596,10 +636,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDCTRLD;
     impl Command for RDCTRLD {
-        const ADDRESS: Address = 0x54;
+        const NAME: &str = "RDCTRLD";
+        const ADDRESS: Address = Address(0x54);
     }
     impl Data for RDCTRLD {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -610,10 +651,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct WRCACE;
     impl Command for WRCACE {
-        const ADDRESS: Address = 0x55;
+        const NAME: &str = "WRCACE";
+        const ADDRESS: Address = Address(0x55);
     }
     impl Data for WRCACE {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -624,10 +666,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDCABC;
     impl Command for RDCABC {
-        const ADDRESS: Address = 0x56;
+        const NAME: &str = "RDCABC";
+        const ADDRESS: Address = Address(0x56);
     }
     impl Data for RDCABC {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -638,10 +681,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct WRCABCMB;
     impl Command for WRCABCMB {
-        const ADDRESS: Address = 0x5E;
+        const NAME: &str = "WRCABCMB";
+        const ADDRESS: Address = Address(0x5E);
     }
     impl Data for WRCABCMB {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -652,10 +696,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDCABCMB;
     impl Command for RDCABCMB {
-        const ADDRESS: Address = 0x5F;
+        const NAME: &str = "RDCABCMB";
+        const ADDRESS: Address = Address(0x5F);
     }
     impl Data for RDCABCMB {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -666,10 +711,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDABCSDR;
     impl Command for RDABCSDR {
-        const ADDRESS: Address = 0x68;
+        const NAME: &str = "RDABCSDR";
+        const ADDRESS: Address = Address(0x68);
     }
     impl Data for RDABCSDR {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -680,10 +726,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBWLB;
     impl Command for RDBWLB {
-        const ADDRESS: Address = 0x70;
+        const NAME: &str = "RDBWLB";
+        const ADDRESS: Address = Address(0x70);
     }
     impl Data for RDBWLB {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -694,10 +741,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBKX;
     impl Command for RDBKX {
-        const ADDRESS: Address = 0x71;
+        const NAME: &str = "RDBKX";
+        const ADDRESS: Address = Address(0x71);
     }
     impl Data for RDBKX {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -708,10 +756,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBKY;
     impl Command for RDBKY {
-        const ADDRESS: Address = 0x72;
+        const NAME: &str = "RDBKY";
+        const ADDRESS: Address = Address(0x72);
     }
     impl Data for RDBKY {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -722,10 +771,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDWX;
     impl Command for RDWX {
-        const ADDRESS: Address = 0x73;
+        const NAME: &str = "RDWX";
+        const ADDRESS: Address = Address(0x73);
     }
     impl Data for RDWX {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -736,10 +786,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDWY;
     impl Command for RDWY {
-        const ADDRESS: Address = 0x74;
+        const NAME: &str = "RDWY";
+        const ADDRESS: Address = Address(0x74);
     }
     impl Data for RDWY {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -750,10 +801,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDRGLB;
     impl Command for RDRGLB {
-        const ADDRESS: Address = 0x75;
+        const NAME: &str = "RDRGLB";
+        const ADDRESS: Address = Address(0x75);
     }
     impl Data for RDRGLB {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -764,10 +816,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDRX;
     impl Command for RDRX {
-        const ADDRESS: Address = 0x76;
+        const NAME: &str = "RDRX";
+        const ADDRESS: Address = Address(0x76);
     }
     impl Data for RDRX {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -778,10 +831,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDRY;
     impl Command for RDRY {
-        const ADDRESS: Address = 0x77;
+        const NAME: &str = "RDRY";
+        const ADDRESS: Address = Address(0x77);
     }
     impl Data for RDRY {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -792,10 +846,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDGX;
     impl Command for RDGX {
-        const ADDRESS: Address = 0x78;
+        const NAME: &str = "RDGX";
+        const ADDRESS: Address = Address(0x78);
     }
     impl Data for RDGX {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -806,10 +861,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDGY;
     impl Command for RDGY {
-        const ADDRESS: Address = 0x79;
+        const NAME: &str = "RDGY";
+        const ADDRESS: Address = Address(0x79);
     }
     impl Data for RDGY {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -820,10 +876,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBALB;
     impl Command for RDBALB {
-        const ADDRESS: Address = 0x7A;
+        const NAME: &str = "RDBALB";
+        const ADDRESS: Address = Address(0x7A);
     }
     impl Data for RDBALB {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -834,10 +891,11 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBX;
     impl Command for RDBX {
-        const ADDRESS: Address = 0x7B;
+        const NAME: &str = "RDBX";
+        const ADDRESS: Address = Address(0x7B);
     }
     impl Data for RDBX {
-      type Parameters = ();
+        type Parameters = ();
         type Packets = Buffer<1>;
     }
 
@@ -848,7 +906,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDBy;
     impl Command for RDBy {
-        const ADDRESS: u8 = 0x7C;
+        const NAME: &str = "RDBy";
+        const ADDRESS: Address = Address(0x7C);
     }
 
     /**
@@ -858,7 +917,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDAx;
     impl Command for RDAx {
-        const ADDRESS: u8 = 0x7D;
+        const NAME: &str = "RDAx";
+        const ADDRESS: Address = Address(0x7D);
     }
 
     /**
@@ -868,7 +928,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDAy;
     impl Command for RDAy {
-        const ADDRESS: u8 = 0x7E;
+        const NAME: &str = "RDAy";
+        const ADDRESS: Address = Address(0x7E);
     }
 
     /**
@@ -878,7 +939,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDDBS;
     impl Command for RDDDBS {
-        const ADDRESS: u8 = 0xA1;
+        const NAME: &str = "RDDDBS";
+        const ADDRESS: Address = Address(0xA1);
     }
 
     /**
@@ -888,7 +950,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDDDBC;
     impl Command for RDDDBC {
-        const ADDRESS: u8 = 0xA8;
+        const NAME: &str = "RDDDBC";
+        const ADDRESS: Address = Address(0xA8);
     }
 
     /**
@@ -898,7 +961,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDFCS;
     impl Command for RDFCS {
-        const ADDRESS: u8 = 0xAA;
+        const NAME: &str = "RDFCS";
+        const ADDRESS: Address = Address(0xAA);
     }
 
     /**
@@ -908,7 +972,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDCCS;
     impl Command for RDCCS {
-        const ADDRESS: u8 = 0xAF;
+        const NAME: &str = "RDCCS";
+        const ADDRESS: Address = Address(0xAF);
     }
 
     /**
@@ -918,7 +983,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDID1;
     impl Command for RDID1 {
-        const ADDRESS: u8 = 0xDA;
+        const NAME: &str = "RDID1";
+        const ADDRESS: Address = Address(0xDA);
     }
 
     /**
@@ -928,7 +994,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDID2;
     impl Command for RDID2 {
-        const ADDRESS: u8 = 0xDB;
+        const NAME: &str = "RDID2";
+        const ADDRESS: Address = Address(0xDB);
     }
 
     /**
@@ -938,7 +1005,8 @@ pub mod core {
     #[derive(Debug)]
     pub struct RDID3;
     impl Command for RDID3 {
-        const ADDRESS: u8 = 0xDC;
+        const NAME: &str = "RDID3";
+        const ADDRESS: Address = Address(0xDC);
     }
 
     /**
@@ -958,16 +1026,15 @@ pub mod core {
     #[derive(Debug)]
     pub struct CND2BKXSEL;
     impl Command for CND2BKXSEL {
-        const ADDRESS: Address = 0xFF;
+        const NAME: &str = "CND2BKXSEL";
+        const ADDRESS: Address = Address(0xFF);
     }
     impl Data for CND2BKXSEL {
         type Parameters = (Switch, Bank);
         type Packets = Buffer<5>;
     }
     impl WriteData for CND2BKXSEL {
-        fn encode(
-            (cn2, bkxsel): Self::Parameters,
-        ) -> Self::Packets {
+        fn encode((cn2, bkxsel): &Self::Parameters) -> Self::Packets {
             const P1: u8 = 0b0111_0111;
             const P2: u8 = 0b0000_0001;
             const P3: u8 = 0b0000_0000;
@@ -997,7 +1064,7 @@ pub mod bk0 {
 
     use super::*;
 
-    const BK0: Extension = Some(Bank::BK0);
+    const BK0: Extension = Extension(Some(Bank::BK0));
 
     /**
       ### `0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
@@ -1006,7 +1073,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct PVGAMCTRL;
     impl Command for PVGAMCTRL {
-        const ADDRESS: Address = 0xB0;
+        const NAME: &str = "PVGAMCTRL";
+        const ADDRESS: Address = Address(0xB0);
         const EXTENSION: Extension = BK0;
     }
     impl Data for PVGAMCTRL {
@@ -1021,7 +1089,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct NVGAMCTRL;
     impl Command for NVGAMCTRL {
-        const ADDRESS: Address = 0xB1;
+        const NAME: &str = "NVGAMCTRL";
+        const ADDRESS: Address = Address(0xB1);
         const EXTENSION: Extension = BK0;
     }
     impl Data for NVGAMCTRL {
@@ -1036,7 +1105,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct DGMEN;
     impl Command for DGMEN {
-        const ADDRESS: Address = 0xB8;
+        const NAME: &str = "DGMEN";
+        const ADDRESS: Address = Address(0xB8);
         const EXTENSION: Extension = BK0;
     }
     impl Data for DGMEN {
@@ -1051,7 +1121,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct DGMLUTR;
     impl Command for DGMLUTR {
-        const ADDRESS: Address = 0xB9;
+        const NAME: &str = "DGMLUTR";
+        const ADDRESS: Address = Address(0xB9);
         const EXTENSION: Extension = BK0;
     }
     impl Data for DGMLUTR {
@@ -1066,7 +1137,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct DGMLUTB;
     impl Command for DGMLUTB {
-        const ADDRESS: Address = 0xBA;
+        const NAME: &str = "DGMLUTB";
+        const ADDRESS: Address = Address(0xBA);
         const EXTENSION: Extension = BK0;
     }
     impl Data for DGMLUTB {
@@ -1081,7 +1153,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct PWMCLK;
     impl Command for PWMCLK {
-        const ADDRESS: Address = 0xBC;
+        const NAME: &str = "PWMCLK";
+        const ADDRESS: Address = Address(0xBC);
         const EXTENSION: Extension = BK0;
     }
     impl Data for PWMCLK {
@@ -1096,7 +1169,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct LNESET;
     impl Command for LNESET {
-        const ADDRESS: Address = 0xC0;
+        const NAME: &str = "LNESET";
+        const ADDRESS: Address = Address(0xC0);
         const EXTENSION: Extension = BK0;
     }
     impl Data for LNESET {
@@ -1111,7 +1185,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct PORCTRL;
     impl Command for PORCTRL {
-        const ADDRESS: Address = 0xC1;
+        const NAME: &str = "PORCTRL";
+        const ADDRESS: Address = Address(0xC1);
         const EXTENSION: Extension = BK0;
     }
     impl Data for PORCTRL {
@@ -1126,7 +1201,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct INVSET;
     impl Command for INVSET {
-        const ADDRESS: Address = 0xC2;
+        const NAME: &str = "INVSET";
+        const ADDRESS: Address = Address(0xC2);
         const EXTENSION: Extension = BK0;
     }
     impl Data for INVSET {
@@ -1141,7 +1217,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct RGBCTRL;
     impl Command for RGBCTRL {
-        const ADDRESS: Address = 0xC3;
+        const NAME: &str = "RGBCTRL";
+        const ADDRESS: Address = Address(0xC3);
         const EXTENSION: Extension = BK0;
     }
     impl Data for RGBCTRL {
@@ -1156,7 +1233,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct PARCTRL;
     impl Command for PARCTRL {
-        const ADDRESS: Address = 0xC5;
+        const NAME: &str = "PARCTRL";
+        const ADDRESS: Address = Address(0xC5);
         const EXTENSION: Extension = BK0;
     }
     impl Data for PARCTRL {
@@ -1171,7 +1249,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct SDIR;
     impl Command for SDIR {
-        const ADDRESS: Address = 0xC7;
+        const NAME: &str = "SDIR";
+        const ADDRESS: Address = Address(0xC7);
         const EXTENSION: Extension = BK0;
     }
     impl Data for SDIR {
@@ -1186,7 +1265,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct PDOSET;
     impl Command for PDOSET {
-        const ADDRESS: Address = 0xC8;
+        const NAME: &str = "PDOSET";
+        const ADDRESS: Address = Address(0xC8);
         const EXTENSION: Extension = BK0;
     }
     impl Data for PDOSET {
@@ -1201,7 +1281,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct COLCTRL;
     impl Command for COLCTRL {
-        const ADDRESS: Address = 0xCD;
+        const NAME: &str = "COLCTRL";
+        const ADDRESS: Address = Address(0xCD);
         const EXTENSION: Extension = BK0;
     }
     impl Data for COLCTRL {
@@ -1212,7 +1293,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct SSCTRL;
     impl Command for SSCTRL {
-        const ADDRESS: Address = 0xCE;
+        const NAME: &str = "SSCTRL";
+        const ADDRESS: Address = Address(0xCE);
         const EXTENSION: Extension = BK0;
     }
     impl Data for SSCTRL {
@@ -1227,7 +1309,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct SRECTRL;
     impl Command for SRECTRL {
-        const ADDRESS: Address = 0xE0;
+        const NAME: &str = "SRECTRL";
+        const ADDRESS: Address = Address(0xE0);
         const EXTENSION: Extension = BK0;
     }
     impl Data for SRECTRL {
@@ -1242,7 +1325,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct NRCTRL;
     impl Command for NRCTRL {
-        const ADDRESS: Address = 0xE1;
+        const NAME: &str = "NRCTRL";
+        const ADDRESS: Address = Address(0xE1);
         const EXTENSION: Extension = BK0;
     }
     impl Data for NRCTRL {
@@ -1257,7 +1341,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct SECTRL;
     impl Command for SECTRL {
-        const ADDRESS: Address = 0xE2;
+        const NAME: &str = "SECTRL";
+        const ADDRESS: Address = Address(0xE2);
         const EXTENSION: Extension = BK0;
     }
     impl Data for SECTRL {
@@ -1272,7 +1357,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct CCCTRL;
     impl Command for CCCTRL {
-        const ADDRESS: Address = 0xE3;
+        const NAME: &str = "CCCTRL";
+        const ADDRESS: Address = Address(0xE3);
         const EXTENSION: Extension = BK0;
     }
     impl Data for CCCTRL {
@@ -1287,7 +1373,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct SKCTRL;
     impl Command for SKCTRL {
-        const ADDRESS: Address = 0xE4;
+        const NAME: &str = "SKCTRL";
+        const ADDRESS: Address = Address(0xE4);
         const EXTENSION: Extension = BK0;
     }
     impl Data for SKCTRL {
@@ -1298,7 +1385,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct NVMSETE;
     impl Command for NVMSETE {
-        const ADDRESS: Address = 0xEA;
+        const NAME: &str = "NVMSETE";
+        const ADDRESS: Address = Address(0xEA);
         const EXTENSION: Extension = BK0;
     }
     impl Data for NVMSETE {
@@ -1309,7 +1397,8 @@ pub mod bk0 {
     #[derive(Debug)]
     pub struct CABCCTRL;
     impl Command for CABCCTRL {
-        const ADDRESS: Address = 0xEE;
+        const NAME: &str = "CABCCTRL";
+        const ADDRESS: Address = Address(0xEE);
         const EXTENSION: Extension = BK0;
     }
     impl Data for CABCCTRL {
@@ -1326,12 +1415,13 @@ pub mod bk1 {
 
     use super::*;
 
-    const BK1: Extension = Some(Bank::BK1);
+    const BK1: Extension = Extension(Some(Bank::BK1));
 
     #[derive(Debug)]
     pub struct VCOMS;
     impl Command for VCOMS {
-        const ADDRESS: Address = 0xB1;
+        const NAME: &str = "VCOMS";
+        const ADDRESS: Address = Address(0xB1);
         const EXTENSION: Extension = BK1;
     }
     impl Data for VCOMS {
@@ -1342,7 +1432,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct VGHSS;
     impl Command for VGHSS {
-        const ADDRESS: Address = 0xB2;
+        const NAME: &str = "VGHSS";
+        const ADDRESS: Address = Address(0xB2);
         const EXTENSION: Extension = BK1;
     }
     impl Data for VGHSS {
@@ -1353,7 +1444,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct TESTCMD;
     impl Command for TESTCMD {
-        const ADDRESS: Address = 0xB3;
+        const NAME: &str = "TESTCMD";
+        const ADDRESS: Address = Address(0xB3);
         const EXTENSION: Extension = BK1;
     }
     impl Data for TESTCMD {
@@ -1364,7 +1456,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct VGLS;
     impl Command for VGLS {
-        const ADDRESS: Address = 0xB5;
+        const NAME: &str = "VGLS";
+        const ADDRESS: Address = Address(0xB5);
         const EXTENSION: Extension = BK1;
     }
     impl Data for VGLS {
@@ -1375,7 +1468,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct PWCTRL1;
     impl Command for PWCTRL1 {
-        const ADDRESS: Address = 0xB7;
+        const NAME: &str = "PWCTRL1";
+        const ADDRESS: Address = Address(0xB7);
         const EXTENSION: Extension = BK1;
     }
     impl Data for PWCTRL1 {
@@ -1386,7 +1480,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct PWCTRL2;
     impl Command for PWCTRL2 {
-        const ADDRESS: Address = 0xB8;
+        const NAME: &str = "PWCTRL2";
+        const ADDRESS: Address = Address(0xB8);
         const EXTENSION: Extension = BK1;
     }
     impl Data for PWCTRL2 {
@@ -1397,7 +1492,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct PCLKS1;
     impl Command for PCLKS1 {
-        const ADDRESS: Address = 0xBA;
+        const NAME: &str = "PCLKS1";
+        const ADDRESS: Address = Address(0xBA);
         const EXTENSION: Extension = BK1;
     }
     impl Data for PCLKS1 {
@@ -1408,7 +1504,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct PCLKS3;
     impl Command for PCLKS3 {
-        const ADDRESS: Address = 0xBC;
+        const NAME: &str = "PCLKS3";
+        const ADDRESS: Address = Address(0xBC);
         const EXTENSION: Extension = BK1;
     }
     impl Data for PCLKS3 {
@@ -1419,7 +1516,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct SPD1;
     impl Command for SPD1 {
-        const ADDRESS: Address = 0xC1;
+        const NAME: &str = "SPD1";
+        const ADDRESS: Address = Address(0xC1);
         const EXTENSION: Extension = BK1;
     }
     impl Data for SPD1 {
@@ -1430,7 +1528,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct SPD2;
     impl Command for SPD2 {
-        const ADDRESS: Address = 0xC2;
+        const NAME: &str = "SPD2";
+        const ADDRESS: Address = Address(0xC2);
         const EXTENSION: Extension = BK1;
     }
     impl Data for SPD2 {
@@ -1441,7 +1540,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct MIPISET1;
     impl Command for MIPISET1 {
-        const ADDRESS: Address = 0xD0;
+        const NAME: &str = "MIPISET1";
+        const ADDRESS: Address = Address(0xD0);
         const EXTENSION: Extension = BK1;
     }
     impl Data for MIPISET1 {
@@ -1452,7 +1552,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct MIPISET2;
     impl Command for MIPISET2 {
-        const ADDRESS: Address = 0xD1;
+        const NAME: &str = "MIPISET2";
+        const ADDRESS: Address = Address(0xD1);
         const EXTENSION: Extension = BK1;
     }
     impl Data for MIPISET2 {
@@ -1463,7 +1564,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct MIPISET3;
     impl Command for MIPISET3 {
-        const ADDRESS: Address = 0xD2;
+        const NAME: &str = "MIPISET3";
+        const ADDRESS: Address = Address(0xD2);
         const EXTENSION: Extension = BK1;
     }
     impl Data for MIPISET3 {
@@ -1474,7 +1576,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct MIPISET4;
     impl Command for MIPISET4 {
-        const ADDRESS: Address = 0xD3;
+        const NAME: &str = "MIPISET4";
+        const ADDRESS: Address = Address(0xD3);
         const EXTENSION: Extension = BK1;
     }
     impl Data for MIPISET4 {
@@ -1485,7 +1588,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct NVMEN;
     impl Command for NVMEN {
-        const ADDRESS: Address = 0xC8;
+        const NAME: &str = "NVMEN";
+        const ADDRESS: Address = Address(0xC8);
         const EXTENSION: Extension = BK1;
     }
     impl Data for NVMEN {
@@ -1496,7 +1600,8 @@ pub mod bk1 {
     #[derive(Debug)]
     pub struct NVMSET;
     impl Command for NVMSET {
-        const ADDRESS: Address = 0xCA;
+        const NAME: &str = "NVMSET";
+        const ADDRESS: Address = Address(0xCA);
         const EXTENSION: Extension = BK1;
     }
     impl Data for NVMSET {

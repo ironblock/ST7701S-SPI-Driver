@@ -1,22 +1,12 @@
-use std::fmt::{self, DebugStruct};
+use std::fmt::{self};
 
-use crate::st7701s_spi::{
-    interface::Command,
-    parameters::{data_access, gamma, pixel_format, register, tearing_effect},
-};
+use crate::st7701s_spi::parameters::{data_access, gamma, pixel_format, register, tearing_effect};
 
 #[derive(Debug, PartialEq)]
 pub enum Switch {
     On,
     Off,
 }
-
-// pub const fn toggle<ON: Location, OFF: Location>(mode: Switch) -> Operation<0> {
-//     match mode {
-//         Switch::Off => Operation::command::<OFF>(),
-//         Switch::On => Operation::command::<ON>(),
-//     }
-// }
 
 #[derive(Debug)]
 pub enum Direction {
@@ -79,6 +69,39 @@ impl Power {
     }
 }
 
+pub type StateSelector<V> = for<'a> fn(&'a mut State) -> &'a mut V;
+pub struct StateContainer(pub Option<State>);
+
+impl StateContainer {
+    pub fn new(use_state: bool) -> Self {
+        Self(if use_state {
+            Some(State::default())
+        } else {
+            None
+        })
+    }
+
+    pub fn reset(&mut self) {
+        if let Some(state) = &mut self.0 {
+            *state = State::default();
+        }
+    }
+
+    pub fn is<V: PartialEq>(&mut self, value: &V, select: &StateSelector<V>) -> bool {
+        if let Some(state) = &mut self.0 {
+            select(state) == value
+        } else {
+            false
+        }
+    }
+
+    pub fn set<V: PartialEq>(&mut self, value: V, select: &StateSelector<V>) {
+        if let Some(state) = &mut self.0 {
+            *select(state) = value
+        }
+    }
+}
+
 pub struct State {
     pub partial_mode: Switch,
     pub idle_mode: Switch,
@@ -91,7 +114,7 @@ pub struct State {
     pub color_enhancement: Switch,
     pub extended_commands: register::Extension,
     pub gamma_curve: gamma::Curve,
-    pub tearing_effect: Option<tearing_effect::Blank>,
+    pub tearing_effect: Option<(tearing_effect::Blank,)>,
     pub color_order: data_access::ColorOrder,
     pub scan_direction: data_access::ScanDirection,
     pub color_mode: (),
@@ -108,11 +131,11 @@ impl Default for State {
             sleep_mode: Switch::Off,
             display_output: Switch::Off,
             invert_picture: Switch::Off,
-            brightness_control: Switch,
-            brightness_dimming: Switch,
-            brightness_backlight: Switch,
-            color_enhancement: Switch,
-            extended_commands: None,
+            brightness_control: Switch::Off,
+            brightness_dimming: Switch::Off,
+            brightness_backlight: Switch::Off,
+            color_enhancement: Switch::Off,
+            extended_commands: register::Extension(None),
             gamma_curve: gamma::Curve::GC1,
             tearing_effect: None,
             color_order: data_access::ColorOrder::RGB,

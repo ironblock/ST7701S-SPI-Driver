@@ -7,7 +7,7 @@ use crate::st7701s_spi::{
     panel::Mode,
     parameters::*,
     spi::ST7701S,
-    state::{State, Switch},
+    state::{State, StateSelector, Switch},
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -55,12 +55,10 @@ impl ST7701S {
            command will be ignored and have no effect.
     */
     pub fn software_reset(&mut self) {
-        self.write::<SWRESET>(());
-
         info!("Performing software reset, command queue will be paused for 5ms");
-
-        self.state.insert(State::default());
-            thread::sleep(time::Duration::from_millis(5));
+        self.write::<SWRESET>(&());
+        self.state.reset();
+        thread::sleep(time::Duration::from_millis(5));
     }
 
     /**
@@ -91,7 +89,7 @@ impl ST7701S {
      or display normally (INVOFF).
     */
     pub fn invert_picture(&mut self, mode: Switch) {
-        self.switch_command::<INVON, INVOFF>(mode, |s| &mut s.invert_picture);
+        self.switch_command::<INVON, INVOFF>(mode, |s: &mut State| &mut s.invert_picture);
     }
 
     pub fn all_pixels_black(&mut self) {
@@ -103,19 +101,15 @@ impl ST7701S {
     }
 
     pub fn gamma_curve(&mut self, gc: gamma::Curve) {
-        self.write::<GAMSET>((gc,));
+        self.write::<GAMSET>(&(gc,));
     }
 
     pub fn display_output(&mut self, mode: Switch) {
         self.switch_command::<DISPON, DISPOFF>(mode, |s| &mut s.display_output);
     }
 
-    pub fn tearing_effect(&mut self, te: Option<tearing_effect::Blank>) {
-        if let Some(p1) = te {
-            self.write::<TEON>((p1,))
-        } else {
-            self.command::<TEOFF>()
-        }
+    pub fn tearing_effect(&mut self, te: Option<(tearing_effect::Blank,)>) {
+        self.select_command::<TEON, TEOFF>(te, |s| &mut s.tearing_effect);
     }
 }
 
