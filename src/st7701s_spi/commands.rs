@@ -56,8 +56,10 @@ impl ST7701S {
     */
     pub fn software_reset(&mut self) {
         info!("Performing software reset, command queue will be paused for 5ms");
+
         self.write::<SWRESET>(&());
         self.state.reset();
+
         thread::sleep(time::Duration::from_millis(5));
     }
 
@@ -81,6 +83,7 @@ impl ST7701S {
     pub fn partial_mode(&mut self, mode: Switch) {
         self.switch_command::<PTLON, NORON>(mode, |s| &mut s.partial_mode);
     }
+
 
     /**
      ## INVERT PICTURE

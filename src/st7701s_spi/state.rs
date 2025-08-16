@@ -2,7 +2,7 @@ use std::fmt::{self};
 
 use crate::st7701s_spi::parameters::{data_access, gamma, pixel_format, register, tearing_effect};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub enum Switch {
     On,
     Off,

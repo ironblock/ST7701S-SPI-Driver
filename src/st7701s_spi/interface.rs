@@ -1,4 +1,4 @@
-use std::fmt::{Debug};
+use std::fmt::Debug;
 
 use crate::st7701s_spi::parameters::register::{Address, Extension};
 
@@ -16,7 +16,6 @@ pub trait Command: Sized + Debug {
         format!("[{} ({}{})]", Self::NAME, Self::EXTENSION, Self::ADDRESS)
     }
 }
-
 
 pub trait Data: Command {
     type Parameters: PartialEq + Debug;

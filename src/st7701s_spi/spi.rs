@@ -2,7 +2,12 @@ extern crate spidev;
 
 use log::{info, warn};
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
+use std::any::Any;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::io::prelude::*;
+use std::marker::PhantomData;
 use std::path::Path;
 
 use crate::st7701s_spi::interface::{Command, Reader, WriteData};
@@ -114,3 +119,109 @@ impl ST7701S {
         }
     }
 }
+
+pub trait Resetable {
+    fn get_id(&self) -> &'static str;
+    fn reset(&mut self) -> ();
+}
+
+pub struct StateItem<T> {
+    pub id: &'static str,
+    pub current: Option<T>,
+    initial: T,
+}
+
+impl <T: Clone> StateItem<T> {
+    pub fn new(id: &'static str, initial: T) -> Self {
+        Self {
+            current: Self::initial_value(&initial),
+            initial,
+            id,
+        }
+    }
+
+    fn initial_value(initial: &T) -> Option<T> {
+        Some(initial.clone())
+    }
+}
+
+impl<T: Clone> Resetable for StateItem<T> {
+    fn get_id(&self) -> &'static str {
+        &self.id
+    }
+
+    fn reset(&mut self) -> () {
+        self.current = Self::initial_value(&self.initial);
+    }
+}
+
+// pub struct StatefulEndpoint<const ENABLED: bool, T>(Option<StateItem<T>>);
+
+// impl<const ENABLED: bool, T> StatefulEndpoint<ENABLED, T> {
+//     const fn new() -> Self {
+//         Self(if ENABLED { StateItem})
+//     }
+// }
+
+pub struct ChangeTracker {
+    pub changed: HashMap<&'static str, &'static mut dyn Resetable>,
+}
+
+impl ChangeTracker {
+    pub fn new() -> Self {
+        Self {
+            changed: HashMap::new(),
+        }
+    }
+
+    pub fn track(&mut self, item: &'static mut dyn Resetable) {
+            self.changed.insert(item.get_id(), item);
+    }
+
+    pub fn reset(&mut self) {
+            for (_, item) in self.changed.drain() {
+                item.reset()
+        }
+    }
+}
+
+pub trait Transceiver {
+    fn tx_command<T: Command>(&mut self);
+    fn no_command<T: Command>(&mut self, reason: &str);
+    fn tx_write<T: WriteData>(&mut self, parameters: T::Parameters);
+    fn no_write<T: WriteData>(&mut self, parameters: T::Parameters, reason: &str);
+}
+
+pub trait Transmission {
+    fn transmit(&mut self, handler: impl Transceiver, data: impl PartialEq);
+}
+
+pub struct ToggleCommand<ON: Command, OFF: Command>(Option<StateItem<Switch>>, PhantomData<ON>, PhantomData<OFF>);
+
+impl<ON: Command, OFF: Command> Transmission for ToggleCommand<ON, OFF> {
+    fn transmit(&mut self, handler: impl Transceiver, data: impl PartialEq) {
+        if let Some(state) = &mut self.0 {
+
+        }
+    }
+}
+
+
+    pub fn switch_command<ON: Command, OFF: Command>(
+        &mut self,
+        mode: Switch,
+    ) {
+        if self.state.is(&mode, &select) {
+            match mode {
+                Switch::On => self.do_not_send_command::<ON>("Already ON"),
+                Switch::Off => self.do_not_send_command::<OFF>("Already OFF"),
+            }
+        } else {
+            match mode {
+                Switch::On => self.command::<ON>(),
+                Switch::Off => self.command::<OFF>(),
+            }
+
+            self.state.set(mode, &select);
+        }
+    }
