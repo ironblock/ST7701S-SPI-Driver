@@ -12,7 +12,7 @@ pub trait Command: Sized + Debug {
     const ADDRESS: Address;
     const EXTENSION: Extension = Extension(None);
 
-    fn id_tag() -> String {
+    fn print_id_tag() -> String {
         format!("[{} ({}{})]", Self::NAME, Self::EXTENSION, Self::ADDRESS)
     }
 }

@@ -6,7 +6,7 @@ use crate::st7701s_spi::{
     interface::{bk0::*, bk1::*, core::*, *},
     panel::Mode,
     parameters::*,
-    spi::ST7701S,
+    spi::{CommandSequence, Stateful, Toggleable, TrackKey, ST7701S},
     state::{State, StateSelector, Switch},
 };
 
@@ -29,6 +29,13 @@ use crate::st7701s_spi::{
 /// transferred by the D/CX pin. If D/CX is “low”, the transmission byte is
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
+
+struct SleepMode;
+impl Stateful<Switch> for SleepMode {
+    const INITIAL: Switch = Switch::Off;
+    const ID: TrackKey = "Sleep Mode";
+}
+impl Toggleable<SLPIN, SLPOUT> for SleepMode {}
 
 impl ST7701S {
     /**
