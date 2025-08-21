@@ -1,19 +1,25 @@
 extern crate spidev;
 
-use log::{info, warn};
+use log::{error, info, warn};
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
-use std::any::{Any, type_name_of_val};
-use std::collections::HashMap;
+use std::any::Any;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::prelude::*;
+use std::marker::PhantomData;
 use std::path::Path;
-use std::thread::current;
 
-use crate::st7701s_spi::interface::{Command, Reader, WriteData};
+use crate::st7701s_spi::interface::{Command, ReadData, Reader, WriteData};
 use crate::st7701s_spi::state::{State, StateContainer, StateSelector, Switch};
 
 pub type Packet = [u8; 2];
 pub type Sequence<const N: usize> = [Packet; N];
+pub type TrackKey = &'static str;
+
+pub const TRACK_STATE: bool = option_env!("TRACK_STATE").is_some();
+
+const NO_EFFECT: &'static str = "Command will have no effect";
+const MALFORMED: &'static str = "Command is malformed";
 
 #[repr(u8)]
 pub enum DCX {
@@ -34,7 +40,7 @@ pub struct ST7701S {
 }
 
 impl ST7701S {
-    pub fn new(spi_device: &Path, spi_options: &SpidevOptions, use_state: bool) -> Self {
+    pub fn new(spi_device: &Path, spi_options: &SpidevOptions) -> Self {
         let mut spi = match Spidev::open(spi_device) {
             Ok(connection) => connection,
             Err(_) => todo!(),
@@ -42,7 +48,7 @@ impl ST7701S {
 
         spi.configure(spi_options);
 
-        let state = StateContainer(if use_state {
+        let state = StateContainer(if TRACK_STATE {
             Some(State::default())
         } else {
             None
@@ -50,200 +56,332 @@ impl ST7701S {
 
         Self { spi, state }
     }
+}
 
-    pub fn command<T: Command>(&mut self) {
+pub trait Transceiver {
+    fn tx_command<T: Command>(&mut self) -> Result<(), &'static str>;
+    fn no_command<T: Command>(&mut self, reason: &'static str) -> Result<(), &'static str>;
+    fn tx_write<T: WriteData>(&mut self, parameters: &T::Parameters) -> Result<(), &'static str>;
+    fn no_write<T: WriteData>(
+        &mut self,
+        parameters: &T::Parameters,
+        reason: &'static str,
+    ) -> Result<(), &'static str>;
+    fn tx_read<T: ReadData>(&mut self, handler: &Reader) -> Result<(), &'static str>;
+    fn no_read<T: ReadData>(
+        &mut self,
+        handler: &Reader,
+        reason: &'static str,
+    ) -> Result<(), &'static str>;
+}
+
+impl Transceiver for ST7701S {
+    fn tx_command<T: Command>(&mut self) -> Result<(), &'static str> {
         self.spi.write(&[DCX::Command as u8, T::ADDRESS.into()]);
 
         info!("{} Sent command", T::print_id_tag());
+        Ok(())
     }
 
-    pub fn do_not_send_command<T: Command>(&self, reason: &str) {
+    fn no_command<T: Command>(&mut self, reason: &'static str) -> Result<(), &'static str> {
         warn!("{} Did not send command: {}", T::print_id_tag(), reason);
+        Err(reason)
     }
 
-    pub fn write<T: WriteData>(&mut self, parameters: &T::Parameters) {
-        self.command::<T>();
+    fn tx_write<T: WriteData>(&mut self, parameters: &T::Parameters) -> Result<(), &'static str> {
+        self.tx_command::<T>();
 
         for byte in T::encode(parameters) {
             self.spi.write(&[DCX::Parameter as u8, byte]);
         }
 
         info!("{} Sent data: {:?}", T::print_id_tag(), parameters);
+
+        Ok(())
     }
 
-    pub fn read<T: Command>(&self, _address: u8, _handler: Reader) {
+    fn no_write<T: WriteData>(
+        &mut self,
+        _parameters: &T::Parameters,
+        _reason: &str,
+    ) -> Result<(), &'static str> {
         todo!()
     }
 
-    pub fn switch_command<ON: Command, OFF: Command>(
-        &mut self,
-        mode: Switch,
-        select: StateSelector<Switch>,
-    ) {
-        if self.state.is(&mode, &select) {
-            match mode {
-                Switch::On => self.do_not_send_command::<ON>("Already ON"),
-                Switch::Off => self.do_not_send_command::<OFF>("Already OFF"),
-            }
-        } else {
-            match mode {
-                Switch::On => self.command::<ON>(),
-                Switch::Off => self.command::<OFF>(),
-            }
-
-            self.state.set(mode, &select);
-        }
+    fn tx_read<T: Command>(&mut self, _handler: &Reader) -> Result<(), &'static str> {
+        todo!()
     }
 
-    pub fn select_command<SELECT: WriteData, OFF: Command>(
+    fn no_read<T: Command>(
         &mut self,
-        parameters_option: Option<SELECT::Parameters>,
-        select: StateSelector<Option<SELECT::Parameters>>,
-    ) {
-        if self.state.is(&parameters_option, &select) {
-            match parameters_option {
-                Some(_) => {
-                    self.do_not_send_command::<SELECT>("Provided parameters match current state")
-                }
-                None => self.do_not_send_command::<OFF>("Already OFF"),
-            }
-        } else {
-            if let Some(parameters) = &parameters_option {
-                self.write::<SELECT>(parameters);
-            } else {
-                self.command::<OFF>();
-            }
-
-            self.state.set(parameters_option, &select);
-        }
+        _handler: &Reader,
+        _reason: &str,
+    ) -> Result<(), &'static str> {
+        todo!()
     }
 }
 
-pub type TrackKey = &'static str;
-pub trait TrackValue: Any + Debug + PartialEq + Clone {}
 
-pub struct StateTracker<const TRACK: bool> {
-    pub state: HashMap<TrackKey, Box<dyn Any>>,
+pub struct StateTracker<const TRACK: bool = TRACK_STATE> {
+    pub state: HashSet<fn()>,
 }
 
 impl StateTracker<false> {
     fn new() -> Self {
-        panic!("Should not instantiate a StateTracker if state tracking is disabled")
+        Self {
+            state: HashSet::with_capacity(0),
+        }
     }
+
+    fn reset(&mut self) {}
+    fn track<T>(&mut self, _value: T) {}
 }
 
 impl StateTracker<true> {
     fn new() -> Self {
         Self {
-            state: HashMap::new(),
+            state: HashSet::new(),
         }
     }
 
     fn reset(&mut self) {
-        self.state.clear();
+        self.state.drain().for_each(|reset| reset());
     }
 
-    fn change_is_effective<T>(&self, key: TrackKey, initial: &T, value: &T) -> bool
-    where
-        T: 'static + Debug + PartialEq<T>,
-    {
-        const NO_EFFECT: &'static str = "Command will have no effect";
-        const MALFORMED: &'static str = "Command is malformed";
+    fn track(&mut self, value: fn()) {
+        self.state.insert(value);
+    }
+}
 
-        if let Some(prev_any) = self.state.get(key) {
-            // Key is found, need to downcast value
-            if let Some(prev) = prev_any.downcast_ref::<T>() {
-                // Stored value can be compared to input
-                if value.eq(&prev) {
-                    warn!("{NO_EFFECT}: The state of '{}' is already '{value:?}'", key);
-                    return false;
-                } else {
-                    return true;
-                }
-            } else {
-                warn!(
-                    "{MALFORMED}: Could not downcast '{}' to '{:?}', found '{:?}'",
-                    key,
-                    type_name_of_val(&value),
-                    type_name_of_val(&prev_any)
-                );
-                panic!()
-            }
-        } else if value == initial {
+struct StateItem<P, const TRACK: bool = TRACK_STATE>
+where
+    P: Debug + PartialEq,
+{
+    name: String,
+    pub initial: P,
+    pub current: Option<P>,
+}
+
+impl<P, const TRACK: bool> StateItem<P, TRACK>
+where
+    P: Debug + PartialEq,
+{
+    pub const fn new(initial: P, name: String) -> Self {
+        Self {
+            name,
+            initial,
+            current: None,
+        }
+    }
+}
+
+impl<P> StateItem<P, false>
+where
+    P: Debug + PartialEq,
+{
+    pub fn change_is_valid(&self, _value: &P) -> bool {
+        error!("STATE TRACKING IS DISABLED, CHECKING FOR CHANGES IS NOT POSSIBLE");
+        true
+    }
+
+    pub fn set(&mut self, _: P) {}
+    pub fn reset(&mut self) {}
+}
+
+impl<T> StateItem<T, true>
+where
+    T: Debug + PartialEq,
+{
+    fn current_value_already_is(&self, value: &T) -> bool {
+        self.current.as_ref().is_some_and(|x| x == value)
+    }
+
+    fn unset_value_but_initial_is(&self, value: &T) -> bool {
+        self.current.is_none() && &self.initial != value
+    }
+
+    fn change_is_valid(&self, value: &T) -> bool {
+        if self.current_value_already_is(&value) {
             warn!(
-                "{NO_EFFECT}: Key '{}' is unset, but '{value:?}' is the same as the initial state",
-                key
+                "{NO_EFFECT}: The current state for '{}' is already '{value:?}'",
+                self.name
             );
             return false;
-        } else {
-            return true;
         }
+
+        if self.current.is_none() && &self.initial != value {
+            warn!(
+                "{}: State for '{}' is unset, but '{value:?}' is the same as the initial state",
+                NO_EFFECT, self.name
+            );
+            return false;
+        }
+
+        return true;
     }
 
-    fn track<T: 'static>(&mut self, key: TrackKey, value: T) {
-        self.state.insert(key, Box::new(value));
+    pub fn set(&mut self, value: T) {
+        self.current = Some(value);
+    }
+
+    pub fn reset(&mut self) {
+        self.current = None;
     }
 }
 
-pub trait Transceiver {
-    fn tx_command<T: Command>(&mut self);
-    fn no_command<T: Command>(&mut self, reason: &str);
-    fn tx_write<T: WriteData>(&mut self, parameters: T::Parameters);
-    fn no_write<T: WriteData>(&mut self, parameters: T::Parameters, reason: &str);
+pub trait StatefulTransmission<P>
+where
+    P: PartialEq + Debug,
+{
+    fn new(initial: P) -> Self;
+    fn submit(&self, channel: &mut impl Transceiver, parameters: &P) -> Result<(), &'static str>;
+    fn reject(&self, channel: &mut impl Transceiver, parameters: &P) -> Result<(), &'static str>;
+
+    fn state(&mut self) -> &mut StateItem<P>;
+    fn reset(&mut self) {
+        self.state().reset();
+    }
 }
 
-pub trait Stateful<P> {
-    const INITIAL: P;
-    const ID: TrackKey;
-}
-pub trait CommandSequence<P, const TRACK: bool>: Stateful<P> {
+pub trait Transmission<P> {
     fn transmit(
-        &self,
-        transceiver: &mut impl Transceiver,
-        state: &StateTracker<TRACK>,
+        &mut self,
+        channel: &mut impl Transceiver,
         parameters: P,
-    ) -> ();
+        tracker: &mut StateTracker,
+    ) -> Result<(), &'static str>;
 }
 
-pub trait Toggleable<ON: Command, OFF: Command> {}
-
-impl<ON: Command, OFF: Command> CommandSequence<Switch, false> for dyn Toggleable<ON, OFF>
+impl<T, P> Transmission<P> for T
 where
-    Self: Stateful<Switch>,
+    T: StatefulTransmission<P>,
+    P: PartialEq + Debug,
 {
     fn transmit(
-        &self,
-        transceiver: &mut impl Transceiver,
-        _: &StateTracker<false>,
-        mode: Switch,
-    ) -> () {
-        match mode {
-            Switch::On => transceiver.tx_command::<ON>(),
-            Switch::Off => transceiver.tx_command::<OFF>(),
+        &mut self,
+        channel: &mut impl Transceiver,
+        parameters: P,
+        tracker: &mut StateTracker,
+    ) -> Result<(), &'static str> {
+        if TRACK_STATE {
+            if self.state().change_is_valid(&parameters) {
+                let submit = self.submit(channel, &parameters);
+                self.state().set(parameters);
+                tracker.track(<Self as StatefulTransmission<P>>::reset);
+
+                submit
+            } else {
+                self.reject(channel, &parameters)
+            }
+        } else {
+            self.submit(channel, &parameters)
         }
     }
 }
 
-impl<ON: Command, OFF: Command> CommandSequence<Switch, true> for dyn Toggleable<ON, OFF>
-where
-    Self: Stateful<Switch>,
-{
-    fn transmit(
-        &self,
-        transceiver: &mut impl Transceiver,
-        state: &StateTracker<true>,
-        mode: Switch,
-    ) -> () {
-        if state.change_is_effective(Self::ID, &Self::INITIAL, &mode) {
-            match mode {
-                Switch::On => transceiver.tx_command::<ON>(),
-                Switch::Off => transceiver.tx_command::<OFF>(),
-            }
-        } else {
-            match mode {
-                Switch::On => transceiver.tx_command::<ON>(),
-                Switch::Off => transceiver.tx_command::<OFF>(),
-            }
+pub struct Toggle<ON: Command, OFF: Command> {
+    pub state: StateItem<Switch>,
+    _on: PhantomData<ON>,
+    _off: PhantomData<OFF>,
+}
+
+impl<ON: Command, OFF: Command> StatefulTransmission<Switch> for Toggle<ON, OFF> {
+    fn new(initial: Switch) -> Self {
+        let name = format!("Toggle<{}, {}>", ON::NAME, OFF::NAME);
+
+        Self {
+            state: StateItem::new(initial, name),
+            _on: PhantomData,
+            _off: PhantomData,
         }
+    }
+
+    fn submit(&self, channel: &mut impl Transceiver, mode: &Switch) -> Result<(), &'static str> {
+        match mode {
+            Switch::On => channel.tx_command::<ON>(),
+            Switch::Off => channel.tx_command::<OFF>(),
+        }
+    }
+
+    fn reject(&self, channel: &mut impl Transceiver, mode: &Switch) -> Result<(), &'static str> {
+        match mode {
+            Switch::On => channel.no_command::<ON>("Already ON"),
+            Switch::Off => channel.no_command::<OFF>("Already OFF"),
+        }
+    }
+
+    fn state(&mut self) -> &mut StateItem<Switch> {
+        &mut self.state
+    }
+}
+
+pub struct Select<SELECT: WriteData, OFF: Command> {
+    pub state: StateItem<Option<SELECT::Parameters>>,
+    _select: PhantomData<SELECT>,
+    _off: PhantomData<OFF>,
+}
+
+impl<SELECT: WriteData, OFF: Command> StatefulTransmission<Option<SELECT::Parameters>> for Select<SELECT, OFF> {
+    fn new(initial: Option<SELECT::Parameters>) -> Self {
+        let name = format!("Toggle<{}, {}>", SELECT::NAME, OFF::NAME);
+
+        Self {
+            state: StateItem::new(initial, name),
+            _select: PhantomData,
+            _off: PhantomData,
+        }
+    }
+
+    fn submit(&self, channel: &mut impl Transceiver, parameters: &Option<SELECT::Parameters>) -> Result<(), &'static str> {
+
+            if let Some(parameters) = &parameters {
+                channel.tx_write::<SELECT>(parameters)
+            } else {
+                channel.tx_command::<OFF>()
+            }
+    }
+
+    fn reject(&self, channel: &mut impl Transceiver, parameters: &Option<SELECT::Parameters>) -> Result<(), &'static str> {
+
+            match parameters {
+                Some(_) => channel.no_command::<SELECT>("Provided parameters match current state"),
+                None => channel.no_command::<OFF>("Already OFF"),
+            }
+    }
+
+    fn state(&mut self) -> &mut StateItem<Option<SELECT::Parameters>> {
+        &mut self.state
+    }
+}
+
+pub struct Configure<CONFIGURE: WriteData> {
+    pub state: StateItem<CONFIGURE::Parameters>,
+    _configure: PhantomData<CONFIGURE>,
+}
+
+impl<CONFIGURE: WriteData> StatefulTransmission<CONFIGURE::Parameters> for Configure<CONFIGURE> {
+    fn new(initial: CONFIGURE::Parameters) -> Self {
+        let name = format!("Configure<{}>", CONFIGURE::NAME);
+
+        Self {
+            state: StateItem::new(initial, name),
+            _configure: PhantomData,
+        }
+    }
+
+    fn submit(&self, channel: &mut impl Transceiver, parameters: &CONFIGURE::Parameters) -> Result<(), &'static str> {
+        channel.tx_write::<CONFIGURE>(parameters)
+    }
+
+    fn reject(&self, channel: &mut impl Transceiver, parameters: &CONFIGURE::Parameters) -> Result<(), &'static str> {
+
+        channel.no_write::<CONFIGURE>(
+            parameters,
+            "Provided parameters match current state",
+        )
+    }
+
+    fn state(&mut self) -> &mut StateItem<CONFIGURE::Parameters> {
+        &mut self.state
     }
 }

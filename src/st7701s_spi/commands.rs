@@ -6,9 +6,10 @@ use crate::st7701s_spi::{
     interface::{bk0::*, bk1::*, core::*, *},
     panel::Mode,
     parameters::*,
-    spi::{CommandSequence, Stateful, Toggleable, TrackKey, ST7701S},
-    state::{State, StateSelector, Switch},
+    spi::{Transceiver, ST7701S},
+    state::{State, Switch},
 };
+
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
 /// are performed half-duplex
@@ -30,12 +31,6 @@ use crate::st7701s_spi::{
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
 
-struct SleepMode;
-impl Stateful<Switch> for SleepMode {
-    const INITIAL: Switch = Switch::Off;
-    const ID: TrackKey = "Sleep Mode";
-}
-impl Toggleable<SLPIN, SLPOUT> for SleepMode {}
 
 impl ST7701S {
     /**
@@ -45,7 +40,7 @@ impl ST7701S {
       used to terminate parameter write commands.
     */
     pub fn no_operation(&mut self) {
-        self.command::<NOP>();
+        self.tx_command::<NOP>();
     }
 
     /**
@@ -64,7 +59,7 @@ impl ST7701S {
     pub fn software_reset(&mut self) {
         info!("Performing software reset, command queue will be paused for 5ms");
 
-        self.write::<SWRESET>(&());
+        self.tx_write::<SWRESET>(&());
         self.state.reset();
 
         thread::sleep(time::Duration::from_millis(5));
@@ -82,6 +77,7 @@ impl ST7701S {
         3. Command registers are still available in sleep mode
     */
     pub fn sleep_mode(&mut self, mode: Switch) {
+        SleepMode.submit()
         self.switch_command::<SLPIN, SLPOUT>(mode, |s| &mut s.sleep_mode);
 
         thread::sleep(time::Duration::from_millis(120));
@@ -103,15 +99,15 @@ impl ST7701S {
     }
 
     pub fn all_pixels_black(&mut self) {
-        self.command::<ALLPOFF>();
+        self.tx_command::<ALLPOFF>();
     }
 
     pub fn all_pixels_white(&mut self) {
-        self.command::<ALLPON>();
+        self.tx_command::<ALLPON>();
     }
 
     pub fn gamma_curve(&mut self, gc: gamma::Curve) {
-        self.write::<GAMSET>(&(gc,));
+        self.tx_write::<GAMSET>(&(gc,));
     }
 
     pub fn display_output(&mut self, mode: Switch) {
