@@ -18,7 +18,7 @@ pub trait Command: Sized + Debug {
 }
 
 pub trait Data: Command {
-    type Parameters: PartialEq + Debug;
+    type Parameters: Debug + PartialEq;
     type Packets: Ord + IntoIterator<Item = u8>;
 }
 

@@ -3,10 +3,10 @@ use std::{thread, time};
 use log::info;
 
 use crate::st7701s_spi::{
-    interface::{bk0::*, bk1::*, core::*, *},
+    interface::{bk0::*, bk1::*, core::*},
     panel::Mode,
     parameters::*,
-    spi::{Transceiver, ST7701S},
+    spi::{StateConstants, Toggle, Transceiver, ST7701S},
     state::{State, Switch},
 };
 
@@ -31,6 +31,35 @@ use crate::st7701s_spi::{
 /// interpreted as a command byte. If D/CX is “high”, the transmission byte
 /// is command register as parameter.
 
+type SleepMode = Toggle<SLPIN, SLPOUT>;
+impl StateConstants<Switch> for SleepMode {
+    const ID: &'static str = "Sleep Mode";
+    const INITIAL: Switch = Switch::Off;
+}
+
+type PartialMode = Toggle<PTLON, NORON>;
+impl StateConstants<Switch> for PartialMode {
+    const ID: &'static str = "Partial Mode";
+    const INITIAL: Switch = Switch::Off;
+}
+
+type InvertPicture = Toggle<INVON, INVOFF>;
+impl StateConstants<Switch> for InvertPicture {
+    const ID: &'static str = "Invert Picture";
+    const INITIAL: Switch = Switch::Off;
+}
+
+type DisplayOutput = Toggle<DISPON, DISPOFF>;
+impl StateConstants<Switch> for DisplayOutput {
+    const ID: &'static str = "Display Output";
+    const INITIAL: Switch = Switch::Off;
+}
+
+type TearingEffect = Select<TEON, TEOFF>;
+impl StateConstants<Option<(tearing_effect::Blank,)>> for TearingEffect {
+    const ID: &'static str = "Tearing Effect";
+    const INITIAL: Option<(tearing_effect::Blank,)> = None;
+}
 
 impl ST7701S {
     /**
@@ -65,19 +94,7 @@ impl ST7701S {
         thread::sleep(time::Duration::from_millis(5));
     }
 
-    /**
-      ## SLEEP MODE
-
-      The ST7701S is capable of entering a minimum-power "sleep" mode that shuts off
-      the DC-DC converter, stops the display oscillator, and stops panel scanning.
-
-      ### Considerations
-        1. Entering or exiting sleep mode takes ~120ms.
-        2. Pixel data can still be sent in sleep mode
-        3. Command registers are still available in sleep mode
-    */
     pub fn sleep_mode(&mut self, mode: Switch) {
-        SleepMode.submit()
         self.switch_command::<SLPIN, SLPOUT>(mode, |s| &mut s.sleep_mode);
 
         thread::sleep(time::Duration::from_millis(120));
