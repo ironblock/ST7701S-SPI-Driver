@@ -7,7 +7,7 @@ pub type Bytes = usize;
 pub type Buffer<const N: usize> = [u8; N];
 pub type Reader = for<'a> fn(&'a [u8]);
 
-pub trait Command: Sized + Debug {
+pub trait Command {
     const NAME: &str;
     const ADDRESS: Address;
     const EXTENSION: Extension = Extension(None);
@@ -38,7 +38,7 @@ pub trait ReadData: Data {
  */
 pub mod core {
     use crate::st7701s_spi::{
-        parameters::{data_access, gamma, pixel_format, register::Bank, tearing_effect},
+        parameters::{brightness, data_access, gamma, pixel_format, register::Bank, tearing_effect},
         state::Switch,
     };
 
@@ -624,8 +624,26 @@ pub mod core {
         const ADDRESS: Address = Address(0x53);
     }
     impl Data for WRCTRLD {
-        type Parameters = ();
+        type Parameters = (brightness::Control, brightness::Dimming, brightness::Backlight);
         type Packets = Buffer<1>;
+    }
+
+    impl WriteData for WRCTRLD {
+        /**
+            #### Write Parameters
+
+            This command changes more general behavior of the brightness controls.
+
+            [BCTRL] Brightness control on or off
+            [DD] Display dimming (only affects manual brightness settings)
+            [BL] Backlight control on or off
+
+            |   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+            |   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
+        */
+        fn encode((bctrl, dd, bl): &Self::Parameters) -> Self::Packets {
+            [bctrl.as_d(5) | dd.as_d(3) | bl.as_d(2)]
+        }
     }
 
     /**
@@ -684,7 +702,7 @@ pub mod core {
         const ADDRESS: Address = Address(0x5E);
     }
     impl Data for WRCABCMB {
-        type Parameters = ();
+        type Parameters = (brightness::Minimum,);
         type Packets = Buffer<1>;
     }
 

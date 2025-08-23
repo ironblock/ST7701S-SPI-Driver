@@ -6,10 +6,11 @@ use std::any::{Any, type_name, type_name_of_val};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::prelude::*;
+use std::marker::PhantomData;
 use std::path::Path;
 
 use crate::st7701s_spi::interface::{Command, ReadData, Reader, WriteData};
-use crate::st7701s_spi::state::{State, StateContainer, Switch};
+use crate::st7701s_spi::state::{Switch};
 
 pub type Packet = [u8; 2];
 pub type Sequence<const N: usize> = [Packet; N];
@@ -36,7 +37,7 @@ pub const THREE_WIRE_OPTIONS: SpidevOptions = SpidevOptions {
 
 pub struct ST7701S {
     spi: Spidev,
-    pub state: StateContainer,
+    pub state: StateTracker,
 }
 
 impl ST7701S {
@@ -48,13 +49,7 @@ impl ST7701S {
 
         spi.configure(spi_options);
 
-        let state = StateContainer(if TRACK_STATE {
-            Some(State::default())
-        } else {
-            None
-        });
-
-        Self { spi, state }
+        Self { spi, state: StateTracker::new() }
     }
 }
 
@@ -122,103 +117,96 @@ impl Transceiver for ST7701S {
 }
 
 pub struct StateTracker {
-    state: HashMap<&'static str, Box<dyn Any>>,
+    pub tracker: HashMap<&'static str, Box<dyn Any>>,
 }
 impl StateTracker {
     pub fn new() -> Self {
+        // TODO: This should use cfg
         let state = if TRACK_STATE {
             HashMap::new()
         } else {
             HashMap::with_capacity(0)
         };
 
-        Self { state }
+        Self { tracker: state }
     }
 
-    fn downcast_error<P>(&self, key: &'static str, value: &dyn Any) -> Result<(), String> {
-        let message = format!(
-            "{MALFORMED}: State value for \"{key}\" is not of expected type. Expected: {}, Found: {}",
-            type_name::<P>(),
-            type_name_of_val(value)
-        );
-
-        error!("{message}");
-
-        return Err(message);
-    }
-
-    fn changes_current<P>(&self, key: &'static str, value: &P) -> bool
-    where
-        P: Debug + PartialEq + 'static,
-    {
-        if let Some(current_box) = self.state.get(key) {
-            if let Some(current) = current_box.downcast_ref::<P>() {
-                if current == value {
-                    warn!("{NO_EFFECT}: The current state for \"{key}\" is already '{value:?}'");
-                    return false;
-                }
-            } else {
-                self.downcast_error::<P>(key, current_box);
-                return false;
-            }
-        }
-
-        true
-    }
-
-    fn changes_initial<P>(&self, key: &'static str, value: &P, initial: &P) -> bool
-    where
-        P: Debug + PartialEq,
-    {
-        if value == initial {
-            warn!(
-                "{NO_EFFECT}: State for \"{key}\" is unset, but '{value:?}' is the same as the initial state"
-            );
-            return false;
-        }
-
-        true
-    }
-
-    pub fn change_is_valid<P>(&self, key: &'static str, initial: &P, value: &P) -> bool
-    where
-        P: Debug + PartialEq + 'static,
-    {
-        if TRACK_STATE {
-            return self.changes_current(key, value) || self.changes_initial(key, value, initial);
-        } else {
-            error!("{NOT_TRACKING}: CANNOT CHECK VALUE");
-            return true;
-        }
-    }
-
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         if TRACK_STATE {
             info!("Resetting state tracker");
-            self.state.clear();
+            self.tracker.clear();
         } else {
             error!("{NOT_TRACKING}: RESETTING IS NOT POSSIBLE");
         }
     }
 
-    fn track<P>(&mut self, key: &'static str, value: P)
+    pub fn track<P>(&mut self, key: &'static str, value: P)
     where
         P: Debug + PartialEq + 'static,
     {
         if TRACK_STATE {
-            self.state.insert(key, Box::new(value));
+            self.tracker.insert(key, Box::new(value));
         } else {
             error!("{NOT_TRACKING}: CANNOT TRACK VALUE");
         }
     }
 }
 
-pub trait StateConstants<P: Debug + PartialEq> {
+pub trait StateConstants<P: Debug + PartialEq + 'static> {
     const ID: &'static str;
     const INITIAL: P;
+
+    fn get<'a>(state: &'a StateTracker) -> Option<&'a P> {
+        if let Some(current_box) = state.tracker.get(Self::ID) {
+            current_box.downcast_ref::<P>().or_else(|| {
+                panic!(
+                    "{MALFORMED}: Expected \"{}\" to be type \"{}\" instead of \"{}\"",
+                    Self::ID,
+                    type_name::<P>(),
+                    type_name_of_val(current_box)
+                );
+            })
+        } else {
+            None
+        }
+    }
+
+    fn set(state: &mut StateTracker, value: P) {
+        state.track(Self::ID, value);
+    }
+
+    fn is(state: &StateTracker, value: &P) -> bool {
+        Self::get(state).is_some_and(|current| current == value)
+    }
+
+    fn is_unset(state: &StateTracker) -> bool {
+        Self::get(state).is_none()
+    }
+
+    fn change_is_valid(state: &StateTracker, value: &P) -> bool {
+        if Self::is(state, value) {
+            format!(
+                "{NO_EFFECT}: State for \"{}\" is already '{:?}'",
+                Self::ID,
+                value
+            );
+            return false;
+        }
+
+        if Self::is_unset(state) && value == &Self::INITIAL {
+            warn!(
+                "{NO_EFFECT}: State for \"{}\" already has an initial value of '{:?}'",
+                Self::ID,
+                value
+            );
+            return false;
+        } else {
+            return true;
+        }
+    }
 }
 
-pub trait Stateful<P: Debug + PartialEq>{
+pub trait Stateful<P: Debug + PartialEq> {
     fn submit(channel: &mut impl Transceiver, parameters: &P) -> Result<(), &'static str>;
     fn reject(channel: &mut impl Transceiver, parameters: &P) -> Result<(), &'static str>;
 }
@@ -241,12 +229,12 @@ where
         &mut self,
         channel: &mut impl Transceiver,
         parameters: P,
-        tracker: &mut StateTracker,
+        state: &mut StateTracker,
     ) -> Result<(), &'static str> {
         if TRACK_STATE {
-            if tracker.change_is_valid(Self::ID, &Self::INITIAL, &parameters) {
+            if Self::change_is_valid(state, &parameters) {
                 let submit = T::submit(channel, &parameters);
-                tracker.track(Self::ID, parameters);
+                Self::set(state, parameters);
 
                 submit
             } else {
@@ -258,6 +246,19 @@ where
     }
 }
 
+pub type SideEffect<COMMAND: Command> = (COMMAND,);
+
+pub type Momentary<COMMAND: Command> = (COMMAND,);
+impl<COMMAND: Command> Transmission<PhantomData<Self>> for Momentary<COMMAND> {
+    fn transmit(
+        &mut self,
+        channel: &mut impl Transceiver,
+        _: PhantomData<Self>,
+        _: &mut StateTracker,
+    ) -> Result<(), &'static str> {
+        channel.tx_command::<COMMAND>()
+    }
+}
 
 pub type Toggle<ON: Command, OFF: Command> = (ON, OFF);
 impl<ON: Command, OFF: Command> Stateful<Switch> for Toggle<ON, OFF> {
@@ -277,9 +278,7 @@ impl<ON: Command, OFF: Command> Stateful<Switch> for Toggle<ON, OFF> {
 }
 
 pub type Select<SELECT: WriteData, OFF: Command> = (SELECT, OFF);
-impl<SELECT: WriteData, OFF: Command> Stateful<Option<SELECT::Parameters>>
-    for Select<SELECT, OFF>
-{
+impl<SELECT: WriteData, OFF: Command> Stateful<Option<SELECT::Parameters>> for Select<SELECT, OFF> {
     fn submit(
         channel: &mut impl Transceiver,
         parameters: &Option<SELECT::Parameters>,
@@ -303,9 +302,7 @@ impl<SELECT: WriteData, OFF: Command> Stateful<Option<SELECT::Parameters>>
 }
 
 pub type Configure<CONFIGURE: WriteData> = (CONFIGURE,);
-impl<CONFIGURE: WriteData> Stateful<CONFIGURE::Parameters>
-    for Configure<CONFIGURE>
-{
+impl<CONFIGURE: WriteData> Stateful<CONFIGURE::Parameters> for Configure<CONFIGURE> {
     fn submit(
         channel: &mut impl Transceiver,
         parameters: &CONFIGURE::Parameters,

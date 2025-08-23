@@ -1,5 +1,8 @@
 pub mod register {
-    use std::fmt::{self, Display};
+    use crate::st7701s_spi::state::Switch;
+    use std::fmt::{self, Display, Formatter};
+
+    pub type ExtendedCommands = Switch;
 
     #[derive(Debug)]
     pub struct Address(pub u8);
@@ -31,8 +34,9 @@ pub mod register {
 
     #[derive(Debug)]
     pub struct Extension(pub Option<Bank>);
+
     impl Display for Extension {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
             match self.0 {
                 Some(Bank::BK0) => write!(f, "BK0/"),
                 Some(Bank::BK1) => write!(f, "BK1/"),
@@ -41,8 +45,6 @@ pub mod register {
             }
         }
     }
-
-
 }
 
 pub mod gamma {
@@ -64,11 +66,9 @@ pub mod tearing_effect {
 }
 
 pub mod data_access {
-    #[derive(Debug, PartialEq)]
-    pub enum ScanDirection {
-        Normal,
-        Reverse,
-    }
+    use crate::st7701s_spi::state::Direction;
+
+    pub type ScanDirection = Direction;
 
     #[derive(Debug, PartialEq)]
     pub enum ColorOrder {
@@ -80,69 +80,77 @@ pub mod data_access {
 pub mod pixel_format {
     #[derive(Debug, PartialEq)]
     pub enum BitsPerPixel {
-        /// 16 bits per pixel (RGB565)
         RGB565,
-        /// 18 bits per pixel (RGB666)
         RGB666,
-        /// 24 bits per pixel (RGB888)
         RGB888,
     }
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+pub mod brightness {
+    use crate::st7701s_spi::state::Switch;
+
+    pub type Control = Switch;
+    pub type Dimming = Switch;
+    pub type Backlight = Switch;
+
+    pub type Minimum = u8;
+}
+
+pub mod color {
+    use crate::st7701s_spi::state::Switch;
+
+    pub type Enhancement = Switch;
+
+    pub enum EnhanceLevel {
+        Low,
+        Medium,
+        High,
+    }
+
+    pub enum AdaptiveBrightness {
+        Off,
+        UserInterface,
+        StillPicture,
+        MovingImage,
+    }
+}
+
 pub enum DataEnable {
     DE = 0x00,
     HV = 0x80,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum VsyncActive {
     Low = 0x00,
     High = 0x08,
 }
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum HsyncActive {
     Low = 0x00,
     High = 0x04,
 }
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum DataPolarity {
     Rising = 0x00,
     Falling = 0x02,
 }
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum EnablePolarity {
     Low = 0x00,
     High = 0x01,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum PWMPolarity {
     Low = 0x00,
     High = 0x20,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum LEDPolarity {
     Low = 0x00,
     High = 0x10,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum PixelPinout {
     Normal = 0x00,
     Condensed = 0x08,
 }
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum EndPixelFormat {
     SelfMSB = 0x00,
     GreenMSB = 0x01,
@@ -151,82 +159,12 @@ pub enum EndPixelFormat {
     One = 0x05,
 }
 
-pub enum BitsPerPixel {
-    /// 16 bits per pixel (RGB565)
-    Rgb565 = 0x50,
-    /// 18 bits per pixel (RGB666)
-    Rgb666 = 0x60,
-    /// 24 bits per pixel (RGB888)
-    Rgb888 = 0x70,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum BrightnessControl {
-    /// Ignore display brightness value and soft-set it to 0x00
-    Off = 0x00,
-    /// Use display brightness value normally
-    On = 0x20,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum DisplayDimming {
-    /// Ignore display brightness value and soft-set it to 0x00
-    Off = 0x00,
-    /// Use display brightness value normally
-    On = 0x08,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum Backlight {
-    /// Disable backlight circuit. Control lines must be low.
-    Off = 0x00,
-    /// Enable backlight circuit. Normal behavior.
-    On = 0x04,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum Enhancement {
-    /// Disable color enhancement
-    Off = 0x00,
-    /// Enable color enhancement
-    On = 0x80,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum EnhancementMode {
-    Low = 0x00,
-    Medium = 0x10,
-    High = 0x30,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
-pub enum AdaptiveBrightness {
-    /// Off
-    Off = 0x00,
-    /// User Interface Mode
-    UserInterface = 0x01,
-    /// Still Picture Mode
-    StillPicture = 0x02,
-    /// Moving Image Mode
-    MovingImage = 0x03,
-}
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum Inversion {
     OneDot = 0x00,
     TwoDot = 0x01,
     Column = 0x07,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum GammaOPBias {
     Off = 0x00,
     Min = 0x40,
@@ -234,8 +172,6 @@ pub enum GammaOPBias {
     Max = 0xC0,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum SourceOPInput {
     Off = 0x00,
     Min = 0x04,
@@ -243,8 +179,6 @@ pub enum SourceOPInput {
     Max = 0x0C,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum SourceOPOutput {
     Off = 0x00,
     Min = 0x01,
@@ -252,8 +186,6 @@ pub enum SourceOPOutput {
     Max = 0x03,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum VoltageAVDD {
     Pos6_2 = 0x00,
     Pos6_4 = 0x10,
@@ -261,8 +193,6 @@ pub enum VoltageAVDD {
     Pos6_8 = 0x30,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum VoltageAVCL {
     Neg4_4 = 0x00,
     Neg4_6 = 0x01,
@@ -270,8 +200,6 @@ pub enum VoltageAVCL {
     Neg5_0 = 0x03,
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug)]
 pub enum SunlightReadable {
     /// DEFAULT: Sunlight readable mode off
     Off = 0x00,
