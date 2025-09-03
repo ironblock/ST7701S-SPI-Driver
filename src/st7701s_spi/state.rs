@@ -1,6 +1,5 @@
 
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
-#[repr(C)]
 pub enum Switch {
     Off = 0,
     On = 1,
@@ -12,7 +11,6 @@ impl Switch {
 }
 
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
-#[repr(C)]
 pub enum Direction {
     Normal = 0,
     Reverse = 1,
@@ -24,7 +22,6 @@ impl Direction {
 }
 
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
-#[repr(C)]
 pub enum Logic {
     Low = 0,
     High = 1,
@@ -36,7 +33,6 @@ impl Logic {
 }
 
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
-#[repr(C)]
 pub enum Edge {
     Falling = 0,
     Rising = 1,

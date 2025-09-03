@@ -1,21 +1,22 @@
 extern crate spidev;
 
-use log::{error, info, warn};
+use core::panic;
+use log::{info, warn};
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
 use std::any::{Any, type_name, type_name_of_val};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::prelude::*;
-use std::marker::PhantomData;
 use std::path::Path;
 
-use crate::st7701s_spi::interface::{Command, ReadData, Reader, WriteData};
-use crate::st7701s_spi::state::{Switch};
+use crate::st7701s_spi::interface::{BufferDecoder, Command, Reader, Writer};
+use crate::st7701s_spi::state::Switch;
 
 pub type Packet = [u8; 2];
 pub type Sequence<const N: usize> = [Packet; N];
 pub type Reset<T> = fn(&mut T) -> ();
 
+// TODO: This should use cfg
 pub const TRACK_STATE: bool = option_env!("TRACK_STATE").is_some();
 
 const NO_EFFECT: &'static str = "Command will have no effect";
@@ -49,23 +50,26 @@ impl ST7701S {
 
         spi.configure(spi_options);
 
-        Self { spi, state: StateTracker::new() }
+        Self {
+            spi,
+            state: StateTracker::new(),
+        }
     }
 }
 
 pub trait Transceiver {
     fn tx_command<T: Command>(&mut self) -> Result<(), &'static str>;
     fn no_command<T: Command>(&mut self, reason: &'static str) -> Result<(), &'static str>;
-    fn tx_write<T: WriteData>(&mut self, parameters: &T::Parameters) -> Result<(), &'static str>;
-    fn no_write<T: WriteData>(
+    fn tx_write<T: Writer>(&mut self, parameters: &T::Parameters) -> Result<(), &'static str>;
+    fn no_write<T: Writer>(
         &mut self,
         parameters: &T::Parameters,
         reason: &'static str,
     ) -> Result<(), &'static str>;
-    fn tx_read<T: ReadData>(&mut self, handler: &Reader) -> Result<(), &'static str>;
-    fn no_read<T: ReadData>(
+    fn tx_read<T: Reader>(&mut self, handler: &BufferDecoder) -> Result<(), &'static str>;
+    fn no_read<T: Reader>(
         &mut self,
-        handler: &Reader,
+        handler: &BufferDecoder,
         reason: &'static str,
     ) -> Result<(), &'static str>;
 }
@@ -83,7 +87,7 @@ impl Transceiver for ST7701S {
         Err(reason)
     }
 
-    fn tx_write<T: WriteData>(&mut self, parameters: &T::Parameters) -> Result<(), &'static str> {
+    fn tx_write<T: Writer>(&mut self, parameters: &T::Parameters) -> Result<(), &'static str> {
         self.tx_command::<T>();
 
         for byte in T::encode(parameters) {
@@ -95,7 +99,7 @@ impl Transceiver for ST7701S {
         Ok(())
     }
 
-    fn no_write<T: WriteData>(
+    fn no_write<T: Writer>(
         &mut self,
         _parameters: &T::Parameters,
         _reason: &str,
@@ -103,13 +107,13 @@ impl Transceiver for ST7701S {
         todo!()
     }
 
-    fn tx_read<T: Command>(&mut self, _handler: &Reader) -> Result<(), &'static str> {
+    fn tx_read<T: Reader>(&mut self, _handler: &BufferDecoder) -> Result<(), &'static str> {
         todo!()
     }
 
-    fn no_read<T: Command>(
+    fn no_read<T: Reader>(
         &mut self,
-        _handler: &Reader,
+        _handler: &BufferDecoder,
         _reason: &str,
     ) -> Result<(), &'static str> {
         todo!()
@@ -117,159 +121,149 @@ impl Transceiver for ST7701S {
 }
 
 pub struct StateTracker {
-    pub tracker: HashMap<&'static str, Box<dyn Any>>,
+    pub tracker: HashMap<String, Box<dyn Any>>,
 }
 impl StateTracker {
     pub fn new() -> Self {
-        // TODO: This should use cfg
-        let state = if TRACK_STATE {
-            HashMap::new()
-        } else {
-            HashMap::with_capacity(0)
-        };
-
-        Self { tracker: state }
-    }
-
-    pub fn reset(&mut self) {
-        if TRACK_STATE {
-            info!("Resetting state tracker");
-            self.tracker.clear();
-        } else {
-            error!("{NOT_TRACKING}: RESETTING IS NOT POSSIBLE");
+        Self {
+            tracker: if TRACK_STATE {
+                info!("State tracking is ENABLED");
+                HashMap::new()
+            } else {
+                HashMap::with_capacity(0)
+            },
         }
     }
 
-    pub fn track<P>(&mut self, key: &'static str, value: P)
-    where
-        P: Debug + PartialEq + 'static,
-    {
-        if TRACK_STATE {
-            self.tracker.insert(key, Box::new(value));
-        } else {
-            error!("{NOT_TRACKING}: CANNOT TRACK VALUE");
-        }
+    pub fn reset(&mut self) -> () {
+        info!("Resetting state tracker");
+
+        self.tracker.clear();
     }
-}
 
-pub trait StateConstants<P: Debug + PartialEq + 'static> {
-    const ID: &'static str;
-    const INITIAL: P;
+    pub fn set<ITEM: StateItem + ?Sized>(&mut self, value: ITEM::Parameters) {
+        self.tracker.insert(ITEM::key(), Box::new(value));
+    }
 
-    fn get<'a>(state: &'a StateTracker) -> Option<&'a P> {
-        if let Some(current_box) = state.tracker.get(Self::ID) {
-            current_box.downcast_ref::<P>().or_else(|| {
+    pub fn get<ITEM: StateItem + ?Sized>(&self) -> Option<&ITEM::Parameters> {
+        self.tracker.get(&ITEM::key()).and_then(|current_box| {
+            current_box.downcast_ref::<ITEM::Parameters>().or_else(|| {
                 panic!(
                     "{MALFORMED}: Expected \"{}\" to be type \"{}\" instead of \"{}\"",
-                    Self::ID,
-                    type_name::<P>(),
+                    ITEM::key(),
+                    type_name::<ITEM::Parameters>(),
                     type_name_of_val(current_box)
                 );
             })
-        } else {
-            None
-        }
+        })
     }
 
-    fn set(state: &mut StateTracker, value: P) {
-        state.track(Self::ID, value);
+    pub fn is<ITEM: StateItem + ?Sized>(&self, value: &ITEM::Parameters) -> bool {
+        self.get::<ITEM>().is_some_and(|current| current == value)
     }
 
-    fn is(state: &StateTracker, value: &P) -> bool {
-        Self::get(state).is_some_and(|current| current == value)
+    pub fn is_unset<ITEM: StateItem + ?Sized>(&self) -> bool {
+        self.get::<ITEM>().is_none()
     }
 
-    fn is_unset(state: &StateTracker) -> bool {
-        Self::get(state).is_none()
-    }
-
-    fn change_is_valid(state: &StateTracker, value: &P) -> bool {
-        if Self::is(state, value) {
-            format!(
-                "{NO_EFFECT}: State for \"{}\" is already '{:?}'",
-                Self::ID,
-                value
-            );
-            return false;
-        }
-
-        if Self::is_unset(state) && value == &Self::INITIAL {
+    fn change_is_valid<ITEM: StateItem + ?Sized>(&self, value: &ITEM::Parameters) -> bool {
+        if self.is_unset::<ITEM>() && value == &ITEM::initial() {
             warn!(
                 "{NO_EFFECT}: State for \"{}\" already has an initial value of '{:?}'",
-                Self::ID,
+                ITEM::key(),
                 value
             );
+
             return false;
-        } else {
-            return true;
         }
+
+        if self.is::<ITEM>(&value) {
+            format!(
+                "{NO_EFFECT}: State for \"{}\" is already '{:?}'",
+                ITEM::key(),
+                value
+            );
+
+            return false;
+        }
+
+        return true;
     }
 }
 
-pub trait Stateful<P: Debug + PartialEq> {
-    fn submit(channel: &mut impl Transceiver, parameters: &P) -> Result<(), &'static str>;
-    fn reject(channel: &mut impl Transceiver, parameters: &P) -> Result<(), &'static str>;
+pub trait StateItem {
+    type Parameters: Debug + PartialEq + 'static;
+
+    fn key() -> String;
+    fn initial() -> Self::Parameters;
+    fn submit(
+        channel: &mut impl Transceiver,
+        parameters: &Self::Parameters,
+    ) -> Result<(), &'static str>;
+    fn reject(
+        channel: &mut impl Transceiver,
+        parameters: &Self::Parameters,
+    ) -> Result<(), &'static str>;
 }
 
-pub trait Transmission<P: Debug + PartialEq> {
+pub trait Transmission<P, const STATEFUL: bool> {
     fn transmit(
-        &mut self,
         channel: &mut impl Transceiver,
         parameters: P,
         state: &mut StateTracker,
     ) -> Result<(), &'static str>;
 }
 
-impl<T, P> Transmission<P> for T
-where
-    T: StateConstants<P> + Stateful<P>,
-    P: Debug + PartialEq + 'static,
+pub trait SideEffect<P: Debug + PartialEq + 'static, const STATEFUL: bool>:
+    Transmission<P, STATEFUL>
 {
-    fn transmit(
-        &mut self,
-        channel: &mut impl Transceiver,
-        parameters: P,
-        state: &mut StateTracker,
-    ) -> Result<(), &'static str> {
-        if TRACK_STATE {
-            if Self::change_is_valid(state, &parameters) {
-                let submit = T::submit(channel, &parameters);
-                Self::set(state, parameters);
+    fn on_transmit_success(
+        _channel: &mut impl Transceiver,
+        _parameters: P,
+        _state: &mut StateTracker,
+    ) {
+    }
 
-                submit
-            } else {
-                T::reject(channel, &parameters)
-            }
-        } else {
-            T::submit(channel, &parameters)
-        }
+    fn on_transmit_failure(
+        _channel: &mut impl Transceiver,
+        _parameters: P,
+        _state: &mut StateTracker,
+    ) {
     }
 }
 
-pub type SideEffect<COMMAND: Command> = (COMMAND,);
+pub trait Momentary<COMMAND: Command> {}
 
-pub type Momentary<COMMAND: Command> = (COMMAND,);
-impl<COMMAND: Command> Transmission<PhantomData<Self>> for Momentary<COMMAND> {
+impl<COMMAND: Command> Transmission<(), false> for dyn Momentary<COMMAND> {
     fn transmit(
-        &mut self,
         channel: &mut impl Transceiver,
-        _: PhantomData<Self>,
+        _: (),
         _: &mut StateTracker,
     ) -> Result<(), &'static str> {
         channel.tx_command::<COMMAND>()
     }
 }
 
-pub type Toggle<ON: Command, OFF: Command> = (ON, OFF);
-impl<ON: Command, OFF: Command> Stateful<Switch> for Toggle<ON, OFF> {
-    fn submit(channel: &mut impl Transceiver, mode: &Switch) -> Result<(), &'static str> {
+pub trait Toggle<ON: Command, OFF: Command> {}
+impl<ON: Command, OFF: Command> StateItem for dyn Toggle<ON, OFF> {
+    type Parameters = Switch;
+
+    fn key() -> String {
+        format!("Toggle<{}, {}>", ON::NAME, OFF::NAME)
+    }
+
+    fn initial() -> Self::Parameters {
+        Switch::Off
+    }
+
+    fn submit(channel: &mut impl Transceiver, mode: &Self::Parameters) -> Result<(), &'static str> {
         match mode {
             Switch::On => channel.tx_command::<ON>(),
             Switch::Off => channel.tx_command::<OFF>(),
         }
     }
 
-    fn reject(channel: &mut impl Transceiver, mode: &Switch) -> Result<(), &'static str> {
+    fn reject(channel: &mut impl Transceiver, mode: &Self::Parameters) -> Result<(), &'static str> {
         match mode {
             Switch::On => channel.no_command::<ON>("Already ON"),
             Switch::Off => channel.no_command::<OFF>("Already OFF"),
@@ -277,11 +271,21 @@ impl<ON: Command, OFF: Command> Stateful<Switch> for Toggle<ON, OFF> {
     }
 }
 
-pub type Select<SELECT: WriteData, OFF: Command> = (SELECT, OFF);
-impl<SELECT: WriteData, OFF: Command> Stateful<Option<SELECT::Parameters>> for Select<SELECT, OFF> {
+pub trait Select<SELECT: Writer, OFF: Command> {}
+impl<SELECT: Writer, OFF: Command> StateItem for dyn Select<SELECT, OFF> {
+    type Parameters = Option<SELECT::Parameters>;
+
+    fn key() -> String {
+        format!("Select<{}, {}>", SELECT::NAME, OFF::NAME)
+    }
+
+    fn initial() -> Self::Parameters {
+        Some(SELECT::INITIAL)
+    }
+
     fn submit(
         channel: &mut impl Transceiver,
-        parameters: &Option<SELECT::Parameters>,
+        parameters: &Self::Parameters,
     ) -> Result<(), &'static str> {
         if let Some(parameters) = &parameters {
             channel.tx_write::<SELECT>(parameters)
@@ -292,7 +296,7 @@ impl<SELECT: WriteData, OFF: Command> Stateful<Option<SELECT::Parameters>> for S
 
     fn reject(
         channel: &mut impl Transceiver,
-        parameters: &Option<SELECT::Parameters>,
+        parameters: &Self::Parameters,
     ) -> Result<(), &'static str> {
         match parameters {
             Some(_) => channel.no_command::<SELECT>("Provided parameters match current state"),
@@ -301,19 +305,50 @@ impl<SELECT: WriteData, OFF: Command> Stateful<Option<SELECT::Parameters>> for S
     }
 }
 
-pub type Configure<CONFIGURE: WriteData> = (CONFIGURE,);
-impl<CONFIGURE: WriteData> Stateful<CONFIGURE::Parameters> for Configure<CONFIGURE> {
+pub trait Configure<CONFIGURE> where CONFIGURE: Writer {}
+impl<CONFIGURE: Writer> StateItem for dyn Configure<CONFIGURE> {
+    type Parameters = CONFIGURE::Parameters;
+
+    fn key() -> String {
+        format!("Configure<{}>", CONFIGURE::NAME)
+    }
+
+    fn initial() -> Self::Parameters {
+        CONFIGURE::INITIAL
+    }
+
     fn submit(
         channel: &mut impl Transceiver,
-        parameters: &CONFIGURE::Parameters,
+        parameters: &Self::Parameters,
     ) -> Result<(), &'static str> {
         channel.tx_write::<CONFIGURE>(parameters)
     }
 
     fn reject(
         channel: &mut impl Transceiver,
-        parameters: &CONFIGURE::Parameters,
+        parameters: &Self::Parameters,
     ) -> Result<(), &'static str> {
         channel.no_write::<CONFIGURE>(parameters, "Provided parameters match current state")
+    }
+}
+
+impl<ITEM: StateItem> Transmission<ITEM::Parameters, true> for ITEM {
+    fn transmit(
+        channel: &mut impl Transceiver,
+        parameters: ITEM::Parameters,
+        state: &mut StateTracker,
+    ) -> Result<(), &'static str> {
+        if TRACK_STATE {
+            if state.change_is_valid::<ITEM>(&parameters) {
+                let submit = ITEM::submit(channel, &parameters);
+                state.set::<ITEM>(parameters);
+
+                submit
+            } else {
+                ITEM::reject(channel, &parameters)
+            }
+        } else {
+            ITEM::submit(channel, &parameters)
+        }
     }
 }

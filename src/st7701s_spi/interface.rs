@@ -1,11 +1,12 @@
 use std::fmt::Debug;
 
-use crate::st7701s_spi::parameters::register::{Address, Extension};
+use crate::st7701s_spi::parameters::register::{Address, Bank, Extension, Location};
 
 pub type Bytes = usize;
 
-pub type Buffer<const N: usize> = [u8; N];
-pub type Reader = for<'a> fn(&'a [u8]);
+pub type Buffer<const N: Bytes> = [u8; N];
+pub type BufferDecoder = for<'a> fn(&'a [u8]);
+
 
 pub trait Command {
     const NAME: &str;
@@ -17,16 +18,18 @@ pub trait Command {
     }
 }
 
-pub trait Data: Command {
-    type Parameters: Debug + PartialEq;
-    type Packets: Ord + IntoIterator<Item = u8>;
+pub trait Parametric: Command {
+    type Parameters: 'static;
+    type Packets: Ord + IntoIterator<Item = u8> + 'static;
 }
 
-pub trait WriteData: Data {
+pub trait Writer: Parametric {
+    const INITIAL: Self::Parameters;
+
     fn encode(parameters: &Self::Parameters) -> Self::Packets;
 }
 
-pub trait ReadData: Data {
+pub trait Reader: Parametric {
     fn decode(packets: &Self::Packets) -> Self::Parameters;
 }
 
@@ -38,16 +41,20 @@ pub trait ReadData: Data {
  */
 pub mod core {
     use crate::st7701s_spi::{
-        parameters::{brightness, data_access, gamma, pixel_format, register::Bank, tearing_effect},
+        interface::{Buffer, Command, Parametric, Reader, Writer},
+        parameters::{
+            brightness, data_access, gamma, pixel_format,
+            register::{Address, Bank},
+            tearing_effect,
+        },
         state::Switch,
     };
-
-    use super::*;
 
     /**
       ### `0x00` `NOP`  No Operation
       > Reference: p. 187
     */
+
     #[derive(Debug)]
     pub struct NOP;
     impl Command for NOP {
@@ -66,7 +73,7 @@ pub mod core {
         const NAME: &str = "SWRESET";
         const ADDRESS: Address = Address(0x01);
     }
-    impl Data for SWRESET {
+    impl Parametric for SWRESET {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -85,11 +92,13 @@ pub mod core {
       |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
       | P1 |   0   |   0   |   0   |   0   |   0   |   0   |   0   |   1   |
     */
-    impl WriteData for SWRESET {
-        fn encode(_: &Self::Parameters) -> Self::Packets {
-            const P1: u8 = 0b0000_0001;
+    impl Writer for SWRESET {
+        const INITIAL: Self::Parameters = ();
 
-            [P1]
+        fn encode(_: &Self::Parameters) -> Self::Packets {
+            const BUFFER: <SWRESET as Parametric>::Packets = [0x01];
+
+            BUFFER
         }
     }
 
@@ -103,11 +112,11 @@ pub mod core {
         const NAME: &str = "RDDID";
         const ADDRESS: Address = Address(0x04);
     }
-    impl Data for RDDID {
+    impl Parametric for RDDID {
         type Parameters = ();
         type Packets = Buffer<4>;
     }
-    impl ReadData for RDDID {
+    impl Reader for RDDID {
         /**
             #### `RDDID` Read Parameters
 
@@ -151,7 +160,7 @@ pub mod core {
         const NAME: &str = "RDRED";
         const ADDRESS: Address = Address(0x06);
     }
-    impl Data for RDRED {
+    impl Parametric for RDRED {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -166,7 +175,7 @@ pub mod core {
         const NAME: &str = "RDGREEN";
         const ADDRESS: Address = Address(0x07);
     }
-    impl Data for RDGREEN {
+    impl Parametric for RDGREEN {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -181,7 +190,7 @@ pub mod core {
         const NAME: &str = "RDBLUE";
         const ADDRESS: Address = Address(0x08);
     }
-    impl Data for RDBLUE {
+    impl Parametric for RDBLUE {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -196,7 +205,7 @@ pub mod core {
         const NAME: &str = "RDDPM";
         const ADDRESS: Address = Address(0x0A);
     }
-    impl Data for RDDPM {
+    impl Parametric for RDDPM {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -211,7 +220,7 @@ pub mod core {
         const NAME: &str = "RDDMADCTL";
         const ADDRESS: Address = Address(0x0B);
     }
-    impl Data for RDDMADCTL {
+    impl Parametric for RDDMADCTL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -226,7 +235,7 @@ pub mod core {
         const NAME: &str = "RDDCOLMOD";
         const ADDRESS: Address = Address(0x0C);
     }
-    impl Data for RDDCOLMOD {
+    impl Parametric for RDDCOLMOD {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -241,7 +250,7 @@ pub mod core {
         const NAME: &str = "RDDIM";
         const ADDRESS: Address = Address(0x0D);
     }
-    impl Data for RDDIM {
+    impl Parametric for RDDIM {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -256,7 +265,7 @@ pub mod core {
         const NAME: &str = "RDDSM";
         const ADDRESS: Address = Address(0x0E);
     }
-    impl Data for RDDSM {
+    impl Parametric for RDDSM {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -271,7 +280,7 @@ pub mod core {
         const NAME: &str = "RDDSDR";
         const ADDRESS: Address = Address(0x0F);
     }
-    impl Data for RDDSDR {
+    impl Parametric for RDDSDR {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -386,11 +395,17 @@ pub mod core {
         |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
         | P1 |   -   |   -   |   -   |   -   | GC[3] | GC[2] | GC[1] | GC[0] |
     */
-    impl Data for GAMSET {
+    impl Parametric for GAMSET {
         type Parameters = (gamma::Curve,);
         type Packets = Buffer<1>;
     }
-    impl WriteData for GAMSET {
+    impl Writer for GAMSET {
+        // FIXME: This isn't necessarily correct, and the datasheet indicates
+        // that the initial value is "RESERVED". Maybe better to set this to
+        // something that can never be matched, or change the trait to not
+        // require an initial value?
+        const INITIAL: Self::Parameters = (gamma::Curve::GC1,);
+
         fn encode((gc,): &Self::Parameters) -> Self::Packets {
             let gc_data = match gc {
                 gamma::Curve::GC1 => 0x01,
@@ -446,12 +461,13 @@ pub mod core {
         const NAME: &str = "TEON";
         const ADDRESS: Address = Address(0x35);
     }
-    impl Data for TEON {
+    impl Parametric for TEON {
         type Packets = Buffer<1>;
 
         type Parameters = (tearing_effect::Blank,);
     }
-    impl WriteData for TEON {
+    impl Writer for TEON {
+        const INITIAL: Self::Parameters = (tearing_effect::Blank::Vertical,);
         /**
             #### Write Parameters
 
@@ -500,12 +516,17 @@ pub mod core {
         |:--:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----:|
         | P1 |   -   |   -   |   -   |   ML  |   CO  |   -   |   -   |   -   |
     */
-    impl Data for MADCTL {
+    impl Parametric for MADCTL {
         type Packets = Buffer<1>;
 
         type Parameters = (data_access::ScanDirection, data_access::ColorOrder);
     }
-    impl WriteData for MADCTL {
+    impl Writer for MADCTL {
+        const INITIAL: Self::Parameters = (
+            data_access::ScanDirection::Normal,
+            data_access::ColorOrder::RGB,
+        );
+
         fn encode((ml, co): &Self::Parameters) -> Self::Packets {
             let p1_scan = match ml {
                 data_access::ScanDirection::Normal => 0,
@@ -552,11 +573,13 @@ pub mod core {
         const NAME: &str = "COLMOD";
         const ADDRESS: Address = Address(0x3A);
     }
-    impl Data for COLMOD {
+    impl Parametric for COLMOD {
         type Packets = Buffer<1>;
         type Parameters = (pixel_format::BitsPerPixel,);
     }
-    impl WriteData for COLMOD {
+    impl Writer for COLMOD {
+        const INITIAL: Self::Parameters = (pixel_format::BitsPerPixel::RGB888,);
+
         fn encode((bpp,): &Self::Parameters) -> Self::Packets {
             let bpp_data = match bpp {
                 pixel_format::BitsPerPixel::RGB565 => 101 << 4,
@@ -578,7 +601,7 @@ pub mod core {
         const NAME: &str = "GSL";
         const ADDRESS: Address = Address(0x45);
     }
-    impl Data for GSL {
+    impl Parametric for GSL {
         type Parameters = ();
         type Packets = Buffer<2>;
     }
@@ -593,7 +616,7 @@ pub mod core {
         const NAME: &str = "WRDISBV";
         const ADDRESS: Address = Address(0x51);
     }
-    impl Data for WRDISBV {
+    impl Parametric for WRDISBV {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -608,7 +631,7 @@ pub mod core {
         const NAME: &str = "RDDISBV";
         const ADDRESS: Address = Address(0x52);
     }
-    impl Data for RDDISBV {
+    impl Parametric for RDDISBV {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -623,12 +646,21 @@ pub mod core {
         const NAME: &str = "WRCTRLD";
         const ADDRESS: Address = Address(0x53);
     }
-    impl Data for WRCTRLD {
-        type Parameters = (brightness::Control, brightness::Dimming, brightness::Backlight);
+    impl Parametric for WRCTRLD {
+        type Parameters = (
+            brightness::Control,
+            brightness::Dimming,
+            brightness::Backlight,
+        );
         type Packets = Buffer<1>;
     }
 
-    impl WriteData for WRCTRLD {
+    impl Writer for WRCTRLD {
+        const INITIAL: Self::Parameters = (
+            brightness::Control::Off,
+            brightness::Dimming::Off,
+            brightness::Backlight::Off,
+        );
         /**
             #### Write Parameters
 
@@ -656,7 +688,7 @@ pub mod core {
         const NAME: &str = "RDCTRLD";
         const ADDRESS: Address = Address(0x54);
     }
-    impl Data for RDCTRLD {
+    impl Parametric for RDCTRLD {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -671,7 +703,7 @@ pub mod core {
         const NAME: &str = "WRCACE";
         const ADDRESS: Address = Address(0x55);
     }
-    impl Data for WRCACE {
+    impl Parametric for WRCACE {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -686,7 +718,7 @@ pub mod core {
         const NAME: &str = "RDCABC";
         const ADDRESS: Address = Address(0x56);
     }
-    impl Data for RDCABC {
+    impl Parametric for RDCABC {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -701,7 +733,7 @@ pub mod core {
         const NAME: &str = "WRCABCMB";
         const ADDRESS: Address = Address(0x5E);
     }
-    impl Data for WRCABCMB {
+    impl Parametric for WRCABCMB {
         type Parameters = (brightness::Minimum,);
         type Packets = Buffer<1>;
     }
@@ -716,7 +748,7 @@ pub mod core {
         const NAME: &str = "RDCABCMB";
         const ADDRESS: Address = Address(0x5F);
     }
-    impl Data for RDCABCMB {
+    impl Parametric for RDCABCMB {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -731,7 +763,7 @@ pub mod core {
         const NAME: &str = "RDABCSDR";
         const ADDRESS: Address = Address(0x68);
     }
-    impl Data for RDABCSDR {
+    impl Parametric for RDABCSDR {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -746,7 +778,7 @@ pub mod core {
         const NAME: &str = "RDBWLB";
         const ADDRESS: Address = Address(0x70);
     }
-    impl Data for RDBWLB {
+    impl Parametric for RDBWLB {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -761,7 +793,7 @@ pub mod core {
         const NAME: &str = "RDBKX";
         const ADDRESS: Address = Address(0x71);
     }
-    impl Data for RDBKX {
+    impl Parametric for RDBKX {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -776,7 +808,7 @@ pub mod core {
         const NAME: &str = "RDBKY";
         const ADDRESS: Address = Address(0x72);
     }
-    impl Data for RDBKY {
+    impl Parametric for RDBKY {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -791,7 +823,7 @@ pub mod core {
         const NAME: &str = "RDWX";
         const ADDRESS: Address = Address(0x73);
     }
-    impl Data for RDWX {
+    impl Parametric for RDWX {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -806,7 +838,7 @@ pub mod core {
         const NAME: &str = "RDWY";
         const ADDRESS: Address = Address(0x74);
     }
-    impl Data for RDWY {
+    impl Parametric for RDWY {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -821,7 +853,7 @@ pub mod core {
         const NAME: &str = "RDRGLB";
         const ADDRESS: Address = Address(0x75);
     }
-    impl Data for RDRGLB {
+    impl Parametric for RDRGLB {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -836,7 +868,7 @@ pub mod core {
         const NAME: &str = "RDRX";
         const ADDRESS: Address = Address(0x76);
     }
-    impl Data for RDRX {
+    impl Parametric for RDRX {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -851,7 +883,7 @@ pub mod core {
         const NAME: &str = "RDRY";
         const ADDRESS: Address = Address(0x77);
     }
-    impl Data for RDRY {
+    impl Parametric for RDRY {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -866,7 +898,7 @@ pub mod core {
         const NAME: &str = "RDGX";
         const ADDRESS: Address = Address(0x78);
     }
-    impl Data for RDGX {
+    impl Parametric for RDGX {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -881,7 +913,7 @@ pub mod core {
         const NAME: &str = "RDGY";
         const ADDRESS: Address = Address(0x79);
     }
-    impl Data for RDGY {
+    impl Parametric for RDGY {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -896,7 +928,7 @@ pub mod core {
         const NAME: &str = "RDBALB";
         const ADDRESS: Address = Address(0x7A);
     }
-    impl Data for RDBALB {
+    impl Parametric for RDBALB {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -911,7 +943,7 @@ pub mod core {
         const NAME: &str = "RDBX";
         const ADDRESS: Address = Address(0x7B);
     }
-    impl Data for RDBX {
+    impl Parametric for RDBX {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1046,29 +1078,32 @@ pub mod core {
         const NAME: &str = "CND2BKXSEL";
         const ADDRESS: Address = Address(0xFF);
     }
-    impl Data for CND2BKXSEL {
+    impl Parametric for CND2BKXSEL {
         type Parameters = (Switch, Bank);
         type Packets = Buffer<5>;
     }
-    impl WriteData for CND2BKXSEL {
-        fn encode((cn2, bkxsel): &Self::Parameters) -> Self::Packets {
-            const P1: u8 = 0b0111_0111;
-            const P2: u8 = 0b0000_0001;
-            const P3: u8 = 0b0000_0000;
-            const P4: u8 = 0b0000_0000;
+    impl Writer for CND2BKXSEL {
+        const INITIAL: Self::Parameters = (Switch::Off, Bank::BK0);
 
-            let p5_toggle: u8 = match cn2 {
+        fn encode((cn2, bkxsel): &Self::Parameters) -> Self::Packets {
+            let p5_cn2: u8 = match cn2 {
                 Switch::Off => 0b0000_0000,
                 Switch::On => 0b0001_0000,
             };
 
-            let p5_bank: u8 = match bkxsel {
+            let p5_bkxsel = match bkxsel {
                 Bank::BK0 => 0b0000_0000,
                 Bank::BK1 => 0b0000_0001,
                 Bank::BK3 => 0b0000_0011,
             };
 
-            [P1, P2, P3, P4, p5_toggle | p5_bank]
+            [
+                0b0111_0111,
+                0b0000_0001,
+                0b0000_0000,
+                0b0000_0000,
+                p5_cn2 | p5_bkxsel,
+            ]
         }
     }
 }
@@ -1077,16 +1112,33 @@ pub mod core {
  ## BK0 COMMANDS
 */
 pub mod bk0 {
-    use crate::st7701s_spi::parameters::register::Bank;
+    use crate::st7701s_spi::parameters::{gamma, register::Bank};
 
     use super::*;
 
     const BK0: Extension = Extension(Some(Bank::BK0));
 
-    /**
-      ### `0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
-      > See p. 261
-    */
+    /// ### `0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
+    /// > See p. 261
+    ///
+    ///
+    /// |   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+    /// |    AJ0P[1:0]    |   --   |   --   |             VC0P[3:0]             |
+    /// |    AJ1P[1:0]    |                      VC4P[5:0]                      |
+    /// |    AJ2P[1:0]    |                      VC8P[5:0]                      |
+    /// |   --   |   --   |   --   |                 VC16P[4:0]                 |
+    /// |    AJ3P[1:0]    |   --   |                 VC24P[4:0]                 |
+    /// |   --   |   --   |   --   |   --   |             VC52P[3:0]            |
+    /// |   --   |   --   |                      VC80P[5:0]                     |
+    /// |   --   |   --   |   --   |   --   |            VC108P[3:0]            |
+    /// |   --   |   --   |   --   |   --   |            VC147P[3:0]            |
+    /// |   --   |   --   |                     VC175P[5:0]                     |
+    /// |   --   |   --   |   --   |   --   |            VC203P[3:0]            |
+    /// |    AJ4P[1:0]    |   --   |                VC231P[4:0]                 |
+    /// |   --   |   --   |   --   |                VC239P[4:0]                 |
+    /// |    AJ5P[1:0]    |                     VC247P[5:0]                     |
+    /// |    AJ6P[1:0]    |                     VC251P[5:0]                     |
+    /// |    AJ7P[1:0]    |   --   |                 VC255P[4:0]                |
     #[derive(Debug)]
     pub struct PVGAMCTRL;
     impl Command for PVGAMCTRL {
@@ -1094,9 +1146,29 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xB0);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for PVGAMCTRL {
-        type Parameters = ();
+    impl Parametric for PVGAMCTRL {
+        type Parameters = (
+            (gamma::AJ0P, gamma::VC0P),
+            (gamma::AJ1P, gamma::VC4P),
+            (gamma::AJ2P, gamma::VC8P),
+            (gamma::VC16P,),
+            (gamma::AJ3P, gamma::VC24P),
+            (gamma::VC52P,),
+            (gamma::VC80P,),
+            (gamma::VC108P,),
+            (gamma::VC147P,),
+            (gamma::VC203P,),
+            (gamma::AJ4P, gamma::VC231P),
+            (gamma::VC239P,),
+            (gamma::AJ5P, gamma::VC247P),
+            (gamma::AJ6P, gamma::VC251P),
+            (gamma::AJ7P, gamma::VC255P),
+        );
         type Packets = Buffer<16>;
+    }
+    impl Writer for PVGAMCTRL {
+        fn encode(&self, parameters: &Self::Parameters) -> Self::Packets {
+        }
     }
 
     /**
@@ -1110,7 +1182,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xB1);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for NVGAMCTRL {
+    impl Parametric for NVGAMCTRL {
         type Parameters = ();
         type Packets = Buffer<16>;
     }
@@ -1126,7 +1198,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xB8);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for DGMEN {
+    impl Parametric for DGMEN {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1142,7 +1214,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xB9);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for DGMLUTR {
+    impl Parametric for DGMLUTR {
         type Parameters = ();
         type Packets = Buffer<130>;
     }
@@ -1158,7 +1230,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xBA);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for DGMLUTB {
+    impl Parametric for DGMLUTB {
         type Parameters = ();
         type Packets = Buffer<130>;
     }
@@ -1174,7 +1246,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xBC);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for PWMCLK {
+    impl Parametric for PWMCLK {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1190,7 +1262,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC0);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for LNESET {
+    impl Parametric for LNESET {
         type Parameters = ();
         type Packets = Buffer<2>;
     }
@@ -1206,7 +1278,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC1);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for PORCTRL {
+    impl Parametric for PORCTRL {
         type Parameters = ();
         type Packets = Buffer<2>;
     }
@@ -1222,7 +1294,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC2);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for INVSET {
+    impl Parametric for INVSET {
         type Parameters = ();
         type Packets = Buffer<2>;
     }
@@ -1238,7 +1310,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC3);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for RGBCTRL {
+    impl Parametric for RGBCTRL {
         type Parameters = ();
         type Packets = Buffer<3>;
     }
@@ -1254,7 +1326,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC5);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for PARCTRL {
+    impl Parametric for PARCTRL {
         type Parameters = ();
         type Packets = Buffer<4>;
     }
@@ -1270,7 +1342,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC7);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for SDIR {
+    impl Parametric for SDIR {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1286,7 +1358,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xC8);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for PDOSET {
+    impl Parametric for PDOSET {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1302,7 +1374,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xCD);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for COLCTRL {
+    impl Parametric for COLCTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1314,7 +1386,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xCE);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for SSCTRL {
+    impl Parametric for SSCTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1330,7 +1402,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xE0);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for SRECTRL {
+    impl Parametric for SRECTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1346,7 +1418,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xE1);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for NRCTRL {
+    impl Parametric for NRCTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1362,7 +1434,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xE2);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for SECTRL {
+    impl Parametric for SECTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1378,7 +1450,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xE3);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for CCCTRL {
+    impl Parametric for CCCTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1394,7 +1466,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xE4);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for SKCTRL {
+    impl Parametric for SKCTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1406,7 +1478,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xEA);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for NVMSETE {
+    impl Parametric for NVMSETE {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1418,7 +1490,7 @@ pub mod bk0 {
         const ADDRESS: Address = Address(0xEE);
         const EXTENSION: Extension = BK0;
     }
-    impl Data for CABCCTRL {
+    impl Parametric for CABCCTRL {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1441,7 +1513,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xB1);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for VCOMS {
+    impl Parametric for VCOMS {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1453,7 +1525,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xB2);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for VGHSS {
+    impl Parametric for VGHSS {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1465,7 +1537,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xB3);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for TESTCMD {
+    impl Parametric for TESTCMD {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1477,7 +1549,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xB5);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for VGLS {
+    impl Parametric for VGLS {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1489,7 +1561,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xB7);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for PWCTRL1 {
+    impl Parametric for PWCTRL1 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1501,7 +1573,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xB8);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for PWCTRL2 {
+    impl Parametric for PWCTRL2 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1513,7 +1585,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xBA);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for PCLKS1 {
+    impl Parametric for PCLKS1 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1525,7 +1597,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xBC);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for PCLKS3 {
+    impl Parametric for PCLKS3 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1537,7 +1609,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xC1);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for SPD1 {
+    impl Parametric for SPD1 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1549,7 +1621,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xC2);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for SPD2 {
+    impl Parametric for SPD2 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1561,7 +1633,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xD0);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for MIPISET1 {
+    impl Parametric for MIPISET1 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1573,7 +1645,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xD1);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for MIPISET2 {
+    impl Parametric for MIPISET2 {
         type Parameters = ();
         type Packets = Buffer<4>;
     }
@@ -1585,7 +1657,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xD2);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for MIPISET3 {
+    impl Parametric for MIPISET3 {
         type Parameters = ();
         type Packets = Buffer<1>;
     }
@@ -1597,7 +1669,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xD3);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for MIPISET4 {
+    impl Parametric for MIPISET4 {
         type Parameters = ();
         type Packets = Buffer<2>;
     }
@@ -1609,7 +1681,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xC8);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for NVMEN {
+    impl Parametric for NVMEN {
         type Parameters = ();
         type Packets = Buffer<4>;
     }
@@ -1621,7 +1693,7 @@ pub mod bk1 {
         const ADDRESS: Address = Address(0xCA);
         const EXTENSION: Extension = BK1;
     }
-    impl Data for NVMSET {
+    impl Parametric for NVMSET {
         type Parameters = ();
         type Packets = Buffer<3>;
     }

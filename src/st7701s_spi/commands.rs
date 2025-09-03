@@ -3,11 +3,11 @@ use std::{thread, time};
 use log::info;
 
 use crate::st7701s_spi::{
-    interface::{bk0::*, bk1::*, core::*, Data},
+    interface::{bk0::*, bk1::*, core::*, Parametric},
     panel::Mode,
     parameters::*,
-    spi::{Configure, Momentary, Select, SideEffect, StateConstants, StateTracker, Toggle, Transceiver, Transmission, ST7701S},
-    state::{Switch},
+    spi::{Configure, Momentary, Select, SideEffect, StateItem, StateTracker, Toggle, Transceiver, Transmission, ST7701S},
+    state::Switch,
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -36,7 +36,7 @@ use crate::st7701s_spi::{
     This command is "empty". It has no effect on the display, but it can be used
     to terminate parameter write commands.
 */
-type NoOperation = Momentary<NOP>;
+type NoOperation = dyn Momentary<NOP>;
 
 
 /**
@@ -52,42 +52,28 @@ type NoOperation = Momentary<NOP>;
     3. If the display is already in the process of exiting sleep, a reset
         command will be ignored and have no effect.
 */
-type SoftwareReset = SideEffect<SWRESET>;
-impl Transmission<()> for SoftwareReset {
-    fn transmit(
-        &mut self,
-        channel: &mut impl Transceiver,
-        _: (),
-        state: &mut StateTracker,) -> Result<(), &'static str> {
-        channel.tx_command::<SWRESET>().and_then(|x| {
-            state.reset();
+type SoftwareReset = dyn Momentary<SWRESET>;
+impl SideEffect<(), false> for SoftwareReset {
+    fn on_transmit_success(
+        _channel: &mut impl Transceiver,
+        _parameters: (),
+        state: &mut StateTracker,
+    ) {
+        state.reset();
 
-            if SleepMode::is(state, &Switch::On) {
-                info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
-
-                thread::sleep(time::Duration::from_millis(120));
-            } else {
-                info!("Software reset, waiting 5ms for reset to complete");
-
-                thread::sleep(time::Duration::from_millis(5));
-            }
-
-            Ok(x)
-        })
+        if state.is::<SleepMode>(&Switch::On) {
+            info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
+            thread::sleep(time::Duration::from_millis(120));
+        } else {
+            info!("Software reset, waiting 5ms for reset to complete");
+            thread::sleep(time::Duration::from_millis(5));
+        }
     }
 }
 
-pub type SleepMode = Toggle<SLPIN, SLPOUT>;
-impl StateConstants<Switch> for SleepMode {
-    const ID: &'static str = "Sleep Mode";
-    const INITIAL: Switch = Switch::Off;
-}
+pub type SleepMode = dyn Toggle<SLPIN, SLPOUT>;
 
-pub type PartialMode = Toggle<PTLON, NORON>;
-impl StateConstants<Switch> for PartialMode {
-    const ID: &'static str = "Partial Mode";
-    const INITIAL: Switch = Switch::Off;
-}
+pub type PartialMode = dyn Toggle<PTLON, NORON>;
 
 /**
     ## INVERT PICTURE
@@ -95,34 +81,18 @@ impl StateConstants<Switch> for PartialMode {
     Causes the image displayed on the LCD to have its colors inverted (INVON)
     or display normally (INVOFF).
 */
-pub type InvertPicture = Toggle<INVON, INVOFF>;
-impl StateConstants<Switch> for InvertPicture {
-    const ID: &'static str = "Invert Picture";
-    const INITIAL: Switch = Switch::Off;
-}
+pub type InvertPicture = dyn Toggle<INVON, INVOFF>;
 
-pub type AllPixelsWhite = Momentary<ALLPON>;
+pub type AllPixelsWhite = dyn Momentary<ALLPON>;
 
-pub type AllPixelsBlack = Momentary<ALLPOFF>;
+pub type AllPixelsBlack = dyn Momentary<ALLPOFF>;
 
-pub type GammaCurve = Configure<GAMSET>;
-impl StateConstants<gamma::Curve> for GammaCurve {
-    const ID: &'static str = "Gamma Curve";
-    const INITIAL: gamma::Curve = gamma::Curve::GC3;
-}
+pub type GammaCurve = dyn Configure<GAMSET>;
 
-pub type DisplayOutput = Toggle<DISPON, DISPOFF>;
-impl StateConstants<Switch> for DisplayOutput {
-    const ID: &'static str = "Display Output";
-    const INITIAL: Switch = Switch::Off;
-}
+pub type DisplayOutput = dyn Toggle<DISPON, DISPOFF>;
 
 
-pub type TearingEffect = Select<TEON, TEOFF>;
-impl StateConstants<Option<(tearing_effect::Blank,)>> for TearingEffect {
-    const ID: &'static str = "Tearing Effect";
-    const INITIAL: Option<(tearing_effect::Blank,)> = None;
-}
+pub type TearingEffect = dyn Select<TEON, TEOFF>;
 
 
 /// # DISPLAY DATA ACCESS CONTROL
@@ -130,11 +100,8 @@ impl StateConstants<Option<(tearing_effect::Blank,)>> for TearingEffect {
 /// * []
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
-pub type DataAccessControl = Configure<MADCTL>;
-impl StateConstants<<MADCTL as Data>::Parameters> for DataAccessControl {
-    const ID: &'static str = "Data Access Control";
-    const INITIAL: <MADCTL as Data>::Parameters = (data_access::ScanDirection::Normal, data_access::ColorOrder::RGB);
-}
+pub type DataAccessControl = dyn Configure<MADCTL>;
+
 
 /**
   ## IDLE MODE
@@ -143,11 +110,8 @@ impl StateConstants<<MADCTL as Data>::Parameters> for DataAccessControl {
   The MSB of each color will be rounded up or down, creating a  palette limited
   to 8 colors.
 */
-pub type IdleMode = Toggle<IDMON, IDMOFF>;
-impl StateConstants<Switch> for IdleMode {
-    const ID: &'static str = "Idle Mode";
-    const INITIAL: Switch = Switch::Off;
-}
+pub type IdleMode = dyn Toggle<IDMON, IDMOFF>;
+
 
 /// # SET INTERFACE PIXEL FORMAT
 ///
@@ -155,11 +119,8 @@ impl StateConstants<Switch> for IdleMode {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
-pub type ColorMode = Configure<COLMOD>;
-impl StateConstants<<COLMOD as Data>::Parameters> for ColorMode {
-    const ID: &'static str = "Color Mode";
-    const INITIAL: <COLMOD as Data>::Parameters = (pixel_format::BitsPerPixel::RGB888,);
-}
+pub type ColorMode = dyn Configure<COLMOD>;
+
 
 /// # SET DISPLAY BRIGHTNESS
 ///
@@ -170,11 +131,8 @@ impl StateConstants<<COLMOD as Data>::Parameters> for ColorMode {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Display Brightness Value [7:0]                    |
-pub type Brightness = Configure<WRDISBV>;
-impl StateConstants<<WRDISBV as Data>::Parameters> for Brightness {
-    const ID: &'static str = "Brightness";
-    const INITIAL: <WRDISBV as Data>::Parameters = (0x00,);
-}
+pub type Brightness = dyn Configure<WRDISBV>;
+
 
 /// # WRITE CTRL DISPLAY
 ///
@@ -187,11 +145,8 @@ impl StateConstants<<WRDISBV as Data>::Parameters> for Brightness {
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
 
-pub type BrightnessControl = Configure<WRCTRLD>;
-impl StateConstants<<WRCTRLD as Data>::Parameters> for BrightnessControl {
-    const ID: &'static str = "Brightness Control";
-    const INITIAL: <WRCTRLD as Data>::Parameters = (brightness::Control::Off, brightness::Dimming::Off, brightness::Backlight::Off);
-}
+pub type BrightnessControl = dyn Configure<WRCTRLD>;
+
 
 /// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
 ///
@@ -204,11 +159,8 @@ impl StateConstants<<WRCTRLD as Data>::Parameters> for BrightnessControl {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
-pub type ColorEnhancement = Configure<WRCACE>;
-impl StateConstants<<WRCACE as Data>::Parameters> for ColorEnhancement {
-    const ID: &'static str = "Color Enhancement";
-    const INITIAL: <WRCACE as Data>::Parameters = (color::Enhancement::Off, color::EnhanceLevel::Low, AdaptiveBrightness::Off);
-}
+pub type ColorEnhancement = dyn Configure<WRCACE>;
+
 
 ///
 /// WRITE CABC MINIMUM BRIGHTNESS
@@ -219,11 +171,8 @@ impl StateConstants<<WRCACE as Data>::Parameters> for ColorEnhancement {
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Minimum Brightness Value [7:0]                    |
-pub type MinimumBrightness = Configure<WRCABCMB>;
-impl StateConstants<<WRCABCMB as Data>::Parameters> for MinimumBrightness {
-    const ID: &'static str = "Minimum Brightness";
-    const INITIAL: <WRCABCMB as Data>::Parameters = (0x00,);
-}
+pub type MinimumBrightness = dyn Configure<WRCABCMB>;
+
 
 
 /// # SET COMMAND2 MODE
@@ -234,29 +183,21 @@ impl StateConstants<<WRCABCMB as Data>::Parameters> for MinimumBrightness {
 /// approach, where set_command_2 will send the chip the updated Command2
 /// setting AND record it back to the local flag, which is required for
 /// static type checking in all Command2 operations locally.
-pub type SetExtendedCommand = Configure<CND2BKXSEL>;
-impl StateConstants<<CND2BKXSEL as Data>::Parameters> for SetExtendedCommand {
-    const ID: &'static str = "Set Extended Command";
-    const INITIAL: <CND2BKXSEL as Data>::Parameters = (register::ExtendedCommands::Off, register::Bank::BK0);
-}
+pub type SetExtendedCommand = dyn Configure<CND2BKXSEL>;
+
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-pub const fn positive_gamma_control(
-    parameters: [u8; PVGAMCTRL::BYTES],
-) -> Operation<{ PVGAMCTRL::BYTES }> {
-    Operation::write::<PVGAMCTRL>(parameters)
-}
+
+pub type PositiveGammaControl = dyn Configure<PVGAMCTRL>;
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-pub const fn negative_gamma_control(
-    parameters: [u8; NVGAMCTRL::BYTES],
-) -> Operation<{ NVGAMCTRL::BYTES }> {
-    Operation::write::<NVGAMCTRL>(parameters)
-}
+pub type NegativeGammaControl = dyn Configure<NVGAMCTRL>;
 
 /// # DISPLAY LINE SETTING
+pub type DisplayLineSetting = dyn Configure<LNESET>;
+
 pub const fn display_line_setting(
     lde_en: u8,
     line: u8,
