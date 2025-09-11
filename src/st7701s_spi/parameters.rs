@@ -1,76 +1,140 @@
-use std::{any::Any, ops::{Deref, Shl}};
+pub trait U8Bit<const D: u8> {}
+impl U8Bit<0> for () {}
+impl U8Bit<1> for () {}
+impl U8Bit<2> for () {}
+impl U8Bit<3> for () {}
+impl U8Bit<4> for () {}
+impl U8Bit<5> for () {}
+impl U8Bit<6> for () {}
+impl U8Bit<7> for () {}
 
-use frunk::labelled::chars::M;
+pub struct ClampedParameter<const BITS: u8>(u8);
+impl<const BITS: u8> ClampedParameter<BITS>
+where
+    (): U8Bit<BITS>,
+{
+    pub const MASK: u8 = const { (2 << BITS) - 1 };
 
-
-pub trait Bit<const D: u8> {}
-impl Bit<0> for () {}
-impl Bit<1> for () {}
-impl Bit<2> for () {}
-impl Bit<3> for () {}
-impl Bit<4> for () {}
-impl Bit<5> for () {}
-impl Bit<6> for () {}
-impl Bit<7> for () {}
-
-pub struct Parameter(u8);
-
-pub trait BitRange<const MSB: u8, const LSB: u8> where (): Bit<MSB>, (): Bit<LSB> {
-    fn new(value: u8) -> Self;
-}
-
-impl<const MSB: u8, const LSB: u8> BitRange<MSB, LSB> for Parameter where (): Bit<MSB>, (): Bit<LSB> {
-    fn new(input: u8) -> Self {
-        const {
-            assert!(MSB > LSB, "Expected MSB to be greater than LSB");
-        }
-
-        let mask = const { 2_u8.pow(MSB as u32 - LSB as u32 + 1) - 1 };
-        let value = input & mask;
-        assert!(value == input, "Input value is out of range");
-
-        Self(value << LSB)
+    pub const fn new(value: u8) -> Self {
+        Self(value & Self::MASK)
     }
 }
 
-// impl<const MSB: u8, const LSB: u8> Deref for BitRange<MSB, LSB> where (): Bit<MSB>, (): Bit<LSB> {
-//     type Target = u8;
+// pub trait BitRange<const MSB: u8, const LSB: u8>
+// where
+//     (): U8Bit<MSB>,
+//     (): U8Bit<LSB>,
+// {
+//     const MASK: u8 = const { 2_u8.pow(MSB as u32 - LSB as u32 + 1) - 1 };
 
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
+//     fn to_parameter(self) -> Parameter {
+//         const {
+//             assert!(MSB > LSB, "Expected MSB to be greater than LSB");
+//             assert!(LSB < 8, "Expected LSB to be less than 8");
+//         }
+
+//         Parameter::new((self & Self::MASK) << LSB)
 //     }
 // }
 
-pub trait Packet {
-    fn merge(self) -> u8;
-}
-impl <A> Packet for (A,) where A: Into<u8> {
-    fn merge(self) -> u8 {
-        self.0.into()
-    }
-}
+// pub trait Packet {
+//     type D0
+// }
+// // pub struct Packet(u8);
+// impl Packet {
+//     pub const fn from_parameters<const N: usize>(parameters: [impl Into<u8>; N]) -> Self {
+//         Self(parameters.iter().fold(0_u8, |acc, p| acc | p.into()))
+//     }
+// }
 
-// #[derive(PartialEq, Debug)]
-pub trait BitRange<const BITS: u32 = 8, const LSB: u8 = 0> {
-    fn mask(self) -> u8;
-}
-impl <const BITS: u32, const LSB: u8> BitRange<BITS, LSB> for u8 {
-    fn mask(self) -> u8 {
+pub struct Packet(u8);
+impl Packet {
+    pub const fn new(value: u8) -> Self {
+        Self(value)
+    }
+
+    const fn merge_parameter<const D: u8, const BITS: u8>(self, value: ClampedParameter<BITS>) -> Self
+    where
+        (): U8Bit<D>,
+    {
         const {
-            assert!(BITS > 0, "Expected BITS to be greater than 0");
-            assert!(BITS <= 8, "Expected BITS to be less than or equal to 8");
-            assert!(LSB <= 8, "Expected LSB to be less than or equal to 8");
             assert!(
-                BITS > (8 - LSB as u32),
-                "Expected BITS to be greater than (8 - LSB)"
+                (8 - D) >= BITS,
+                "Size of BITS will overflow u8 when shifted by N"
             );
         }
 
-        let mask = 2_u8.pow(BITS) - 1;
+        Self(self.0 | (value.0 << D))
+    }
 
-        (mask & self) << LSB
+    pub const fn d<const N: u8, const BITS: u8>(mut self, value: ClampedParameter<BITS>) -> Self
+    where
+        (): U8Bit<N>,
+    {
+        const {
+            assert!(
+                (8 - N) >= BITS,
+                "Size of BITS will overflow u8 when shifted by N"
+            );
+        }
+
+        self.0 |= value.0 << N;
+
+        self
+    }
+
+    pub const fn d8(self) -> Self {
+        self.d::<0, 8>()
     }
 }
+
+impl Default for Packet {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+pub struct Transmission<const N: usize>([Packet; N]);
+impl<const N: usize> Transmission<N> {
+    pub const fn new(packets: [Packet; N]) -> Self {
+        Self(packets)
+    }
+}
+
+// pub trait Packet {
+//     type D7: Option<BitRange<_,_>>;
+//     fn merge(self) -> u8;
+// }
+// impl<A> Packet for (A,)
+// where
+//     A: Into<u8>,
+// {
+//     fn merge(self) -> u8 {
+//         self.0.into()
+//     }
+// }
+
+// #[derive(PartialEq, Debug)]
+// pub trait BitRange<const BITS: u32 = 8, const LSB: u8 = 0> {
+//     fn mask(self) -> u8;
+// }
+// impl<const BITS: u32, const LSB: u8> BitRange<BITS, LSB> for u8 {
+//     fn mask(self) -> u8 {
+//         const {
+//             assert!(BITS > 0, "Expected BITS to be greater than 0");
+//             assert!(BITS <= 8, "Expected BITS to be less than or equal to 8");
+//             assert!(LSB <= 8, "Expected LSB to be less than or equal to 8");
+//             assert!(
+//                 BITS > (8 - LSB as u32),
+//                 "Expected BITS to be greater than (8 - LSB)"
+//             );
+//         }
+
+//         let mask = 2_u8.pow(BITS) - 1;
+
+//         (mask & self) << LSB
+//     }
+// }
 
 pub mod register {
     use crate::st7701s_spi::state::Switch;
@@ -143,7 +207,7 @@ pub mod register {
 }
 
 pub mod gamma {
-    use crate::st7701s_spi::parameters::{BitRange, Packet, BitRange};
+    use crate::parameters::{BitRange, Packet};
 
     #[derive(Debug, PartialEq)]
     pub enum Curve {
@@ -152,7 +216,6 @@ pub mod gamma {
         GC3,
         GC4,
     }
-
 
     pub struct VoltageControl {
         pub aj0: BitRange<2, 6>,
@@ -183,24 +246,24 @@ pub mod gamma {
 
     impl VoltageControl {
         const fn encode(self) -> [u8; 16] {
-            let transmission: [
-            (*self.aj0 | *self.vc0),
-            (self.aj1, self.vc4).merge(),
-            (self.aj2, self.vc8).merge(),
-            (self.vc16).merge(),
-            (self.aj3, self.vc24).merge(),
-            (self.vc52).merge(),
-            (self.vc80).merge(),
-            (self.vc108).merge(),
-            (self.vc147).merge(),
-            (self.vc175).merge(),
-            (self.vc203).merge(),
-            (self.aj4, self.vc231).merge(),
-            (self.vc239).merge(),
-            (self.aj5, self.vc247).merge(),
-            (self.aj6, self.vc251).merge(),
-            (self.aj7, self.vc255).merge(),
-            ]
+            let transmission = [
+                Packet::new().d::<6>(self.aj0).d::<0>(self.vc0),
+                (self.aj1, self.vc4).merge(),
+                (self.aj2, self.vc8).merge(),
+                (self.vc16).merge(),
+                (self.aj3, self.vc24).merge(),
+                (self.vc52).merge(),
+                (self.vc80).merge(),
+                (self.vc108).merge(),
+                (self.vc147).merge(),
+                (self.vc175).merge(),
+                (self.vc203).merge(),
+                (self.aj4, self.vc231).merge(),
+                (self.vc239).merge(),
+                (self.aj5, self.vc247).merge(),
+                (self.aj6, self.vc251).merge(),
+                (self.aj7, self.vc255).merge(),
+            ];
         }
     }
 

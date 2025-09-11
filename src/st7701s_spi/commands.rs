@@ -2,11 +2,14 @@ use std::{thread, time};
 
 use log::info;
 
-use crate::st7701s_spi::{
+use crate::{
     interface::{bk0::*, bk1::*, core::*, Parametric},
     panel::Mode,
     parameters::*,
-    spi::{Configure, Momentary, Select, SideEffect, StateItem, StateTracker, Toggle, Transceiver, Transmission, ST7701S},
+    spi::{
+        Configure, Momentary, Select, SideEffect, StateItem, StateTracker, Toggle, Transceiver,
+        Transmission, ST7701S,
+    },
     state::Switch,
 };
 
@@ -37,7 +40,6 @@ use crate::st7701s_spi::{
     to terminate parameter write commands.
 */
 type NoOperation = dyn Momentary<NOP>;
-
 
 /**
     ## SOFTWARE RESET
@@ -91,9 +93,7 @@ pub type GammaCurve = dyn Configure<GAMSET>;
 
 pub type DisplayOutput = dyn Toggle<DISPON, DISPOFF>;
 
-
 pub type TearingEffect = dyn Select<TEON, TEOFF>;
-
 
 /// # DISPLAY DATA ACCESS CONTROL
 /// * [ML] - Scan direction
@@ -101,7 +101,6 @@ pub type TearingEffect = dyn Select<TEON, TEOFF>;
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
 pub type DataAccessControl = dyn Configure<MADCTL>;
-
 
 /**
   ## IDLE MODE
@@ -112,7 +111,6 @@ pub type DataAccessControl = dyn Configure<MADCTL>;
 */
 pub type IdleMode = dyn Toggle<IDMON, IDMOFF>;
 
-
 /// # SET INTERFACE PIXEL FORMAT
 ///
 /// Defines the format for RGB pixel data.
@@ -120,7 +118,6 @@ pub type IdleMode = dyn Toggle<IDMON, IDMOFF>;
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
 pub type ColorMode = dyn Configure<COLMOD>;
-
 
 /// # SET DISPLAY BRIGHTNESS
 ///
@@ -132,7 +129,6 @@ pub type ColorMode = dyn Configure<COLMOD>;
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Display Brightness Value [7:0]                    |
 pub type Brightness = dyn Configure<WRDISBV>;
-
 
 /// # WRITE CTRL DISPLAY
 ///
@@ -147,7 +143,6 @@ pub type Brightness = dyn Configure<WRDISBV>;
 
 pub type BrightnessControl = dyn Configure<WRCTRLD>;
 
-
 /// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
 ///
 /// Set parameters for content-based adaptive brightness control, set
@@ -161,7 +156,6 @@ pub type BrightnessControl = dyn Configure<WRCTRLD>;
 ///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
 pub type ColorEnhancement = dyn Configure<WRCACE>;
 
-
 ///
 /// WRITE CABC MINIMUM BRIGHTNESS
 ///
@@ -173,8 +167,6 @@ pub type ColorEnhancement = dyn Configure<WRCACE>;
 ///|                     Minimum Brightness Value [7:0]                    |
 pub type MinimumBrightness = dyn Configure<WRCABCMB>;
 
-
-
 /// # SET COMMAND2 MODE
 /// This is one of the most confusing attributes of the Sitronix chips.
 /// BK0, BK1, and BK3 (maybe) all have "Command2" operations that share a
@@ -185,10 +177,8 @@ pub type MinimumBrightness = dyn Configure<WRCABCMB>;
 /// static type checking in all Command2 operations locally.
 pub type SetExtendedCommand = dyn Configure<CND2BKXSEL>;
 
-
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-
 pub type PositiveGammaControl = dyn Configure<PVGAMCTRL>;
 
 /// # POSITIVE GAMMA CONTROL
@@ -197,7 +187,21 @@ pub type NegativeGammaControl = dyn Configure<NVGAMCTRL>;
 
 /// # DISPLAY LINE SETTING
 pub type DisplayLineSetting = dyn Configure<LNESET>;
+pub const fn positive_gamma_control(
+    parameters: [u8; PVGAMCTRL::BYTES],
+) -> Operation<{ PVGAMCTRL::BYTES }> {
+    Operation::write::<PVGAMCTRL>(parameters)
+}
 
+/// # POSITIVE GAMMA CONTROL
+/// See note above about parameters
+pub const fn negative_gamma_control(
+    parameters: [u8; NVGAMCTRL::BYTES],
+) -> Operation<{ NVGAMCTRL::BYTES }> {
+    Operation::write::<NVGAMCTRL>(parameters)
+}
+
+/// # DISPLAY LINE SETTING
 pub const fn display_line_setting(
     lde_en: u8,
     line: u8,

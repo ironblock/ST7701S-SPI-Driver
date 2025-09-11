@@ -1,12 +1,11 @@
 use std::fmt::Debug;
 
-use crate::st7701s_spi::parameters::register::{Address, Bank, Extension, Location};
+use crate::parameters::register::{Address, Bank, Extension, Location};
 
 pub type Bytes = usize;
 
 pub type Buffer<const N: Bytes> = [u8; N];
 pub type BufferDecoder = for<'a> fn(&'a [u8]);
-
 
 pub trait Command {
     const NAME: &str;
@@ -1147,28 +1146,11 @@ pub mod bk0 {
         const EXTENSION: Extension = BK0;
     }
     impl Parametric for PVGAMCTRL {
-        type Parameters = (
-            (gamma::AJ0P, gamma::VC0P),
-            (gamma::AJ1P, gamma::VC4P),
-            (gamma::AJ2P, gamma::VC8P),
-            (gamma::VC16P,),
-            (gamma::AJ3P, gamma::VC24P),
-            (gamma::VC52P,),
-            (gamma::VC80P,),
-            (gamma::VC108P,),
-            (gamma::VC147P,),
-            (gamma::VC203P,),
-            (gamma::AJ4P, gamma::VC231P),
-            (gamma::VC239P,),
-            (gamma::AJ5P, gamma::VC247P),
-            (gamma::AJ6P, gamma::VC251P),
-            (gamma::AJ7P, gamma::VC255P),
-        );
+        type Parameters = VoltageControl;
         type Packets = Buffer<16>;
     }
     impl Writer for PVGAMCTRL {
-        fn encode(&self, parameters: &Self::Parameters) -> Self::Packets {
-        }
+        fn encode(&self, parameters: &Self::Parameters) -> Self::Packets {}
     }
 
     /**
