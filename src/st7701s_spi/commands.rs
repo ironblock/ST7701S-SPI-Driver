@@ -2,15 +2,9 @@ use std::{thread, time};
 
 use log::info;
 
-use crate::{
-    interface::{bk0::*, bk1::*, core::*, Parametric},
-    panel::Mode,
-    parameters::*,
-    spi::{
-        Configure, Momentary, Select, SideEffect, StateItem, StateTracker, Toggle, Transceiver,
-        Transmission, ST7701S,
-    },
-    state::Switch,
+use crate::st7701s_spi::{
+    instructions::Core,
+    spi::{Action, Configure, Select, Toggle},
 };
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
@@ -39,7 +33,7 @@ use crate::{
     This command is "empty". It has no effect on the display, but it can be used
     to terminate parameter write commands.
 */
-type NoOperation = dyn Momentary<NOP>;
+pub static NO_OPERATION: Action = const { Action::new(Core::NOP, None) };
 
 /**
     ## SOFTWARE RESET
@@ -54,28 +48,26 @@ type NoOperation = dyn Momentary<NOP>;
     3. If the display is already in the process of exiting sleep, a reset
         command will be ignored and have no effect.
 */
-type SoftwareReset = dyn Momentary<SWRESET>;
-impl SideEffect<(), false> for SoftwareReset {
-    fn on_transmit_success(
-        _channel: &mut impl Transceiver,
-        _parameters: (),
-        state: &mut StateTracker,
-    ) {
-        state.reset();
+pub static SOFTWARE_RESET: Action = const {
+    Action::new(
+        Core::SWRESET,
+        Some(|device| {
+            if SLEEP_MODE.is_on() {
+                info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
+                thread::sleep(time::Duration::from_millis(120));
+            } else {
+                info!("Software reset, waiting 5ms for reset to complete");
+                thread::sleep(time::Duration::from_millis(5));
+            }
 
-        if state.is::<SleepMode>(&Switch::On) {
-            info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
-            thread::sleep(time::Duration::from_millis(120));
-        } else {
-            info!("Software reset, waiting 5ms for reset to complete");
-            thread::sleep(time::Duration::from_millis(5));
-        }
-    }
-}
+            device.reset_state();
+        }),
+    )
+};
 
-pub type SleepMode = dyn Toggle<SLPIN, SLPOUT>;
+pub static SLEEP_MODE: Toggle = const { Toggle::new(Core::SLPIN, Core::SLPOUT) };
 
-pub type PartialMode = dyn Toggle<PTLON, NORON>;
+// pub type PartialMode = dyn Toggle<PTLON, NORON>;
 
 /**
     ## INVERT PICTURE
@@ -83,24 +75,24 @@ pub type PartialMode = dyn Toggle<PTLON, NORON>;
     Causes the image displayed on the LCD to have its colors inverted (INVON)
     or display normally (INVOFF).
 */
-pub type InvertPicture = dyn Toggle<INVON, INVOFF>;
+// pub type InvertPicture = dyn Toggle<INVON, INVOFF>;
 
-pub type AllPixelsWhite = dyn Momentary<ALLPON>;
+// pub type AllPixelsWhite = dyn Action<ALLPON>;
 
-pub type AllPixelsBlack = dyn Momentary<ALLPOFF>;
+// pub type AllPixelsBlack = dyn Action<ALLPOFF>;
 
-pub type GammaCurve = dyn Configure<GAMSET>;
+// pub type GammaCurve = dyn Configure<GAMSET>;
 
-pub type DisplayOutput = dyn Toggle<DISPON, DISPOFF>;
+// pub type DisplayOutput = dyn Toggle<DISPON, DISPOFF>;
 
-pub type TearingEffect = dyn Select<TEON, TEOFF>;
+// pub type TearingEffect = dyn Select<TEON, TEOFF>;
 
 /// # DISPLAY DATA ACCESS CONTROL
 /// * [ML] - Scan direction
 /// * []
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |   --   |   ML   |   CO   |   --   |   --   |   --   |
-pub type DataAccessControl = dyn Configure<MADCTL>;
+// pub type DataAccessControl = dyn Configure<MADCTL>;
 
 /**
   ## IDLE MODE
@@ -109,7 +101,7 @@ pub type DataAccessControl = dyn Configure<MADCTL>;
   The MSB of each color will be rounded up or down, creating a  palette limited
   to 8 colors.
 */
-pub type IdleMode = dyn Toggle<IDMON, IDMOFF>;
+// pub type IdleMode = dyn Toggle<IDMON, IDMOFF>;
 
 /// # SET INTERFACE PIXEL FORMAT
 ///
@@ -117,7 +109,7 @@ pub type IdleMode = dyn Toggle<IDMON, IDMOFF>;
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |          BPP[2:0]        |   --   |   --   |   --   |   --   |
-pub type ColorMode = dyn Configure<COLMOD>;
+// pub type ColorMode = dyn Configure<COLMOD>;
 
 /// # SET DISPLAY BRIGHTNESS
 ///
@@ -128,7 +120,7 @@ pub type ColorMode = dyn Configure<COLMOD>;
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Display Brightness Value [7:0]                    |
-pub type Brightness = dyn Configure<WRDISBV>;
+// pub type Brightness = dyn Configure<WRDISBV>;
 
 /// # WRITE CTRL DISPLAY
 ///
@@ -141,7 +133,7 @@ pub type Brightness = dyn Configure<WRDISBV>;
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   --   |   --   |  BCTRL |   --   |   DD   |   BL   |   --   |   --   |
 
-pub type BrightnessControl = dyn Configure<WRCTRLD>;
+// pub type BrightnessControl = dyn Configure<WRCTRLD>;
 
 /// # WRITE CONTENT ADAPTIVE BRIGHTNESS CONTROL AND COLOR ENHANCEMENT
 ///
@@ -154,7 +146,7 @@ pub type BrightnessControl = dyn Configure<WRCTRLD>;
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|   CE   |   --   |    CEMD[1:0]    |   --   |   --   |    CABC[1:0]    |
-pub type ColorEnhancement = dyn Configure<WRCACE>;
+// pub type ColorEnhancement = dyn Configure<WRCACE>;
 
 ///
 /// WRITE CABC MINIMUM BRIGHTNESS
@@ -165,7 +157,7 @@ pub type ColorEnhancement = dyn Configure<WRCACE>;
 ///
 ///|   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
 ///|                     Minimum Brightness Value [7:0]                    |
-pub type MinimumBrightness = dyn Configure<WRCABCMB>;
+// pub type MinimumBrightness = dyn Configure<WRCABCMB>;
 
 /// # SET COMMAND2 MODE
 /// This is one of the most confusing attributes of the Sitronix chips.
@@ -175,18 +167,18 @@ pub type MinimumBrightness = dyn Configure<WRCABCMB>;
 /// approach, where set_command_2 will send the chip the updated Command2
 /// setting AND record it back to the local flag, which is required for
 /// static type checking in all Command2 operations locally.
-pub type SetExtendedCommand = dyn Configure<CND2BKXSEL>;
+// pub type SetExtendedCommand = dyn Configure<CND2BKXSEL>;
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-pub type PositiveGammaControl = dyn Configure<PVGAMCTRL>;
+// pub type PositiveGammaControl = dyn Configure<PVGAMCTRL>;
 
 /// # POSITIVE GAMMA CONTROL
 /// See note above about parameters
-pub type NegativeGammaControl = dyn Configure<NVGAMCTRL>;
+// pub type NegativeGammaControl = dyn Configure<NVGAMCTRL>;
 
 /// # DISPLAY LINE SETTING
-pub type DisplayLineSetting = dyn Configure<LNESET>;
+// pub type DisplayLineSetting = dyn Configure<LNESET>;
 pub const fn positive_gamma_control(
     parameters: [u8; PVGAMCTRL::BYTES],
 ) -> Operation<{ PVGAMCTRL::BYTES }> {

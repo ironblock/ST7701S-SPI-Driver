@@ -16,7 +16,6 @@
 //! device, there may exist race conditions or other timing issues that won't be
 //! exposed on that hardware.
 
-extern crate enum_primitive;
 extern crate num;
 extern crate spidev;
 
@@ -28,6 +27,7 @@ fn main() {
 
     let mut display = HalfDuplexSPI::new(String::from("/dev/spidev1.0"));
     let mode = TDOMODE;
+
 
     init(&mut display, mode);
 }
