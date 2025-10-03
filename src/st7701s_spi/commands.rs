@@ -1,39 +1,60 @@
-use std::{thread, time};
+use std::{io, thread, time};
 
 use log::info;
 
-use crate::st7701s_spi::{
-    instructions::Core,
-    spi::{Action, Configure, Select, Toggle},
-};
+use crate::st7701s_spi::{address::{self, CommandInstruction}, device::{Protocol, Transciever, ST7701S}};
+use address::core::*;
 
-/// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
-/// are performed half-duplex
-///
-/// Unless otherwise noted, any command pairs that set and unset a "mode" (eg.
-/// DISPON/DISPOFF) will have no effect if the display is already in the mode
-/// being requested. Therefore, these commands should be safe to use in a
-/// "write-only, read-never" workflow.
-///
-/// NOTE: Some commands take many separate parameter words, most of which have at
-/// least 8 bits of variability. Because of this, they aren't enumerated and
-/// the vector is passed directly through.
+trait Toggle<ON: CommandInstruction, OFF: CommandInstruction> {}
 
-/// The write mode of the interface means the micro controller writes
-/// commands and data to the LCD driver. 3-lines serial data packet contains
-/// a control bit D/CX and a transmission byte. In 4-lines serial interface,
-/// data packet contains just transmission byte and control bit D/CX is
-/// transferred by the D/CX pin. If D/CX is “low”, the transmission byte is
-/// interpreted as a command byte. If D/CX is “high”, the transmission byte
-/// is command register as parameter.
+impl<P: Protocol> ST7701S<P> where Self: Transciever {
+    /// ## NO OPERATION
+    ///
+    /// This command is "empty". It has no effect on the display, but it can be
+    /// used to terminate parameter write commands. It is also sometimes
+    /// required as a placeholder in certain sequences.
+    pub fn no_operation(&mut self) -> io::Result<usize> {
+        self.command::<NOP>()
+    }
 
-/**
-    ## NO OPERATION
+    /// ## `0x01` `SWRESET`  Software Reset
+    /// > Reference: p. 188
+    ///
+    /// Resets all internal registers to their default values. The framebuffer is
+    /// not affected. After issuing this command, wait at least 5ms before sending
+    /// another command. If the display is in sleep mode, wait at least 120ms before
+    /// exiting sleep.
+    ///
+    /// ### Parameters
+    /// It's never stated anywhere why D0 is 1, but it's indicated in both the
+    /// primary reference table on p. 184 and again on SWRESET's detail page.
+    ///
+    /// As an additional contradiction, p. 184 refers to SWRESET as a **command**
+    /// (with no arguments), and p. 188 refers to it as a **write**. As only a
+    /// write can have arguments and 0x01 is the constant argument in both
+    /// references, SWRESET's canonical representation here is as a **write**.
+    ///
+    /// |    |   D7   |   D6   |   D5   |   D4   |   D3   |   D2   |   D1   |   D0   |
+    /// |:--:|:------:|:------:|:------:|:------:|:------:|:------:|:------:|:------:|
+    /// | P1 |   --   |   --   |   --   |   --   |   --   |   --   |   --   |    1   |
+    pub fn software_reset(&mut self) -> io::Result<usize> {
+        const RESET_PARAMETERS: [u8; 1] = [0x01];
+        let result = self.write::<SWRESET>(RESET_PARAMETERS)?;
 
-    This command is "empty". It has no effect on the display, but it can be used
-    to terminate parameter write commands.
-*/
-pub static NO_OPERATION: Action = const { Action::new(Core::NOP, None) };
+        self.state.mode
+        if SLEEP_MODE.is_on() {
+            info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
+            thread::sleep(time::Duration::from_millis(120));
+        } else {
+            info!("Software reset, waiting 5ms for reset to complete");
+            thread::sleep(time::Duration::from_millis(5));
+        }
+
+        self.reset_state();
+
+        io::Result::Ok(result)
+    }
+}
 
 /**
     ## SOFTWARE RESET
@@ -48,24 +69,22 @@ pub static NO_OPERATION: Action = const { Action::new(Core::NOP, None) };
     3. If the display is already in the process of exiting sleep, a reset
         command will be ignored and have no effect.
 */
-pub static SOFTWARE_RESET: Action = const {
-    Action::new(
-        Core::SWRESET,
-        Some(|device| {
-            if SLEEP_MODE.is_on() {
-                info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
-                thread::sleep(time::Duration::from_millis(120));
-            } else {
-                info!("Software reset, waiting 5ms for reset to complete");
-                thread::sleep(time::Duration::from_millis(5));
-            }
+// pub static SOFTWARE_RESET: Action = const {
+//     Action::new(
+//         Core::SWRESET,
+//         Some(|device| {
+//             if SLEEP_MODE.is_on() {
+//                 info!("Software reset while in sleep mode, waiting 120ms for sleep exit");
+//                 thread::sleep(time::Duration::from_millis(120));
+//             } else {
+//                 info!("Software reset, waiting 5ms for reset to complete");
+//                 thread::sleep(time::Duration::from_millis(5));
+//             }
 
-            device.reset_state();
-        }),
-    )
-};
-
-pub static SLEEP_MODE: Toggle = const { Toggle::new(Core::SLPIN, Core::SLPOUT) };
+//             device.reset_state();
+//         }),
+//     )
+// };
 
 // pub type PartialMode = dyn Toggle<PTLON, NORON>;
 

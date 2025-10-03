@@ -1,22 +1,28 @@
 use std::{io, marker::PhantomData};
 
+use log::info;
+
 use crate::st7701s_spi::{
     address::{CommandInstruction, WriteInstruction},
-    parameters::{self, general::{EncodeData, Switch}},
-    spi::Transciever,
+    device::Transciever,
+    parameters::general::Switch,
 };
 
-static NO_EFFECT: &str = "Command will have no effect";
-static MALFORMED: &str = "Command is malformed";
-static NOT_TRACKING: &str = "STATE TRACKING IS DISABLED";
-
-struct StateAbstraction<'a, STATE, MARKER: ?Sized> {
-    transciever: &'a mut Transciever,
+pub struct StateAbstraction<'a, DEVICE, STATE, MARKER>
+where
+    DEVICE: Transciever,
+    MARKER: ?Sized,
+{
+    transciever: &'a mut DEVICE,
     current_state: &'a mut STATE,
     marker: PhantomData<MARKER>,
 }
-impl<'a, STATE, MARKER: ?Sized> StateAbstraction<'a, STATE, MARKER> {
-    pub const fn new(transciever: &'a mut Transciever, current_state: &'a mut STATE) -> Self {
+impl<'a, DEVICE, STATE, MARKER> StateAbstraction<'a, DEVICE, STATE, MARKER>
+where
+    DEVICE: Transciever,
+    MARKER: ?Sized,
+{
+    pub const fn new(transciever: &'a mut DEVICE, current_state: &'a mut STATE) -> Self {
         Self {
             transciever,
             current_state,
@@ -25,24 +31,19 @@ impl<'a, STATE, MARKER: ?Sized> StateAbstraction<'a, STATE, MARKER> {
     }
 
     pub fn command<C: CommandInstruction>(&mut self, next_state: STATE) -> io::Result<usize> {
-        self.transciever.command::<C>().map(|written| {
+        self.transciever.command::<C>().inspect(|_| {
             *self.current_state = next_state;
-
-            written
         })
     }
 
-    pub fn write<W: WriteInstruction>(&mut self, next_state: STATE, parameters: impl AsRef<[u8]> + IntoIterator<Item = u8>) -> io::Result<usize>
-    where
-        STATE: EncodeData,
-    {
-        self.transciever
-            .write::<W>( parameters)
-            .map(|written| {
-                *self.current_state = next_state;
-
-                written
-            })
+    pub fn write<W: WriteInstruction>(
+        &mut self,
+        next_state: STATE,
+        parameters: W::Buffer,
+    ) -> io::Result<usize> {
+        self.transciever.write::<W>(parameters).inspect(|_| {
+            *self.current_state = next_state;
+        })
     }
 
     pub const fn state(&self) -> &STATE {
@@ -54,24 +55,22 @@ pub mod toggle {
     use std::io;
 
     use crate::st7701s_spi::{
-        address::CommandInstruction, parameters::general::Switch, state::StateAbstraction,
+        address::CommandInstruction, device::Transciever, parameters::general::Switch,
+        state::StateAbstraction,
     };
 
-    trait ToggleMode {}
+    pub trait ToggleMode {}
     struct ToggleOn;
     impl ToggleMode for ToggleOn {}
     struct ToggleOff;
     impl ToggleMode for ToggleOff {}
 
-    pub type Toggle<'a, ON, OFF, MODE>
-    where
-        ON: CommandInstruction,
-        OFF: CommandInstruction,
-        MODE: ToggleMode,
-    = StateAbstraction<'a, Switch, (ON, OFF, MODE)>;
+    pub type Toggle<'a, DEVICE, ON, OFF, MODE> =
+        StateAbstraction<'a, DEVICE, Switch, (ON, OFF, MODE)>;
 
-    impl<ON, OFF> Toggle<'_, ON, OFF, dyn ToggleMode>
+    impl<DEVICE, ON, OFF> Toggle<'_, DEVICE, ON, OFF, dyn ToggleMode>
     where
+        DEVICE: Transciever,
         ON: CommandInstruction,
         OFF: CommandInstruction,
     {
@@ -84,8 +83,9 @@ pub mod toggle {
         }
     }
 
-    impl<ON, OFF> Toggle<'_, ON, OFF, ToggleOn>
+    impl<DEVICE, ON, OFF> Toggle<'_, DEVICE, ON, OFF, ToggleOn>
     where
+        DEVICE: Transciever,
         ON: CommandInstruction,
         OFF: CommandInstruction,
     {
@@ -94,8 +94,9 @@ pub mod toggle {
         }
     }
 
-    impl<ON, OFF> Toggle<'_, ON, OFF, ToggleOff>
+    impl<DEVICE, ON, OFF> Toggle<'_, DEVICE, ON, OFF, ToggleOff>
     where
+        DEVICE: Transciever,
         ON: CommandInstruction,
         OFF: CommandInstruction,
     {
@@ -109,9 +110,7 @@ pub mod configure {
     use std::io;
 
     use crate::st7701s_spi::{
-        address::{CommandInstruction, WriteInstruction},
-        parameters::general::EncodeData,
-        state::StateAbstraction,
+        address::{CommandInstruction, WriteInstruction}, device::Transciever, parameters::general::EncodeData, state::StateAbstraction
     };
 
     trait ConfigureMode {}
@@ -120,27 +119,25 @@ pub mod configure {
     struct Disable;
     impl ConfigureMode for Disable {}
 
-    pub type ConfigureState<'a, CONFIG, OFF, MODE, T>
-    where
-        CONFIG: WriteInstruction,
-        OFF: CommandInstruction,
-        MODE: ConfigureMode,
-        T: EncodeData,
-    = StateAbstraction<'a, T, (CONFIG, OFF, MODE, T)>;
+    pub type ConfigureState<'a, DEVICE,  CONFIG, OFF, MODE, T> =
+        StateAbstraction<'a, DEVICE, Option<T>, (CONFIG, OFF, MODE, T)>;
 
-    impl<'a, CONFIG, OFF, T> ConfigureState<'a, CONFIG, OFF, Configure, T>
+    impl<'a, DEVICE, CONFIG, OFF, T> ConfigureState<'a, DEVICE, CONFIG, OFF, Configure, T>
     where
+        DEVICE: Transciever,
         CONFIG: WriteInstruction,
         OFF: CommandInstruction,
-        T: EncodeData,
+        T: EncodeData<CONFIG>,
     {
         pub fn configure(mut self, next_state: T) -> io::Result<usize> {
-            self.write::<CONFIG>(next_state, &next_state.encode())
+            let parameters = next_state.encode();
+            self.write::<CONFIG>(Some(next_state), parameters)
         }
     }
 
-    impl<'a, CONFIG, OFF, T> ConfigureState<'a, CONFIG, OFF, Disable, T>
+    impl<'a, DEVICE, CONFIG, OFF, T> ConfigureState<'a, DEVICE, CONFIG, OFF, Disable, T>
     where
+        DEVICE: Transciever,
         CONFIG: WriteInstruction,
         OFF: CommandInstruction,
     {
@@ -161,22 +158,6 @@ pub enum Power {
     L7,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeviceState {
-    pub mode: ModeState,
-}
-impl DeviceState {
-    pub const fn new() -> Self {
-        Self {
-            mode: ModeState::new(),
-        }
-    }
-}
-impl Default for DeviceState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModeState {
@@ -224,4 +205,31 @@ impl Default for ModeState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceState {
+    pub mode: ModeState,
+}
+impl DeviceState {
+    pub const fn new() -> Self {
+        Self {
+            mode: ModeState::new(),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        info!("Resetting cached device state");
+        self.mode.reset();
+    }
+}
+impl Default for DeviceState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub trait StatefulDevice {
+    fn state(&self) -> &DeviceState;
+    fn state_mut(&mut self) -> &mut DeviceState;
 }

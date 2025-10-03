@@ -20,7 +20,7 @@ extern crate num;
 extern crate spidev;
 
 use log::info;
-use st7701s::st7701s_spi::{panel::TDOMODE, sequences::sequence_tdo::init, spi::HalfDuplexSPI};
+use st7701s::st7701s_spi::{panel::TDOMODE, sequences::sequence_tdo::init, device::HalfDuplexSPI};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");

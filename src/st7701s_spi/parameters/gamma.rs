@@ -1,31 +1,26 @@
-use crate::st7701s_spi::parameters::general::*;
+use crate::{enum_argument, st7701s_spi::{parameters::general::*}};
 
 // FIXME: This isn't necessarily correct, and the datasheet indicates
 // that the initial value is "RESERVED". Maybe better to set this to
 // something that can never be matched, or change the trait to not
 // require an initial value?
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Curve {
-    #[default]
-    GC1 = 0,
-    GC2 = 1,
-    GC3 = 2,
-    GC4 = 3,
+enum_argument! {
+    pub enum Curve<4> {
+        #[default]
+        GC1 = 0,
+        GC2 = 1,
+        GC3 = 2,
+        GC4 = 3,
+    }
 }
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum VoltageBias {
-    #[default]
-    L1 = 0,
-    L0 = 1,
-    R0 = 2,
-    R1 = 3,
-}
-impl Into<Argument<4>> for VoltageBias {
-    fn into(self) -> Argument<4> {
-        Argument::new(self as u8)
+enum_argument! {
+    pub enum VoltageBias<4> {
+        #[default]
+        L1 = 0,
+        L0 = 1,
+        R0 = 2,
+        R1 = 3,
     }
 }
 
@@ -60,29 +55,26 @@ pub struct VoltageControl {
     aj7: VoltageBias,
     vc255: DAC5Bit,
 }
-impl InstructionData for VoltageControl {
-    type Packets = [u8; 16];
-}
 
 impl EncodeData for VoltageControl {
-    fn encode(&self) -> Self::Packets {
+    fn encode(&self) -> impl AsRef<[u8]> {
         [
-            *Packet::new().d6(self.aj0.into()).d0(self.vc0),
-            *Packet::new().d6(self.aj1.into()).d0(self.vc4),
-            *Packet::new().d6(self.aj2.into()).d0(self.vc8),
-            *Packet::new().d0(self.vc16),
-            *Packet::new().d6(self.aj3.into()).d0(self.vc24),
-            *Packet::new().d0(self.vc52),
-            *Packet::new().d0(self.vc80),
-            *Packet::new().d0(self.vc108),
-            *Packet::new().d0(self.vc147),
-            *Packet::new().d0(self.vc175),
-            *Packet::new().d0(self.vc203),
-            *Packet::new().d6(self.aj4.into()).d0(self.vc231),
-            *Packet::new().d0(self.vc239),
-            *Packet::new().d6(self.aj5.into()).d0(self.vc247),
-            *Packet::new().d6(self.aj6.into()).d0(self.vc251),
-            *Packet::new().d6(self.aj7.into()).d0(self.vc255),
+            (d6(self.aj0), d0(self.vc0)).merge(),
+            (d6(self.aj1), d0(self.vc4)).merge(),
+            (d6(self.aj2), d0(self.vc8)).merge(),
+            (d0(self.vc16)).merge(),
+            (d6(self.aj3), d0(self.vc24)).merge(),
+            (d0(self.vc52)).merge(),
+            (d0(self.vc80)).merge(),
+            (d0(self.vc108)).merge(),
+            (d0(self.vc147)).merge(),
+            (d0(self.vc175)).merge(),
+            (d0(self.vc203)).merge(),
+            (d6(self.aj4), d0(self.vc231)).merge(),
+            (d0(self.vc239)).merge(),
+            (d6(self.aj5), d0(self.vc247)).merge(),
+            (d6(self.aj6), d0(self.vc251)).merge(),
+            (d6(self.aj7), d0(self.vc255)).merge(),
         ]
     }
 }
