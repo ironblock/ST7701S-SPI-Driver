@@ -2,17 +2,29 @@ use std::{io, thread, time};
 
 use log::{info, warn};
 
-use crate::st7701s_spi::{
-    device::{Device, Protocol, ReadResult, Stateful, ST7701S}, parameters::{
-        bk0::{GammaLutBlue, GammaLutRed, InversionSettings, LineSettings, PartialControl, PorchControl, RgbControl}, brightness::{Brightness, BrightnessControl}, color::ColorChannel, gamma::{WriteGammaCurve}, general::Switch
-    }, state::{abstractions::{Configure, Toggle}, domains::DeviceState}
-};
-use Switch::*;
-use crate::st7701s_spi::address::bk0::*;
+use crate::st7701s_spi::{address::bk0::*, parameters::display::TearingEffectSignal, state::abstractions::Select};
 use crate::st7701s_spi::address::bk1::*;
 use crate::st7701s_spi::address::bk3::*;
 use crate::st7701s_spi::address::core::*;
 use crate::st7701s_spi::address::special::*;
+use crate::st7701s_spi::{
+    device::{Device, Protocol, ReadResult, ST7701S, Stateful},
+    parameters::{
+        bk0::{
+            GammaLutBlue, GammaLutRed, InversionSettings, LineSettings, PartialControl,
+            PorchControl, RgbControl,
+        },
+        brightness::{Brightness, BrightnessControl},
+        color::{ColorChannel, PixelExtrema},
+        display::{GammaCurve, VoltageControl},
+        general::Switch,
+    },
+    state::{
+        abstractions::{Configure, Toggle},
+        domains::DeviceState,
+    },
+};
+use Switch::*;
 
 impl<T: Protocol> ST7701S<T>
 where
@@ -139,7 +151,6 @@ where
     /// ### `0x0E` `RDDSM`  Read Display Signal Mode
     /// > Reference: p. 198
 
-
     /// ## Get Scan Line
     /// > Reference: p. 219
     ///
@@ -159,7 +170,8 @@ where
     /// ### Considerations
     ///   1. Manual brightness control must be enabled (see `__CTRLD`)
     pub fn brightness_value(&'_ mut self) -> Configure<'_, Self, Brightness, WRDISBV, RDDISBV> {
-        if cfg!(debug_assertions) && self.state_mut().config.brightness_control. == Off {
+        if cfg!(debug_assertions) && self.state().config.brightness_control.manual_control() == Off
+        {
             warn!("cannot set brightness value when manual brightness control is disabled");
         }
 
@@ -208,46 +220,61 @@ where
         self.command::<NORON>().inspect(|_| {
             self.modify_state(|state| {
                 state.mode.partial = Off;
-                state.config.all_pixels_black = Off;
-                state.config.all_pixels_white = Off;
+                state.image.set_all_pixels_black(Off);
+                state.image.set_all_pixels_white(Off);
             });
         })
     }
 
     /// ## Toggle Inverted Colors
-    /// > Reference: p. 204, 205
-    ///
+    /// > Reference:
+    /// > - `INVOFF` p. 204
+    /// > - `INVON`  p. 205
     pub fn invert_colors(&'_ mut self) -> Toggle<'_, Self, INVON, INVOFF> {
-        Toggle::new(self, |state| &mut state.config.invert_colors)
+        Toggle::new(self, |state| &mut state.)
     }
 
-    /// ## Set All Pixels Black
-    /// > Reference: p. 206
-    pub fn all_pixels_black(&mut self) -> io::Result<usize> {
-        self.command::<ALLPOFF>().inspect(|_| {
-            self.modify_state(|state| {
-                state.config.all_pixels_black = On;
-                state.config.all_pixels_white = Off;
-            });
-        })
-    }
-
-    /// ## Set All Pixels White
-    /// > Reference: p. 207
-    pub fn all_pixels_white(&mut self) -> io::Result<usize> {
-        self.command::<ALLPON>().inspect(|_| {
-            self.modify_state(|state| {
-                state.config.all_pixels_black = Off;
-                state.config.all_pixels_white = On;
-            });
-        })
+    /// ## Set All Pixels Black or White
+    /// > Reference:
+    /// > - `ALLPOFF` p. 206
+    /// > - `ALLPON`  p. 207
+    pub fn set_all_pixels(&mut self, extrema: PixelExtrema) -> io::Result<usize> {
+        match extrema {
+            PixelExtrema::Black => self.command::<ALLPOFF>().inspect(|_| {
+                self.modify_state(|state| {
+                state.image.set_all_pixels_black(On);
+                state.image.set_all_pixels_white(Off);
+                })
+            }),
+            PixelExtrema::White => self.command::<ALLPON>().inspect(|_| {
+                self.modify_state(|state| {
+                state.image.set_all_pixels_black(Off);
+                state.image.set_all_pixels_white(On);
+                })
+            }),
+        }
     }
 
     /// ## Select Gamma Curve
-    /// > Reference: p. 208
+    /// > Reference:
+    /// > `GAMSET` p. 208
     ///
-    pub fn select_gamma_curve(&'_ mut self, transmission: WriteGammaCurve) -> io::Result<usize> {
-        self.write::<GAMSET>(transmission.packets())
+    pub fn select_gamma_curve(&'_ mut self, transmission: GammaCurve) -> io::Result<usize> {
+        let gamma_curve = transmission.gc().clone();
+
+        self.write::<GAMSET>(transmission.as_packets()).inspect(|_| {
+            self.modify_state(|state| {
+                state.image.set_gamma_curve(gamma_curve);
+            });
+        })
+    }
+
+    /// ## Display Output
+    /// > Reference:
+    /// > `DISPOFF` p. 209
+    /// > `DISPON`  p. 210
+    pub fn display_output(&'_ mut self) -> Toggle<'_, Self, DISPON, DISPOFF> {
+        Toggle::new(self, |state| &mut state.mode.display)
     }
 
     /// ## Toggle Idle Mode
@@ -257,15 +284,19 @@ where
         Toggle::new(self, |state| &mut state.mode.idle)
     }
 
+    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, Self, TearingEffectSignal, TEON, TEOFF> {
+        Select::new(self, |state| &mut state.config.tearing_effect_line)
+    }
+
     // TODO: Add adaptive_brightness field to ConfigurationState
     /// ## Configure Content Adaptive Brightness Control and Color Enhancement
     /// > Reference: p. 225, 227
     ///
     /// Get or set parameters for adaptive brightness and color enhancement. Enables or
     /// disables color enhancement and selects the enhancement mode.
-    pub fn adaptive_brightness(&'_ mut self) -> Configure<'_, Self, u8, WRCACE, RDCABC> {
-        Configure::new(self, |state| &mut state.config.adaptive_brightness)
-    }
+    // pub fn adaptive_brightness(&'_ mut self) -> Configure<'_, Self, u8, WRCACE, RDCABC> {
+    //     Configure::new(self, |state| &mut state.config.adaptive_brightness)
+    // }
 
     // TODO: Add min_adaptive_brightness field to ConfigurationState
     // /// ## Configure CABC Minimum Brightness
@@ -472,8 +503,8 @@ where
     /// Configures the positive voltage gamma curve for the display. This command
     /// allows fine-tuning of the display's color response and image quality by
     /// setting multiple voltage control points.
-    pub fn positive_gamma_control(&mut self, gamma_params: &[u8; 16]) -> io::Result<usize> {
-        self.write::<PVGAMCTRL>(*gamma_params)
+    pub fn positive_gamma_control(&mut self, transmission: VoltageControl) -> io::Result<usize> {
+        self.write::<PVGAMCTRL>(transmission.as_packets())
     }
 
     /// ## `BK0: 0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
@@ -558,7 +589,12 @@ where
     /// essential for matching the display's timing and signal requirements to the
     /// host system.
     pub fn rgb_control(&mut self, settings: &RgbControl) -> io::Result<usize> {
-        let params = [settings.param1, settings.param2, settings.param3, settings.param4];
+        let params = [
+            settings.param1,
+            settings.param2,
+            settings.param3,
+            settings.param4,
+        ];
         self.write::<RGBCTRL>(params)
     }
 

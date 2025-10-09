@@ -34,3 +34,8 @@ pub enum ColorChannel {
     Green,
     Blue,
 }
+
+pub enum PixelExtrema {
+    Black,
+    White,
+}

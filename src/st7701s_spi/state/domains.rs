@@ -1,6 +1,6 @@
 use crate::{
     st7701s_spi::{
-        parameters::{brightness::*, general::Switch},
+        parameters::{brightness::*, display::{DisplayImageMode, TearingEffectSignal}, general::Switch},
         state::derived::Power,
     },
     state_struct,
@@ -36,9 +36,6 @@ impl ModeState {
 
 state_struct! {
   pub struct ConfigurationState {
-    pub invert_colors: Switch = Off,
-    pub all_pixels_white: Switch = Off,
-    pub all_pixels_black: Switch = Off,
     pub brightness_value: Brightness = Brightness::new(0),
     pub brightness_control: BrightnessControl = BrightnessControl::new(),
   }
@@ -47,6 +44,8 @@ state_struct! {
 state_struct! {
     pub struct DeviceState {
         pub mode: ModeState = ModeState::new(),
+        pub image: DisplayImageMode = DisplayImageMode::new(),
+        pub tearing_effect: TearingEffectSignal = TearingEffectSignal::new(),
         pub config: ConfigurationState = ConfigurationState::new(),
     }
 }

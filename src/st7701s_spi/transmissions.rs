@@ -119,7 +119,7 @@ macro_rules! transmission_mapping {
             ),)*
         )
     ) => {
-        paste! {
+        pastey::paste! {
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
             $SV struct [<$NAME:camel>]([u8; $LENGTH]);
@@ -163,8 +163,8 @@ macro_rules! transmission_mapping {
                     Self(packets)
                 }
 
-                pub const fn as_packets(&self) -> &[u8; $LENGTH] {
-                    &self.0
+                pub const fn as_packets(self) -> [u8; $LENGTH] {
+                    self.0
                 }
             }
         }
