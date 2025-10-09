@@ -3,7 +3,7 @@ use std::{
     ops::{Deref},
 };
 
-use crate::st7701s_spi::address::{ReadInstruction, WriteInstruction};
+use crate::st7701s_spi::{address::{ReadInstruction, WriteInstruction}, transmissions::BitValue};
 
 const fn type_bit_size<T>() -> usize {
     std::mem::size_of::<T>() * 8
@@ -17,22 +17,6 @@ const fn shifted_bit_mask(bits: usize, shift: usize) -> usize {
     bit_mask(bits) << shift
 }
 
-const fn merge_bit_masks<const N: usize>(masks: [(usize, usize); N]) -> usize {
-    let mut mask = 0;
-    let mut i = 0;
-
-    while i < masks.len() {
-        let (bits, shift) = masks[i];
-        let next_mask = shifted_bit_mask(bits, shift);
-
-        assert!((mask & next_mask) == 0, "Overlapping bit masks");
-
-        mask |= next_mask;
-        i += 1;
-    }
-
-    mask
-}
 
 const fn value_within_mask(bits: usize, value: usize) {
     assert!((value & bit_mask(bits)) == value, "Value exceeds bit size");
@@ -141,34 +125,9 @@ impl<const SHIFT: usize, const BITS: usize> Deref for Position<SHIFT, BITS> {
     type Target = u8;
 
     fn deref(&self) -> &Self::Target {
+
         &self.0
     }
-}
-
-
-pub fn d7<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<7, BITS> {
-    Position::new(argument.into())
-}
-pub fn d6<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<6, BITS> {
-    Position::new(argument.into())
-}
-pub fn d5<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<5, BITS> {
-    Position::new(argument.into())
-}
-pub fn d4<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<4, BITS> {
-    Position::new(argument.into())
-}
-pub fn d3<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<3, BITS> {
-    Position::new(argument.into())
-}
-pub fn d2<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<2, BITS> {
-    Position::new(argument.into())
-}
-pub fn d1<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<1, BITS> {
-    Position::new(argument.into())
-}
-pub fn d0<const BITS: usize>(argument: impl Into<Argument<BITS>>) -> Position::<0, BITS> {
-    Position::new(argument.into())
 }
 
 pub trait PacketList {
@@ -177,7 +136,7 @@ pub trait PacketList {
 
 #[macro_export]
 macro_rules! enum_argument {
-    ($VIS:vis enum $NAME:ident<$BITS:literal> {
+    ($VIS:vis enum $NAME:ident[$HI:literal : $LO:literal] {
         $($V1:ident = $N1:literal,)*
         #[$DEFAULT:meta]
         $($V2:ident = $N2:literal,)+
@@ -189,73 +148,93 @@ macro_rules! enum_argument {
             #[$DEFAULT]
             $($V2 = $N2,)+
         }
-        impl From<$NAME> for Argument<$BITS> {
+        impl $NAME {
+            pub const fn as_u8(&self) -> u8 {
+                *self as _
+            }
+            pub const fn as_bit_value(&self) -> BitValue<$HI, $LO> {
+                BitValue::new(self.as_u8())
+            }
+        }
+        impl From<$NAME> for BitValue<$HI, $LO> {
             fn from(value: $NAME) -> Self {
-                Argument::new(value as u8)
+                value.as_bit_value()
+            }
+        }
+        impl TryFrom<u8> for $NAME {
+            type Error = ();
+
+            fn try_from(value: u8) -> Result<Self, Self::Error> {
+                match value {
+                    $($N1 => Ok(Self::$V1),)*
+                    $($N2 => Ok(Self::$V2),)*
+                    _ => Err(()),
+                }
             }
         }
     };
 }
 
 #[macro_export]
-macro_rules! impl_packet {
-    ($($T:ident),+) => {
-        #[allow(unused_parens, non_snake_case)]
-        impl <$($T),*> PacketList for ($($T),+)
-        where
-            $($T: BitRange,)+
-        {
-            fn merge(self) -> u8 {
-                const {  merge_bit_masks([$(($T::BITS, $T::SHIFT)),*]) };
-                let ($($T),+) = self;
-
-                0 $(| *$T)+
+macro_rules! state_struct {
+    ($VIS:vis struct $NAME:ident {
+        $($FVIS:vis $FIELD:ident: $TYPE:ty = $VAL:expr,)+
+    }) => {
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+        $VIS struct $NAME {
+            $($FVIS $FIELD: $TYPE,)+
+        }
+        impl $NAME {
+            $VIS const fn new() -> Self {
+                Self {
+                    $($FIELD: $VAL),+
+                }
+            }
+        }
+        impl Default for $NAME {
+            fn default() -> Self {
+                Self::new()
             }
         }
     };
 }
 
-impl_packet!(A);
-impl_packet!(A, B);
-impl_packet!(A, B, C);
-impl_packet!(A, B, C, D);
-impl_packet!(A, B, C, D, E);
-impl_packet!(A, B, C, D, E, F);
-impl_packet!(A, B, C, D, E, F, G);
-impl_packet!(A, B, C, D, E, F, G, H);
-
-pub trait EncodeData {
-    fn encode(&self) -> impl AsRef<[u8]>;
+pub trait EncodeData<W: WriteInstruction> {
+    fn encode(&self) -> W::Buffer;
 }
 
 pub trait DecodeData<R: ReadInstruction> {
-    fn decode(packets: &R::Buffer) -> Self;
+    fn decode(data: &R::Buffer) -> Self;
 }
 
-#[derive(Default, Debug, Hash, Copy, Clone, PartialEq, Eq)]
-pub enum Switch {
-    #[default]
-    Off = 0,
-    On = 1,
+enum_argument! {
+    pub enum Switch[0:0] {
+        #[default]
+        Off = 0,
+        On = 1,
+    }
 }
 
-#[derive(Default, Debug, Hash, Copy, Clone, PartialEq, Eq)]
-pub enum Direction {
-    #[default]
-    Normal = 0,
-    Reverse = 1,
+enum_argument! {
+    pub enum Direction[0:0] {
+        #[default]
+        Normal = 0,
+        Reverse = 1,
+    }
 }
 
-#[derive(Default, Debug, Hash, Copy, Clone, PartialEq, Eq)]
-pub enum Logic {
-    #[default]
-    Low = 0,
-    High = 1,
+enum_argument! {
+    pub enum Logic[0:0] {
+        #[default]
+        Low = 0,
+        High = 1,
+    }
 }
 
-#[derive(Default, Debug, Hash, Copy, Clone, PartialEq, Eq)]
-pub enum Edge {
-    #[default]
-    Falling = 0,
-    Rising = 1,
+enum_argument! {
+    pub enum Edge[0:0] {
+        #[default]
+        Falling = 0,
+        Rising = 1,
+    }
 }

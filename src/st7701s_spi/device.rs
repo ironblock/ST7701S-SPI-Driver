@@ -2,14 +2,12 @@ extern crate spidev;
 
 use spidev::{SpiModeFlags, Spidev, SpidevOptions};
 use std::{
-    any::Any,
-    io::{self, Write},
+    io::{self, Read, Write},
     path::Path,
 };
 
 use crate::st7701s_spi::{
-    address::{CommandInstruction, DataBuffer, Location, ReadInstruction, WriteInstruction},
-    state::{DeviceState, StatefulDevice},
+    address::{CommandInstruction, DataBuffer, Location, ReadInstruction, WriteInstruction}, state::{domains::DeviceState},
 };
 
 pub enum DCX {
@@ -20,7 +18,10 @@ pub enum DCX {
 pub trait Protocol {
     fn tx_command(&mut self, location: Location) -> io::Result<usize>;
     fn tx_parameters(&mut self, parameters: impl DataBuffer) -> io::Result<usize>;
+    fn rx_parameters(&mut self, buffer: &mut impl DataBuffer) -> io::Result<usize>;
 }
+
+pub type ReadResult<R> = Result<<R as ReadInstruction>::Buffer, io::Error>;
 
 /// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
 /// are performed half-duplex
@@ -60,9 +61,27 @@ impl Protocol for Spi3Wire {
 
         io::Result::Ok(written)
     }
+
+    fn rx_parameters(&mut self, buffer: &mut impl DataBuffer) -> io::Result<usize> {
+        self.device.read(buffer.as_mut())
+    }
 }
 
-pub trait Transciever {
+pub trait Stateful<T> {
+    fn state(&self) -> &T;
+    fn state_mut(&mut self) -> &mut T;
+
+    fn modify_state<F: FnOnce(&mut T)>(&mut self, f: F)  {
+        f(self.state_mut());
+    }
+
+    fn reset(&mut self) where T: Default
+    {
+        *self.state_mut() = T::default();
+    }
+}
+
+pub trait Device {
     fn connection(&mut self) -> &mut impl Protocol;
 
     fn command<C: CommandInstruction>(&mut self) -> io::Result<usize> {
@@ -78,27 +97,23 @@ pub trait Transciever {
         io::Result::Ok(written)
     }
 
-    fn read<R: ReadInstruction, const N: usize>(
+    fn read<R: ReadInstruction<Buffer = impl DataBuffer>>(
         &mut self,
-        _reader: for<'a> fn(&'a [u8]) -> dyn Any,
-    ) -> io::Result<usize> {
-        todo!()
+    ) -> Result<R::Buffer, io::Error> {
+        let mut buffer = R::allocate_buffer();
+
+    self.connection().tx_command(R::LOCATION)?;
+    self.connection().rx_parameters(&mut buffer)?;
+
+        io::Result::Ok(buffer)
     }
 }
 
-pub struct ST7701S<P: Protocol>
-where
-    Self: Transciever,
-{
-    connection: P,
+pub struct ST7701S<T: Protocol> {
+    connection: T,
     state: DeviceState,
 }
-impl Transciever for ST7701S<Spi3Wire> {
-    fn connection(&mut self) -> &mut impl Protocol {
-        &mut self.connection
-    }
-}
-impl StatefulDevice for ST7701S<Spi3Wire> {
+impl <T: Protocol> Stateful<DeviceState> for ST7701S<T> {
     fn state(&self) -> &DeviceState {
         &self.state
     }
@@ -107,6 +122,13 @@ impl StatefulDevice for ST7701S<Spi3Wire> {
         &mut self.state
     }
 }
+impl <T: Protocol> Device for ST7701S<T> {
+    #[allow(refining_impl_trait)]
+    fn connection(&mut self) -> &mut T {
+        &mut self.connection
+    }
+}
+
 impl ST7701S<Spi3Wire> {
     pub fn new(spi_device: &Path, spi_options: &SpidevOptions) -> Self {
         let mut spi = Spidev::open(spi_device).expect("Failed to open SPI device");
