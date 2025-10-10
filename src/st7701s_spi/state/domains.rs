@@ -36,7 +36,7 @@ impl ModeState {
 
 state_struct! {
   pub struct ConfigurationState {
-    pub brightness_value: Brightness = Brightness::new(0),
+    pub brightness_value: Brightness = Brightness::new::<0>(),
     pub brightness_control: BrightnessControl = BrightnessControl::new(),
   }
 }

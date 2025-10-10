@@ -1,38 +1,62 @@
-pub const fn merge_bit_masks(masks: &[usize]) -> usize {
-    let mut mask = 0;
-    let mut i = 0;
+    // TODO IMPLEMENT
+    pub const fn merge_bit_masks<const N: usize>(masks: [usize; N]) -> usize {
+        let mut mask = 0;
+        let mut i = 0;
 
-    while i < masks.len() {
-        assert!((mask & masks[i]) == 0, "Overlapping bit masks");
+        while i < N {
+            assert!((mask & masks[i]) == 0, "Overlapping bit masks");
 
-        mask |= masks[i];
-        i += 1;
+            mask |= masks[i];
+            i += 1;
+        }
+
+        mask
     }
 
-    mask
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BitMask(usize);
+impl BitMask {
+    pub const fn new(value: usize) -> Self {
+        Self(value)
+    }
+
+    pub const fn from_bit_size(bits: usize) -> Self {
+        Self((1 << bits) - 1)
+    }
+
+    pub const fn lsh(&mut self, shift: usize) {
+        self.0 <<= shift;
+    }
+
+    pub const fn get(&self) -> usize {
+        self.0
+    }
+
+    pub const fn apply(&self, target: u8) -> u8 {
+        target & self.get() as u8
+    }
 }
 
-pub trait BitSize<const HI: u8, const LO: u8 = 0> {
-    const VALID: () = const {
-        assert!(HI < 8);
-        assert!(LO < 8);
-        assert!(HI >= LO);
+pub trait BitSize<T, const BITS: usize> {
+    const MAX_SIZE: usize = std::mem::size_of::<T>() * 8;
+    const VALUE_MASK: BitMask = BitMask::from_bit_size(BITS);
+
+    const IS_VALID: () = const {
+        assert!(BITS < Self::MAX_SIZE, "BITS exceeds type size");
     };
-    const SIZE: u8 = HI - LO + 1;
-    const MASK: u8 = (1 << Self::SIZE) - 1;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BitValue<const HI: u8, const LO: u8 = 0>(u8)
-where
-    Self: BitSize<HI, LO> + Into<u8>;
+pub struct BitValue<const BITS: usize>(u8);
+impl <const BITS: usize> BitValue<BITS> {
+    pub const fn new<const VALUE: u8>() -> Self {
+        const { assert!(Self::VALUE_MASK.apply(VALUE) == VALUE, "Value exceeds BitValue range") };
 
-impl<const HI: u8, const LO: u8> BitValue<HI, LO> {
-    pub const fn new(value: u8) -> Self {
-        if cfg!(debug_assertions) {
-            assert!((value & Self::MASK) == value, "value exceeds bit range");
-        }
+        Self(VALUE)
+    }
 
+    pub const fn from_bit_sized<const SOURCE: usize>(value: u8) -> Self {
+        const { assert!(SOURCE == BITS, "SOURCE does not match target BITS") };
         Self(value)
     }
 
@@ -40,123 +64,194 @@ impl<const HI: u8, const LO: u8> BitValue<HI, LO> {
         self.0
     }
 }
-impl<const HI: u8, const LO: u8> BitSize<HI, LO> for BitValue<HI, LO> {}
-impl<const HI: u8, const LO: u8> From<BitValue<HI, LO>> for u8 {
-    fn from(value: BitValue<HI, LO>) -> Self {
+impl<const BITS: usize> BitSize<u8, BITS> for BitValue<BITS> {
+    const IS_VALID: () = const {
+        assert!(BITS < Self::MAX_SIZE, "BITS exceeds type size");
+    };
+}
+impl<const BITS: usize> From<BitValue<BITS>> for u8 {
+    fn from(value: BitValue<BITS>) -> Self {
         value.0
     }
 }
-impl<const HI: u8, const LO: u8> TryFrom<u8> for BitValue<HI, LO> {
+impl<const BITS: usize> TryFrom<u8> for BitValue<BITS> {
     type Error = &'static str;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if (value & Self::MASK) == value {
-            Ok(Self::new(value))
+        let masked_value = BitValue::<BITS>::VALUE_MASK.apply(value);
+        if masked_value == value {
+            Ok(Self(masked_value))
         } else {
-            Err("value exceeds bit range")
+            Err("Value exceeds BitValue range")
         }
     }
 }
+
+// pub trait BitValueTranslator<const BITS: usize>: From<BitValue<BITS>> + Into<BitValue<BITS>> {
+//     type Value: BitSize<u8, BITS>;
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BitField<const HI: u8, const LO: u8 = 0> {
-    D7,
-    D6,
-    D5,
-    D4,
-    D3,
-    D2,
-    D1,
-    D0,
+pub struct BitField<const BITS: usize, const SHIFT: usize>;
+impl <const BITS: usize, const SHIFT: usize> BitSize<u8, BITS> for BitField<BITS, SHIFT> {
+    const IS_VALID: () = const {
+        assert!(BITS < Self::MAX_SIZE, "BITS exceeds type size");
+        assert!(SHIFT < Self::MAX_SIZE, "SHIFT exceeds type size");
+        assert!(BITS >= SHIFT, "BITS may not be smaller than SHIFT");
+        assert!(
+            (Self::SHIFT_MASK >> SHIFT) == Self::VALUE_MASK.get(),
+            "value exceeds range"
+        );
+    };
 }
-impl<const HI: u8, const LO: u8> BitSize<HI, LO> for BitField<HI, LO> {}
-impl<const HI: u8, const LO: u8> BitField<HI, LO> {
-    pub const fn offset(&self) -> u8 {
-        match self {
-            Self::D7 => 7,
-            Self::D6 => 6,
-            Self::D5 => 5,
-            Self::D4 => 4,
-            Self::D3 => 3,
-            Self::D2 => 2,
-            Self::D1 => 1,
-            Self::D0 => 0,
+impl<const BITS: usize, const SHIFT: usize> BitField<BITS, SHIFT> {
+    pub const SHIFT_MASK: usize = Self::VALUE_MASK.get() << SHIFT;
+
+    pub const fn apply_mask(value: u8) -> u8 {
+        value & Self::SHIFT_MASK as u8
+    }
+
+    pub const fn shift_raw_value(value: u8) -> u8 {
+        Self::apply_mask(value) << SHIFT
+    }
+
+    pub const fn shift_bit_value(value: BitValue<BITS>) -> u8 {
+        value.as_u8() << SHIFT
+    }
+
+    pub const fn extract_raw_value(target: u8) -> u8 {
+        Self::apply_mask(target) >> SHIFT
+    }
+
+    pub const fn extract_bit_value(target: u8) -> BitValue<BITS> {
+        BitValue::from_bit_sized::<BITS>(Self::extract_raw_value(target))
+    }
+
+    pub const fn set_raw_value(target: &mut u8, value: u8) {
+        *target |= Self::shift_raw_value(value);
+    }
+
+    pub const fn set_bit_value(target: &mut u8, value: BitValue<BITS>) {
+        *target |= Self::shift_bit_value(value);
+    }
+
+}
+
+pub type D7<const BITS: usize> = BitField<BITS, 7>;
+pub type D6<const BITS: usize> = BitField<BITS, 6>;
+pub type D5<const BITS: usize> = BitField<BITS, 5>;
+pub type D4<const BITS: usize> = BitField<BITS, 4>;
+pub type D3<const BITS: usize> = BitField<BITS, 3>;
+pub type D2<const BITS: usize> = BitField<BITS, 2>;
+pub type D1<const BITS: usize> = BitField<BITS, 1>;
+pub type D0<const BITS: usize> = BitField<BITS, 0>;
+
+#[macro_export]
+macro_rules! bit_value_enum {
+    ($VIS:vis enum $NAME:ident<$BITS:literal> {
+        $(const $V1:ident = $N1:literal,)*
+        #[$DEFAULT:meta]
+        $(const $V2:ident = $N2:literal,)+
+    }) => {
+        pastey::paste! {
+            $VIS type [<$NAME Value>] = $crate::st7701s_spi::transmissions::BitValue<$BITS>;
+            #[derive(std::fmt::Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+            #[repr(u8)]
+            $VIS enum $NAME {
+                $($V1 = $N1,)*
+                #[$DEFAULT]
+                $($V2 = $N2,)+
+            }
+            impl $NAME {
+                pub const fn as_u8(&self) -> u8 {
+                    *self as _
+                }
+                pub const fn as_bit_value(&self) -> [<$NAME Value>] {
+                    match self {
+                        $($NAME::$V1 => [<$NAME Value>]::new::<$N1>(),)*
+                        $($NAME::$V2 => [<$NAME Value>]::new::<$N2>(),)+
+                    }
+                }
+
+                pub const fn from_raw_value(value: [<$NAME Value>]) -> Result<Self, &'static str> {
+                    match value.as_u8() {
+                        $($N1 => Ok($NAME::$V1),)*
+                        $($N2 => Ok($NAME::$V2),)*
+                        _ => Err("Value does not correspond to any enum variant"),
+                    }
+                }
+            }
+            impl From<$NAME> for [<$NAME Value>] {
+                fn from(value: $NAME) -> Self {
+                    value.as_bit_value()
+                }
+            }
+            impl From<[<$NAME Value>]> for $NAME {
+                fn from(value: [<$NAME Value>]) -> Self {
+                    match Self::from_raw_value(value) {
+                        Ok(v) => v,
+                        Err(_) => unreachable!(),
+                    }
+                }
+            }
+            impl TryFrom<u8> for $NAME {
+                type Error = ();
+
+                fn try_from(value: u8) -> Result<Self, Self::Error> {
+                    Self::from_raw_value($crate::st7701s_spi::transmissions::BitValue::from_bit_sized::<$BITS>(value)).map_err(|_| ())
+                }
+            }
         }
-    }
-
-    pub const fn shifted_mask(&self) -> u8 {
-        Self::MASK << self.offset()
-    }
-
-    pub const fn assert_value_in_range(&self, value: u8) {
-        assert!((value & Self::MASK) == value, "value exceeds bit range");
-    }
-
-    pub const fn shift_value(&self, value: &BitValue<HI, LO>) -> u8 {
-        if cfg!(debug_assertions) {
-            self.assert_value_in_range(value.as_u8());
-        }
-
-        value.as_u8() << self.offset()
-    }
-
-    pub const fn set_bits(&self, packet: &mut u8, value: &BitValue<HI, LO>) {
-        *packet |= self.shift_value(value);
-    }
-
-    pub const fn get_bits(&self, packet: &u8) -> u8 {
-        (*packet >> self.offset()) & Self::MASK
-    }
+    };
 }
 
 #[macro_export]
 macro_rules! transmission_mapping {
+    (@type_alias ($ARG:ident<$BITS:literal>, $ALIAS:ty)) => { $ALIAS };
+    (@type_alias ($ARG:ident<$BITS:literal>))  => { BitValue<$BITS> };
     (
         $(#[$META:meta])*
         $SV:vis struct $NAME:ident<$LENGTH:literal> (
             $($INDEX:literal: (
-                $($D:ident( $ARG:ident[$HI:literal:$LO:literal] as $ALIAS:ty $(= $VAL:expr)?),)+
+                $($D:ident( $ARG:ident<$BITS:literal> $(as $ALIAS:ty)? $(= $VAL:expr)?),)+
             ),)*
         )
     ) => {
         pastey::paste! {
+            pub mod [<$NAME:snake _arguments>] {
+                use $crate::st7701s_spi::transmissions::*;
+
+                $($(pub type [<$ARG:camel>] = $D<$BITS>;)+)+
+
+                pub const PACKET_MASKS: [usize; $LENGTH] = [
+                    $(merge_bit_masks([$([<$ARG:camel>]::SHIFT_MASK),+])),+
+                ];
+
+                pub const INITIAL_VALUES: [u8; $LENGTH] = [
+                    $(0 $($(| $VAL)*)*),+
+                ];
+            }
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
             $SV struct [<$NAME:camel>]([u8; $LENGTH]);
-
             impl [<$NAME:camel>] {
-                const INITIAL: [u8; $LENGTH] = const {
-                    #[allow(unused_mut)]
-                    let mut transmission = [0; $LENGTH];
-
-                    $($($(transmission[$INDEX] |= Self::[<$ARG:upper _RANGE>].shift_value($VAL);)*)*)*
-
-                    transmission
-                };
 
                 $(
-                    const [<PACKET_ $INDEX _MASK>]: usize = merge_bit_masks(&[$(Self::[<$ARG:upper _RANGE>].shifted_mask() as usize),+]);
                     $(
-                        const [<$ARG:upper _RANGE>]: BitField<$HI, $LO> = BitField::$D;
-                        const [<$ARG:upper _INDEX>]: usize = $INDEX;
-                        pub fn [<$ARG:lower>](&self) -> $ALIAS {
-                            $ALIAS::try_from(
-                                Self::[<$ARG:upper _RANGE>]
-                                    .get_bits(&self.0[Self::[<$ARG:upper _INDEX>]]),
-                            ).unwrap()
+                        pub fn [<$ARG:lower>](&self) -> transmission_mapping!(@type_alias ($ARG<$BITS>$(,$ALIAS)?)) {
+                                <transmission_mapping!(@type_alias ($ARG<$BITS>$(,$ALIAS)?))>::from([<$NAME:snake _arguments>]::[<$ARG:camel>]
+                                    ::extract_bit_value(self.0[$INDEX]))
                         }
 
-                        pub fn [<set_ $ARG:lower>](&mut self, value: $ALIAS)  {
-                            let bit_value = BitValue::from(value);
-
-                            Self::[<$ARG:upper _RANGE>]
-                                .set_bits(&mut self.0[Self::[<$ARG:upper _INDEX>]], &bit_value);
+                        pub fn [<set_ $ARG:lower>](&mut self, value: transmission_mapping!(@type_alias ($ARG<$BITS>$(,$ALIAS)?)))  {
+                            [<$NAME:snake _arguments>]::[<$ARG:camel>]
+                                ::set_bit_value(&mut self.0[$INDEX], value.into())
                         }
                     )+
                 )+
 
                 pub const fn new() -> Self {
-                    Self::from_packets(Self::INITIAL)
+                    Self::from_packets([<$NAME:snake _arguments>]::INITIAL_VALUES)
                 }
 
                 pub const fn from_packets(packets: [u8; $LENGTH]) -> Self {

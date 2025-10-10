@@ -1,30 +1,30 @@
-use crate::{enum_argument, st7701s_spi::{transmissions::*}};
+use crate::{bit_value_enum};
 
-enum_argument! {
-    pub enum BitsPerPixel[1:0] {
+bit_value_enum! {
+    pub enum BitsPerPixel<2> {
         #[default]
-        RGB565 = 0b00,
-        RGB666 = 0b01,
-        RGB888 = 0b10,
+        const RGB565 = 0b00,
+        const RGB666 = 0b01,
+        const RGB888 = 0b10,
     }
 }
 
-enum_argument! {
-    pub enum EnhanceLevel[1:0] {
+bit_value_enum! {
+    pub enum EnhanceLevel<2> {
         #[default]
-        Low    = 0b00,
-        Medium = 0b01,
-        High   = 0b10,
+        const Low    = 0b00,
+        const Medium = 0b01,
+        const High   = 0b10,
     }
 }
 
-enum_argument! {
-    pub enum AdaptiveBrightness[1:0] {
+bit_value_enum! {
+    pub enum AdaptiveBrightness<2> {
         #[default]
-        Off           = 0b00,
-        UserInterface = 0b01,
-        StillPicture  = 0b10,
-        MovingImage   = 0b11,
+        const Off           = 0b00,
+        const UserInterface = 0b01,
+        const StillPicture  = 0b10,
+        const MovingImage   = 0b11,
     }
 }
 
