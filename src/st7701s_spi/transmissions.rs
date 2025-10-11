@@ -154,7 +154,7 @@ macro_rules! bit_value_enum {
         $(const $V2:ident = $N2:literal,)+
     }) => {
         pastey::paste! {
-            $VIS type [<$NAME Value>] = $crate::st7701s_spi::transmissions::BitValue<$BITS>;
+            $VIS type [<$NAME BitValue>] = $crate::st7701s_spi::transmissions::BitValue<$BITS>;
             #[derive(std::fmt::Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
             #[repr(u8)]
             $VIS enum $NAME {
@@ -166,39 +166,43 @@ macro_rules! bit_value_enum {
                 pub const fn as_u8(&self) -> u8 {
                     *self as _
                 }
-                pub const fn as_bit_value(&self) -> [<$NAME Value>] {
+                pub const fn as_bit_value(&self) -> [<$NAME BitValue>] {
                     match self {
-                        $($NAME::$V1 => [<$NAME Value>]::new::<$N1>(),)*
-                        $($NAME::$V2 => [<$NAME Value>]::new::<$N2>(),)+
+                        $($NAME::$V1 => [<$NAME BitValue>]::new::<$N1>(),)*
+                        $($NAME::$V2 => [<$NAME BitValue>]::new::<$N2>(),)+
                     }
                 }
 
-                pub const fn from_raw_value(value: [<$NAME Value>]) -> Result<Self, &'static str> {
-                    match value.as_u8() {
+                pub const fn from_raw_value(value: u8) -> Result<Self, &'static str> {
+                    match value {
                         $($N1 => Ok($NAME::$V1),)*
-                        $($N2 => Ok($NAME::$V2),)*
+                        $($N2 => Ok($NAME::$V2),)+
                         _ => Err("Value does not correspond to any enum variant"),
                     }
                 }
-            }
-            impl From<$NAME> for [<$NAME Value>] {
-                fn from(value: $NAME) -> Self {
-                    value.as_bit_value()
-                }
-            }
-            impl From<[<$NAME Value>]> for $NAME {
-                fn from(value: [<$NAME Value>]) -> Self {
-                    match Self::from_raw_value(value) {
+
+                pub const fn from_bit_value(value: $crate::st7701s_spi::transmissions::BitValue<$BITS>) -> Self {
+                    match Self::from_raw_value(value.as_u8()) {
                         Ok(v) => v,
                         Err(_) => unreachable!(),
                     }
                 }
             }
+            impl From<$NAME> for [<$NAME BitValue>] {
+                fn from(value: $NAME) -> Self {
+                    value.as_bit_value()
+                }
+            }
+            impl From<[<$NAME BitValue>]> for $NAME {
+                fn from(value: [<$NAME BitValue>]) -> Self {
+                    Self::from_bit_value(value)
+                }
+            }
             impl TryFrom<u8> for $NAME {
-                type Error = ();
+                type Error = &'static str;
 
                 fn try_from(value: u8) -> Result<Self, Self::Error> {
-                    Self::from_raw_value($crate::st7701s_spi::transmissions::BitValue::from_bit_sized::<$BITS>(value)).map_err(|_| ())
+                    Self::from_raw_value(value)
                 }
             }
         }
@@ -207,8 +211,11 @@ macro_rules! bit_value_enum {
 
 #[macro_export]
 macro_rules! transmission_mapping {
-    (@type_alias ($ARG:ident<$BITS:literal>, $ALIAS:ty)) => { $ALIAS };
-    (@type_alias ($ARG:ident<$BITS:literal>))  => { BitValue<$BITS> };
+    (@initial_value ($ALIAS:ty,)) => { <$ALIAS>::from_bit_value(BitValue::new::<0>()) };
+    (@initial_value ($VAL:expr,)) => { $VAL };
+    (@initial_value ()) => { BitValue::new::<0>() };
+    (@value_type ($ARG:ident<$BITS:literal>, $ALIAS:ty)) => { $ALIAS };
+    (@value_type ($ARG:ident<$BITS:literal>))  => { BitValue<$BITS> };
     (
         $(#[$META:meta])*
         $SV:vis struct $NAME:ident<$LENGTH:literal> (
@@ -218,40 +225,34 @@ macro_rules! transmission_mapping {
         )
     ) => {
         pastey::paste! {
-            pub mod [<$NAME:snake _arguments>] {
-                use $crate::st7701s_spi::transmissions::*;
-
-                $($(pub type [<$ARG:camel>] = $D<$BITS>;)+)+
-
-                pub const PACKET_MASKS: [usize; $LENGTH] = [
-                    $(merge_bit_masks([$([<$ARG:camel>]::SHIFT_MASK),+])),+
-                ];
-
-                pub const INITIAL_VALUES: [u8; $LENGTH] = [
-                    $(0 $($(| $VAL)*)*),+
-                ];
-            }
-
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
             $SV struct [<$NAME:camel>]([u8; $LENGTH]);
             impl [<$NAME:camel>] {
+                pub const PACKET_MASKS: [usize; $LENGTH] = [
+                    $(merge_bit_masks([$($D::<$BITS>::SHIFT_MASK),+])),+
+                ];
+                pub const DEFAULT: [u8; $LENGTH] = [
+                    $(0 $($(| $VAL)*)*),+
+                ];
 
                 $(
                     $(
-                        pub fn [<$ARG:lower>](&self) -> transmission_mapping!(@type_alias ($ARG<$BITS>$(,$ALIAS)?)) {
-                                <transmission_mapping!(@type_alias ($ARG<$BITS>$(,$ALIAS)?))>::from([<$NAME:snake _arguments>]::[<$ARG:camel>]
+                        pub fn [<$ARG:lower>](&self) -> transmission_mapping!(@value_type ($ARG<$BITS>$(,$ALIAS)?)) {
+                                <transmission_mapping!(@value_type ($ARG<$BITS>$(,$ALIAS)?))>::from($D::<$BITS>
                                     ::extract_bit_value(self.0[$INDEX]))
                         }
 
-                        pub fn [<set_ $ARG:lower>](&mut self, value: transmission_mapping!(@type_alias ($ARG<$BITS>$(,$ALIAS)?)))  {
-                            [<$NAME:snake _arguments>]::[<$ARG:camel>]
-                                ::set_bit_value(&mut self.0[$INDEX], value.into())
+                        pub fn [<set_ $ARG:lower>](&mut self, value: transmission_mapping!(@value_type ($ARG<$BITS>$(,$ALIAS)?))) -> &mut self {
+                            $D::<$BITS>
+                                ::set_bit_value(&mut self.0[$INDEX], value.into());
+
+                            &mut self
                         }
                     )+
                 )+
 
                 pub const fn new() -> Self {
-                    Self::from_packets([<$NAME:snake _arguments>]::INITIAL_VALUES)
+                    Self::from_packets(Self::DEFAULT)
                 }
 
                 pub const fn from_packets(packets: [u8; $LENGTH]) -> Self {
@@ -260,6 +261,11 @@ macro_rules! transmission_mapping {
 
                 pub const fn as_packets(self) -> [u8; $LENGTH] {
                     self.0
+                }
+            }
+            impl Default for [<$NAME:camel>] {
+                fn default() -> Self {
+                    Self::new()
                 }
             }
         }

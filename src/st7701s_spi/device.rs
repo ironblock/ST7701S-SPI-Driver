@@ -105,7 +105,7 @@ pub trait Device {
     self.connection().tx_command(R::LOCATION)?;
     self.connection().rx_parameters(&mut buffer)?;
 
-        io::Result::Ok(buffer)
+        Result::Ok(buffer)
     }
 }
 

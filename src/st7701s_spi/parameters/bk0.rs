@@ -1,23 +1,12 @@
-/// Line Setting Control Parameters
-/// Used for BK0 LNESET (0xC0) command
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LineSettings {
-    /// Line Delta Enable (LDE_EN)
-    /// Controls line delta functionality
-    pub line_delta_enable: u8,
-    /// Line Delta Value
-    /// Configures line delta parameter
-    pub line_delta: u8,
-}
+use crate::{st7701s_spi::{parameters::general::Switch, transmissions::*}, transmission_mapping};
+use Switch::*
 
-impl Default for LineSettings {
-    fn default() -> Self {
-        Self {
-            line_delta_enable: 0,
-            line_delta: 0,
-        }
-    }
-}
+transmission_mapping!(
+    pub struct LineSettings<2>(
+        1: (D7(line_delta_enable<1> = On), D0(lines<7> = BitValue::new::<0b0010_1011>()),),
+        2: (D1(line_delta<7>),),
+    )
+);
 
 /// Porch Control Parameters
 /// Used for BK0 PORCTRL (0xC1) command

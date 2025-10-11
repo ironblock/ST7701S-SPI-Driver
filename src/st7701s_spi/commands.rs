@@ -1,8 +1,6 @@
 use std::{io, thread, time};
 
-use log::{info, warn};
-
-use crate::st7701s_spi::{address::bk0::*, parameters::display::TearingEffectSignal, state::abstractions::Select};
+use crate::st7701s_spi::{address::bk0::*, parameters::{display::TearingEffectSignal, register::CommandExtension}, state::abstractions::Select};
 use crate::st7701s_spi::address::bk1::*;
 use crate::st7701s_spi::address::bk3::*;
 use crate::st7701s_spi::address::core::*;
@@ -74,7 +72,7 @@ where
             condition = "";
         }
 
-        info!(
+        log::info!(
             "Software reset triggered{}. Commands paused for {}ms",
             condition, delay
         );
@@ -144,12 +142,21 @@ where
 
     /// ### `0x0C` `RDDCOLMOD`  Read Display Pixel Format
     /// > Reference: p. 196
+    pub fn read_display_pixel_format(&mut self) -> ReadResult<RDDCOLMOD> {
+        self.read::<RDDCOLMOD>()
+    }
 
     /// ### `0x0D` `RDDIM`  Read Display Image Mode
     /// > Reference: p. 197
+    pub fn read_display_image_mode(&mut self) -> ReadResult<RDDIM> {
+        self.read::<RDDIM>()
+    }
 
     /// ### `0x0E` `RDDSM`  Read Display Signal Mode
     /// > Reference: p. 198
+    pub fn read_display_signal_mode(&mut self) -> ReadResult<RDDSM> {
+        self.read::<RDDSM>()
+    }
 
     /// ## Get Scan Line
     /// > Reference: p. 219
@@ -170,12 +177,12 @@ where
     /// ### Considerations
     ///   1. Manual brightness control must be enabled (see `__CTRLD`)
     pub fn brightness_value(&'_ mut self) -> Configure<'_, Self, Brightness, WRDISBV, RDDISBV> {
-        if cfg!(debug_assertions) && self.state().config.brightness_control.manual_control() == Off
+        if cfg!(debug_assertions) && self.state().config.brightness_control.manual_control().is_off()
         {
-            warn!("cannot set brightness value when manual brightness control is disabled");
+            log::error!("cannot set brightness value when manual brightness control is disabled");
         }
 
-        Configure::new(self, |state| &mut state.config.brightness_value)
+        Configure::new(self, |state| &mut state.config.brightness)
     }
 
     /// ## Configure Display Brightness Control Modes
@@ -492,9 +499,13 @@ where
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension(&mut self) -> io::Result<usize> {
-        const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
-        self.write::<CND2BKXSEL>(PARAMS)
+    pub fn select_command_extension(&mut self, transmission: CommandExtension) -> io::Result<usize> {
+        let next_state = transmission.clone();
+        self.write::<CND2BKXSEL>(transmission.as_packets()).inspect(|_| {
+            self.modify_state(|state| {
+                state.command_extension = next_state;
+            });
+        })
     }
 
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control

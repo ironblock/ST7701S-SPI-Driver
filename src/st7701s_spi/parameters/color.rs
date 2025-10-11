@@ -35,6 +35,7 @@ pub enum ColorChannel {
     Blue,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PixelExtrema {
     Black,
     White,

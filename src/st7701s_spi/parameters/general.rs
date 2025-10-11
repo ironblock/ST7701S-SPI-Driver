@@ -40,6 +40,16 @@ bit_value_enum! {
     }
 }
 
+impl Switch {
+    pub fn is_on(&self) -> bool {
+        *self == Self::On
+    }
+
+    pub fn is_off(&self) -> bool {
+        *self == Self::Off
+    }
+}
+
 bit_value_enum! {
     pub enum Direction<1> {
         #[default]

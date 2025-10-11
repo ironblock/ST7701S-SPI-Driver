@@ -7,7 +7,8 @@ use crate::st7701s_spi::{
     state::domains::DeviceState,
 };
 
-pub type StateSelector<STATE> = for<'a> fn(&'a mut DeviceState) -> &'a mut STATE;
+pub type StateGetter<T> = for<'a> fn(&'a DeviceState) -> &'a T;
+pub type StateSetter<T> = for<'a> fn(&'a DeviceState, T);
 
 pub struct StateAbstraction<'a, DEVICE, STATE, MARKER>
 where
@@ -15,7 +16,8 @@ where
     MARKER: ?Sized,
 {
     device: &'a mut DEVICE,
-    selector: StateSelector<STATE>,
+    state_getter: StateGetter<STATE>,
+    state_setter: StateSetter<STATE>,
     marker: PhantomData<MARKER>,
 }
 impl<'a, DEVICE, STATE, MARKER> StateAbstraction<'a, DEVICE, STATE, MARKER>
@@ -23,32 +25,44 @@ where
     DEVICE: Device + Stateful<DeviceState>,
     MARKER: ?Sized,
 {
-    pub const fn new(device: &'a mut DEVICE, selector: StateSelector<STATE>) -> Self {
+    pub const fn new(device: &'a mut DEVICE, state_getter: StateGetter<STATE>, state_setter: StateSetter<STATE>) -> Self {
         Self {
             device,
-            selector,
+            state_getter,
+            state_setter,
             marker: PhantomData,
         }
     }
 
+    pub fn state(&self) -> &STATE {
+        (self.state_getter)(&self.device.state())
+    }
+
+    pub fn set_state(&mut self, next_state: STATE) {
+        (self.state_setter)(&self.device.state_mut(), next_state);
+    }
+
     pub fn command<C: CommandInstruction>(mut self, next_state: STATE) -> io::Result<usize> {
         self.device.command::<C>().inspect(|_| {
-            *(self.state_mut()) = next_state;
+            self.set_state(next_state);
         })
     }
 
     pub fn write<W: WriteInstruction>(
         mut self,
         next_state: STATE,
-        parameters: W::Buffer,
-    ) -> io::Result<usize> {
-        self.device.write::<W>(parameters).inspect(|_| {
-            *(self.state_mut()) = next_state;
+    ) -> io::Result<usize> where STATE: EncodeData<W>  {
+        self.device.write::<W>(next_state.encode()).inspect(|_| {
+            self.set_state(next_state);
         })
     }
 
-    pub fn state_mut(&mut self) -> &mut STATE {
-        (self.selector)(self.device.state_mut())
+    pub fn read<R: ReadInstruction>(
+        mut self,
+    ) -> Result<R::Buffer, std::io::Error> where STATE: DecodeData<R>  {
+        self.device.read::<R>().inspect(|buffer| {
+            self.set_state(STATE::decode(buffer));
+        })
     }
 }
 
@@ -60,11 +74,11 @@ where
     OFF: CommandInstruction,
 {
     pub fn is_on(&mut self) -> bool {
-        self.state_mut() == &Switch::On
+        (self.state_getter)(&self.device.state()).is_on()
     }
 
     pub fn is_off(&mut self) -> bool {
-        self.state_mut() == &Switch::Off
+        (self.state_getter)(&self.device.state()).is_off()
     }
 
     pub fn on(self) -> io::Result<usize> {
@@ -85,17 +99,17 @@ where
     SELECT: WriteInstruction,
     DISABLE: CommandInstruction,
 {
-    pub fn is_on(&mut self) -> bool {
-        self.state_mut().is_some()
+    pub fn is_on(&self) -> bool {
+        self.state().is_some()
     }
 
-    pub fn is_off(&mut self) -> bool {
-        self.state_mut().is_none()
+    pub fn is_off(&self) -> bool {
+        self.state().is_none()
     }
 
     pub fn configure(self, next_state: STATE) -> io::Result<usize> {
         let parameters = next_state.encode();
-        self.write::<SELECT>(Some(next_state), parameters)
+        self.write::<SELECT>(Some(next_state))
     }
 
     pub fn disable(self) -> io::Result<usize> {
@@ -113,13 +127,13 @@ where
     READ: ReadInstruction,
     WRITE: WriteInstruction,
 {
-    pub fn read_configuration(&mut self) -> io::Result<STATE> {
+    pub fn get(&mut self) -> io::Result<STATE> {
         self.device
             .read::<READ>()
             .map(|buffer| STATE::decode(&buffer))
     }
 
-    pub fn write_configuration(self, next_state: STATE) -> io::Result<usize> {
+    pub fn set(self, next_state: STATE) -> io::Result<usize> {
         let parameters = next_state.encode();
         self.write::<WRITE>(next_state, parameters)
     }
