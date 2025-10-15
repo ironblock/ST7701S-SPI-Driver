@@ -3,7 +3,7 @@ st7701s_spi::{parameters::general::Switch, transmissions::*}, transmission_mappi
 };
 use Switch::*;
 
-pub type Brightness = BitValue<7>;
+pub type Brightness = BitField<7>;
 
 transmission_mapping! {
     pub struct BrightnessControl<1> (
@@ -12,5 +12,5 @@ transmission_mapping! {
             D6(display_dimming<1> as Switch),
             D5(backlight_power<1> as Switch),
         ),
-    )
+    );
 }

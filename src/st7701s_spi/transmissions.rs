@@ -258,7 +258,7 @@ macro_rules! transmission_mapping {
                             $(as $ALIAS:ty)?
                             $(= $VAL:expr)?
                         )
-                    ,)+
+                    ,)*
                 ) $(= $BASE:literal)?
             ,)+
         );
@@ -275,7 +275,7 @@ macro_rules! transmission_mapping {
                     $(
                         pub type [<$ARG:camel Value>] = transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>));
                         pub type [<$ARG:camel Field>] = $D<$BITS $(, {$ALIAS::INITIAL_VALUE})? $(, { $VAL })?>;
-                    )+
+                    )*
                 )+
 
                 pub const INITIAL_VALUE: Transmission = [
@@ -287,14 +287,14 @@ macro_rules! transmission_mapping {
                                 $($ALIAS,)?
                                 $($VAL,)?
                             ))
-                        )+
+                        )*
                     ),+
                 ];
 
                 pub const ARGUMENT_MASK: [BitMask; $LENGTH] = [
                     $(
                         BitMask::new(0)
-                            $(.merge(&[<$ARG:camel Field>]::SHIFT_MASK))+
+                            $(.merge(&[<$ARG:camel Field>]::SHIFT_MASK))*
                     ),+
                 ];
             }
@@ -328,7 +328,7 @@ macro_rules! transmission_mapping {
 
                             self
                         }
-                    )+
+                    )*
                 )+
             }
             impl Default for [<$NAME:camel>] {

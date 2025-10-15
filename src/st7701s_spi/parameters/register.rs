@@ -49,10 +49,10 @@ bit_value_enum! {
 
 transmission_mapping! {
     pub struct CommandExtension<5>(
-        1: (D0(thing_1<8> = BitValue::new::<0b0111_0111>()),),
-        2: (D0(thing_2<8> = BitValue::new::<0b0000_0001>()),),
-        3: (D0(thing_3<8> = BitValue::new::<0b0000_0000>()),),
-        4: (D0(thing_4<8> = BitValue::new::<0b0000_0000>()),),
+        1: () = 0b0111_0111,
+        2: () = 0b0000_0001,
+        3: () = 0b0000_0000,
+        4: () = 0b0000_0000,
         5: (D4(enable_extension<1> as Switch), D0(bank<2> as Bank),),
-    )
+    );
 }
