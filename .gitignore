@@ -10,3 +10,9 @@ Cargo.lock
 **/*.rs.bk
 
 .vagrant/
+
+# Datasheet, sharing not permitted:
+# > Sitronix Confidential The information contained herein is the exclusive
+# > property of Sitronix and shall not be distributed, reproduced, or disclosed
+# > in whole or in part without prior written permission of Sitronix.
+**/Sitronix ST7701S Datasheet v1.2.pdf
