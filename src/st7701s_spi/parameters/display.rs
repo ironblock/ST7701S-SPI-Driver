@@ -15,8 +15,9 @@ bit_value_enum! {
 transmission_mapping! {
     pub struct TearingEffectSignal<1> (
         0: (D0(tearing_effect<1> as TearingEffectMode),),
-    )
+    );
 }
+
 
 
 // FIXME: This isn't necessarily correct, and the datasheet indicates
@@ -36,7 +37,7 @@ bit_value_enum! {
 transmission_mapping! {
     pub struct GammaCurve<1> (
         1: (D0(GC<2> as Curve),),
-    )
+    );
 }
 
 bit_value_enum! {
@@ -72,7 +73,7 @@ transmission_mapping! {
         14: (D6(AJ5<2> as VoltageBias), D0(VC247<6>),),
         15: (D6(AJ6<2> as VoltageBias), D0(VC251<6>),),
         16: (D6(AJ7<2> as VoltageBias), D0(VC255<4>),),
-    )
+    );
 }
 
 transmission_mapping! {
@@ -83,7 +84,7 @@ transmission_mapping! {
             D3(all_pixels_black<1> as Switch),
             D0(     gamma_curve<2> as Curve),
         ),
-    )
+    );
 }
 
 transmission_mapping! {
@@ -92,5 +93,5 @@ transmission_mapping! {
             D7(tearing_effect_line<1> as Switch),
             D6(tearing_effect_mode<1> as TearingEffectMode),
         ),
-    )
+    );
 }

@@ -1,4 +1,4 @@
-use crate::{bit_value_enum};
+use crate::bit_value_enum;
 
 bit_value_enum! {
     pub enum BitsPerPixel<2> {
