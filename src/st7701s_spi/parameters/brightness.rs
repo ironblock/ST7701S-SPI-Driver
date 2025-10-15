@@ -1,7 +1,7 @@
 use crate::{
-st7701s_spi::{parameters::general::Switch, transmissions::*}, transmission_mapping
+    st7701s_spi::{parameters::general::Switch, transmissions::*},
+    transmission_mapping,
 };
-use Switch::*;
 
 pub type Brightness = BitField<7>;
 

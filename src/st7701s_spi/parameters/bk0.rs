@@ -5,7 +5,7 @@ transmission_mapping!(
     pub struct LineSettings<2>(
         1: (D7(line_delta_enable<1> = On), D0(lines<7> = BitValue::new::<0b0010_1011>()),),
         2: (D1(line_delta<7>),),
-    )
+    );
 );
 
 /// Porch Control Parameters

@@ -10,12 +10,12 @@ use Switch::*;
 pub fn init_sequence<T: Protocol>(device: &mut ST7701S<T>) {
     device.select_command_extension(
         CommandExtension::new()
-            .set_enable_extension(On)
+            .set_extended_commands(On)
             .set_bank(Bank::BK0),
     );
 
     // SPI_WriteComm(0xC0); // LNESET
-    device.line_setting(settings)
+    device.line_setting(settings);
     // SPI_WriteData(0x3B); // LDE_EN
     // SPI_WriteData(0x00); // Line Delta
 

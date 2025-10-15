@@ -30,14 +30,6 @@ impl Deref for Address {
     }
 }
 
-/**
-    ## Extended Address Banks
-
-    The ST7701S exposes some extended command sets based on the setting of an
-    internal register, referred to in the datasheet as **Command2 BKx**.
-
-    > Section 12.3.1 `CND2BKxSEL`, page 260
-*/
 bit_value_enum! {
     pub enum Bank<2> {
         #[default]
@@ -53,6 +45,6 @@ transmission_mapping! {
         2: () = 0b0000_0001,
         3: () = 0b0000_0000,
         4: () = 0b0000_0000,
-        5: (D4(enable_extension<1> as Switch), D0(bank<2> as Bank),),
+        5: (D4(extended_commands<1> as Switch), D0(bank<2> as Bank),),
     );
 }

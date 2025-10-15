@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use std::fmt::{Display, Formatter};
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct BitMask(usize);
 impl BitMask {
     pub const fn new(value: usize) -> Self {
@@ -29,6 +31,11 @@ impl BitMask {
         target & self.get() as u8
     }
 }
+impl Display for BitMask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#010b}", self.0)
+    }
+}
 
 pub trait BitValue {
     type Target;
@@ -57,6 +64,7 @@ pub trait BitOffset<S: BitValue> {
     };
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct BitField<const SIZE: usize, const INITIAL: u8 = 0>
 where
     Self: BitValue,
@@ -111,6 +119,7 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct PacketField<const BITS: usize, const SHIFT: usize, const INITIAL: u8 = 0>
 where
     Self: BitValue,
@@ -175,7 +184,7 @@ macro_rules! bit_value_enum {
     }) => {
         pastey::paste! {
             $VIS type [<$NAME Value>] = $crate::st7701s_spi::transmissions::BitField<$BITS>;
-            #[derive(std::fmt::Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+            #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
             #[repr(u8)]
             $VIS enum $NAME {
                 $($V1 = $N1,)*
@@ -299,10 +308,10 @@ macro_rules! transmission_mapping {
                 ];
             }
 
-            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+            $(#[$META])*
+            #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
             $SV struct [<$NAME:camel>]([<$NAME:snake _types>]::Transmission);
             impl [<$NAME:camel>] {
-
                 pub const fn new() -> Self {
                     Self::from_packets([<$NAME:snake _types>]::INITIAL_VALUE)
                 }

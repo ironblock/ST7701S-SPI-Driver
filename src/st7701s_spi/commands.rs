@@ -499,7 +499,7 @@ where
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension(&mut self, transmission: CommandExtension) -> io::Result<usize> {
+    pub fn select_command_extension(&mut self, transmission: &CommandExtension) -> io::Result<usize> {
         let next_state = transmission.clone();
         self.write::<CND2BKXSEL>(transmission.as_packets()).inspect(|_| {
             self.modify_state(|state| {
@@ -514,7 +514,7 @@ where
     /// Configures the positive voltage gamma curve for the display. This command
     /// allows fine-tuning of the display's color response and image quality by
     /// setting multiple voltage control points.
-    pub fn positive_gamma_control(&mut self, transmission: VoltageControl) -> io::Result<usize> {
+    pub fn positive_gamma_control(&mut self, transmission: &VoltageControl) -> io::Result<usize> {
         self.write::<PVGAMCTRL>(transmission.as_packets())
     }
 
