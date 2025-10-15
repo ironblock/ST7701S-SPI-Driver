@@ -5,11 +5,9 @@ authors = ["Corey Vixie <corey@vixie.enterprises>"]
 edition = "2024"
 
 [dependencies]
-const-default = "1.0.0"
 log = "0.4.28"
 pastey = "0.1.1"
 spidev = "0.7.0"
-bit_field = "0.10.1"
 
 [[bin]]
 name = "st7701s"
