@@ -87,6 +87,7 @@ macro_rules! instructions {
 }
 
 pub mod special {
+    #![allow(clippy::upper_case_acronyms)]
     use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {
@@ -99,6 +100,7 @@ pub mod special {
 }
 
 pub mod core {
+    #![allow(clippy::upper_case_acronyms)]
     use crate::st7701s_spi::address::{Command, Location, Read, Write};
 
     instructions! {
@@ -170,6 +172,7 @@ pub mod core {
 }
 
 pub mod bk0 {
+    #![allow(clippy::upper_case_acronyms)]
     use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {
@@ -225,6 +228,7 @@ pub mod bk1 {
 }
 
 pub mod bk3 {
+    #![allow(clippy::upper_case_acronyms)]
     use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {

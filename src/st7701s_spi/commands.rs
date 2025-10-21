@@ -1,12 +1,19 @@
 use std::{io, thread, time};
 
-use crate::st7701s_spi::{address::bk0::*, device::*, parameters::{display::TearingEffectSignal, register::CommandExtension}, protocol::connection::{Connection, InstructionResult}, state::abstractions::{ Configure, Select, Toggle}, transmissions::{Parametric as _, Transmission}};
 use crate::st7701s_spi::address::bk1::*;
 use crate::st7701s_spi::address::bk3::*;
 use crate::st7701s_spi::address::core::*;
 use crate::st7701s_spi::address::special::*;
 use crate::st7701s_spi::{
-    device::{ST7701S},
+    address::bk0::*,
+    device::*,
+    parameters::{display::TearingEffectSignal, register::CommandExtension},
+    protocol::connection::{Connection, InstructionResult},
+    state::abstractions::{Configure, Select, Toggle},
+    transmissions::{Parametric as _, Transmission},
+};
+use crate::st7701s_spi::{
+    device::ST7701S,
     parameters::{
         bk0::{
             GammaLutBlue, GammaLutRed, InversionSettings, LineSettings, PartialControl,
@@ -20,8 +27,7 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-impl<C: Connection> ST7701S<C>
-{
+impl<C: Connection> ST7701S<C> {
     /// ## No Operation
     ///
     /// This command is "do nothing". It has no effect on the display, but it
@@ -68,7 +74,8 @@ impl<C: Connection> ST7701S<C>
 
         log::info!(
             "Software reset triggered{}. Pausing commands for {}ms",
-            condition, delay
+            condition,
+            delay
         );
         self.reset();
         thread::sleep(time::Duration::from_millis(delay));
@@ -82,9 +89,11 @@ impl<C: Connection> ST7701S<C>
     /// Reads the display identification information from the device. This may
     /// be useful to verify the display model and manufacturer, but not all
     /// vendors populate this information.
-    pub fn read_display_id(&mut self, buffer: &mut <RDDID as Transmission>::Data) {
-        self.connection().read::<RDDID>(buffer);
-
+    pub fn read_display_id(
+        &mut self,
+        buffer: &mut <RDDID as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDDID>(buffer)
     }
 
     /// ## Read Number of Errors on DSI
@@ -92,9 +101,11 @@ impl<C: Connection> ST7701S<C>
     ///
     /// Returns the number of transmission errors detected on the DSI interface.
     /// This is only relevant for MIPI DSI configurations.
-    pub fn read_dsi_errors(&mut self, buffer: &mut <RDNUMED as Transmission>::Data) {
-        self.connection().read::<RDNUMED>(buffer);
-
+    pub fn read_dsi_errors(
+        &mut self,
+        buffer: &mut <RDNUMED as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDNUMED>(buffer)
     }
 
     /// ### Read First Pixel Color Values
@@ -116,7 +127,11 @@ impl<C: Connection> ST7701S<C>
     ///
     /// NOTE: The datasheet claims that the MSB for Green in RGB565 mode is D4,
     /// but this appears to be a mistake.
-    pub fn read_first_pixel_values_for(&mut self, channel: ColorChannel, buffer: &mut [u8; 1]) -> io::Result<()> {
+    pub fn read_first_pixel_values_for(
+        &mut self,
+        channel: ColorChannel,
+        buffer: &mut [u8; 1],
+    ) -> io::Result<()> {
         match channel {
             ColorChannel::Red => self.connection().read::<RDRED>(buffer),
             ColorChannel::Green => self.connection().read::<RDGREEN>(buffer),
@@ -126,37 +141,47 @@ impl<C: Connection> ST7701S<C>
 
     /// ### `0x0A` `RDDPM`  Read Display Power Mode
     /// > Reference: p. 194
-    pub fn read_display_power_mode(&mut self, buffer: &mut <RDDPM as Transmission>::Data) {
-        self.connection().read::<RDDPM>(buffer);
-
+    pub fn read_display_power_mode(
+        &mut self,
+        buffer: &mut <RDDPM as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDDPM>(buffer)
     }
 
     /// ### `0x0B` `RDDMADCTL`  Read Display MADCTL
     /// > Reference: p. 195
-    pub fn read_display_madctl(&mut self, buffer: &mut <RDDMADCTL as Transmission>::Data) {
-        self.connection().read::<RDDMADCTL>(buffer);
-
+    pub fn read_display_madctl(
+        &mut self,
+        buffer: &mut <RDDMADCTL as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDDMADCTL>(buffer)
     }
 
     /// ### `0x0C` `RDDCOLMOD`  Read Display Pixel Format
     /// > Reference: p. 196
-    pub fn read_display_pixel_format(&mut self, buffer: &mut <RDDCOLMOD as Transmission>::Data) {
-        self.connection().read::<RDDCOLMOD>(buffer);
-
+    pub fn read_display_pixel_format(
+        &mut self,
+        buffer: &mut <RDDCOLMOD as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDDCOLMOD>(buffer)
     }
 
     /// ### `0x0D` `RDDIM`  Read Display Image Mode
     /// > Reference: p. 197
-    pub fn read_display_image_mode(&mut self, buffer: &mut <RDDIM as Transmission>::Data) {
-        self.connection().read::<RDDIM>(buffer);
-
+    pub fn read_display_image_mode(
+        &mut self,
+        buffer: &mut <RDDIM as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDDIM>(buffer)
     }
 
     /// ### `0x0E` `RDDSM`  Read Display Signal Mode
     /// > Reference: p. 198
-    pub fn read_display_signal_mode(&mut self, buffer: &mut <RDDSM as Transmission>::Data) {
-        self.connection().read::<RDDSM>(buffer);
-
+    pub fn read_display_signal_mode(
+        &mut self,
+        buffer: &mut <RDDSM as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDDSM>(buffer)
     }
 
     /// ## Get Scan Line
@@ -164,9 +189,8 @@ impl<C: Connection> ST7701S<C>
     ///
     /// Reads the current scan line being refreshed on the display. Useful for
     /// synchronization and diagnostics.
-    pub fn get_scan_line(&mut self, buffer: &mut <GSL as Transmission>::Data) {
-        self.connection().read::<GSL>(buffer);
-
+    pub fn get_scan_line(&mut self, buffer: &mut <GSL as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<GSL>(buffer)
     }
 
     /// ## Configure Display Brightness Value
@@ -178,8 +202,14 @@ impl<C: Connection> ST7701S<C>
     ///
     /// ### Considerations
     ///   1. Manual brightness control must be enabled (see `__CTRLD`)
-    pub fn brightness_value(&mut self) -> Configure<Self, RDDISBV, WRDISBV, Brightness> {
-        if cfg!(debug_assertions) && self.state().config.brightness_control.manual_control().is_off()
+    pub fn brightness_value(&'_ mut self) -> Configure<'_, Self, RDDISBV, WRDISBV, Brightness> {
+        if cfg!(debug_assertions)
+            && self
+                .state()
+                .config
+                .brightness_control
+                .manual_control()
+                .is_off()
         {
             log::error!("cannot set brightness value when manual brightness control is disabled");
         }
@@ -198,16 +228,14 @@ impl<C: Connection> ST7701S<C>
     /// ### Considerations
     ///   1. Brightness value must be set separately (see `__DISBV`)
     ///   2. Dimming control can only be set when using manual brightness control)
-    pub fn brightness_control(
-        &mut self,
-    ) -> Configure<Self, RDCTRLD, WRCTRLD, BrightnessControl> {
+    pub fn brightness_control(&'_ mut self) -> Configure<'_, Self, RDCTRLD, WRCTRLD, BrightnessControl> {
         Configure::new(self, |state| &mut state.config.brightness_control)
     }
 
     /// ## Toggle Sleep Mode
     /// > Reference: p. 200, 201
     ///
-    pub fn sleep_mode(&mut self) -> Toggle<Self, SLPIN, SLPOUT> {
+    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, Self, SLPIN, SLPOUT> {
         Toggle::new(self, |state| &mut state.mode.sleep)
     }
 
@@ -251,14 +279,14 @@ impl<C: Connection> ST7701S<C>
         match extrema {
             PixelExtrema::Black => self.connection().command::<ALLPOFF>().inspect(|_| {
                 self.modify_state(|state| {
-                state.image.set_all_pixels_black(On);
-                state.image.set_all_pixels_white(Off);
+                    state.image.set_all_pixels_black(On);
+                    state.image.set_all_pixels_white(Off);
                 })
             }),
             PixelExtrema::White => self.connection().command::<ALLPON>().inspect(|_| {
                 self.modify_state(|state| {
-                state.image.set_all_pixels_black(Off);
-                state.image.set_all_pixels_white(On);
+                    state.image.set_all_pixels_black(Off);
+                    state.image.set_all_pixels_white(On);
                 })
             }),
         }
@@ -271,29 +299,31 @@ impl<C: Connection> ST7701S<C>
     pub fn select_gamma_curve(&mut self, transmission: GammaCurve) -> InstructionResult {
         let gamma_curve = transmission.gc();
 
-        self.connection().write::<GAMSET>(&transmission.as_tx_data()).inspect(|_| {
-            self.modify_state(|state| {
-                state.image.set_gamma_curve(gamma_curve);
-            });
-        })
+        self.connection()
+            .write::<GAMSET>(&transmission.as_tx_data())
+            .inspect(|_| {
+                self.modify_state(|state| {
+                    state.image.set_gamma_curve(gamma_curve);
+                });
+            })
     }
 
     /// ## Display Output
     /// > Reference:
     /// > `DISPOFF` p. 209
     /// > `DISPON`  p. 210
-    pub fn display_output(&mut self) -> Toggle<Self, DISPON, DISPOFF> {
+    pub fn display_output(&'_ mut self) -> Toggle<'_, Self, DISPON, DISPOFF> {
         Toggle::new(self, |state| &mut state.mode.display)
     }
 
     /// ## Toggle Idle Mode
     /// > Reference: p. 215, 216
     ///
-    pub fn idle_mode(&mut self) -> Toggle<Self, IDMON, IDMOFF> {
+    pub fn idle_mode(&'_ mut self) -> Toggle<'_, Self, IDMON, IDMOFF> {
         Toggle::new(self, |state| &mut state.mode.idle)
     }
 
-    pub fn tearing_effect_line(&mut self) -> Select<Self, TEON, TEOFF, TearingEffectSignal> {
+    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, Self, TEON, TEOFF, TearingEffectSignal> {
         Select::new(self, |state| &mut state.tearing_effect)
     }
 
@@ -321,9 +351,11 @@ impl<C: Connection> ST7701S<C>
     /// > Reference: p. 231
     ///
     /// Reads the result of the automatic brightness control self-diagnostic test.
-    pub fn read_adaptive_brightness_diagnostic(&mut self, buffer: &mut <RDABCSDR as Transmission>::Data) {
-        self.connection().read::<RDABCSDR>(buffer);
-
+    pub fn read_adaptive_brightness_diagnostic(
+        &mut self,
+        buffer: &mut <RDABCSDR as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDABCSDR>(buffer)
     }
 
     /// ## Read Black/White Low Bits
@@ -331,81 +363,75 @@ impl<C: Connection> ST7701S<C>
     ///
     /// Returns the low bits of the black and white color settings for calibration
     /// and diagnostics.
-    pub fn read_black_white_low_bits(&mut self, buffer: &mut <RDBWLB as Transmission>::Data) {
-        self.connection().read::<RDBWLB>(buffer);
-
+    pub fn read_black_white_low_bits(
+        &mut self,
+        buffer: &mut <RDBWLB as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDBWLB>(buffer)
     }
 
     /// ## Read Bkx
     /// > Reference: p. 233
     ///
     /// Reads the Bkx calibration value from the device.
-    pub fn read_bkx(&mut self, buffer: &mut <RDBKX as Transmission>::Data) {
-        self.connection().read::<RDBKX>(buffer);
-
+    pub fn read_bkx(&mut self, buffer: &mut <RDBKX as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDBKX>(buffer)
     }
 
     /// ## Read Bky
     /// > Reference: p. 234
     ///
     /// Reads the Bky calibration value from the device.
-    pub fn read_bky(&mut self, buffer: &mut <RDBKY as Transmission>::Data) {
-        self.connection().read::<RDBKY>(buffer);
-
+    pub fn read_bky(&mut self, buffer: &mut <RDBKY as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDBKY>(buffer)
     }
 
     /// ## Read Wx
     /// > Reference: p. 235
     ///
     /// Reads the Wx calibration value from the device.
-    pub fn read_wx(&mut self, buffer: &mut <RDWX as Transmission>::Data) {
-        self.connection().read::<RDWX>(buffer);
-
+    pub fn read_wx(&mut self, buffer: &mut <RDWX as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDWX>(buffer)
     }
 
     /// ## Read Wy
     /// > Reference: p. 236
     ///
     /// Reads the Wy calibration value from the device.
-    pub fn read_wy(&mut self, buffer: &mut <RDWY as Transmission>::Data) {
-        self.connection().read::<RDWY>(buffer);
-
+    pub fn read_wy(&mut self, buffer: &mut <RDWY as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDWY>(buffer)
     }
 
     /// ## Read Rx
     /// > Reference: p. 239
     ///
     /// Reads the Rx calibration value from the device.
-    pub fn read_rx(&mut self, buffer: &mut <RDRX as Transmission>::Data) {
-        self.connection().read::<RDRX>(buffer);
-
+    pub fn read_rx(&mut self, buffer: &mut <RDRX as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDRX>(buffer)
     }
 
     /// ## Read Ry
     /// > Reference: p. 239
     ///
     /// Reads the Ry calibration value from the device.
-    pub fn read_ry(&mut self, buffer: &mut <RDRY as Transmission>::Data) {
-        self.connection().read::<RDRY>(buffer);
-
+    pub fn read_ry(&mut self, buffer: &mut <RDRY as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDRY>(buffer)
     }
 
     /// ## Read Gx
     /// > Reference: p. 240
     ///
     /// Reads the Gx calibration value from the device.
-    pub fn read_gx(&mut self, buffer: &mut <RDGX as Transmission>::Data) {
-        self.connection().read::<RDGX>(buffer);
-
+    pub fn read_gx(&mut self, buffer: &mut <RDGX as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDGX>(buffer)
     }
 
     /// ## Read Gy
     /// > Reference: p. 241
     ///
     /// Reads the Gy calibration value from the device.
-    pub fn read_gy(&mut self, buffer: &mut <RDGY as Transmission>::Data) {
-        self.connection().read::<RDGY>(buffer);
-
+    pub fn read_gy(&mut self, buffer: &mut <RDGY as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDGY>(buffer)
     }
 
     /// ## Read Blue/A Color Low Bits
@@ -413,108 +439,99 @@ impl<C: Connection> ST7701S<C>
     ///
     /// Returns the low bits of the blue and A color settings for calibration and
     /// diagnostics.
-    pub fn read_blue_low_bits(&mut self, buffer: &mut <RDBALB as Transmission>::Data) {
-        self.connection().read::<RDBALB>(buffer);
-
+    pub fn read_blue_low_bits(
+        &mut self,
+        buffer: &mut <RDBALB as Transmission>::Data,
+    ) -> InstructionResult {
+        self.connection().read::<RDBALB>(buffer)
     }
 
     /// ## Read Bx
     /// > Reference: p. 243
     ///
     /// Reads the Bx calibration value from the device.
-    pub fn read_bx(&mut self, buffer: &mut <RDBX as Transmission>::Data) {
-        self.connection().read::<RDBX>(buffer);
-
+    pub fn read_bx(&mut self, buffer: &mut <RDBX as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDBX>(buffer)
     }
 
     /// ## Read By
     /// > Reference: p. 244
     ///
     /// Reads the By calibration value from the device.
-    pub fn read_by(&mut self, buffer: &mut <RDBY as Transmission>::Data) {
-        self.connection().read::<RDBY>(buffer);
-
+    pub fn read_by(&mut self, buffer: &mut <RDBY as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDBY>(buffer)
     }
 
     /// ## Read Ax
     /// > Reference: p. 245
     ///
     /// Reads the Ax calibration value from the device.
-    pub fn read_ax(&mut self, buffer: &mut <RDAX as Transmission>::Data) {
-        self.connection().read::<RDAX>(buffer);
-
+    pub fn read_ax(&mut self, buffer: &mut <RDAX as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDAX>(buffer)
     }
 
     /// ## Read Ay
     /// > Reference: p. 246
     ///
     /// Reads the Ay calibration value from the device.
-    pub fn read_ay(&mut self, buffer: &mut <RDAY as Transmission>::Data) {
-        self.connection().read::<RDAY>(buffer);
-
+    pub fn read_ay(&mut self, buffer: &mut <RDAY as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDAY>(buffer)
     }
 
     /// ## Read DDB Start
     /// > Reference: p. 247
     ///
     /// Reads the initial value of the Display Data Bus (DDB) for diagnostics.
-    pub fn read_ddbs(&mut self, buffer: &mut <RDDDBS as Transmission>::Data) {
-        self.connection().read::<RDDDBS>(buffer);
-
+    pub fn read_ddbs(&mut self, buffer: &mut <RDDDBS as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDDDBS>(buffer)
     }
 
     /// ## Read DDB Continue
     /// > Reference: p. 249
     ///
     /// Reads the next value of the Display Data Bus (DDB) for diagnostics.
-    pub fn read_ddbc(&mut self, buffer: &mut <RDDDBC as Transmission>::Data) {
-        self.connection().read::<RDDDBC>(buffer);
-
+    pub fn read_ddbc(&mut self, buffer: &mut <RDDDBC as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDDDBC>(buffer)
     }
 
     /// ## Read First Checksum
     /// > Reference: p. 250
     ///
     /// Reads the first checksum value for verifying data integrity.
-    pub fn read_fcs(&mut self, buffer: &mut <RDFCS as Transmission>::Data) {
-        self.connection().read::<RDFCS>(buffer);
-
+    pub fn read_fcs(&mut self, buffer: &mut <RDFCS as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDFCS>(buffer)
     }
 
     /// ## Read Continue Checksum
     /// > Reference: p. 251
     ///
     /// Reads the next checksum value for continued data integrity verification.
-    pub fn read_ccs(&mut self, buffer: &mut <RDCCS as Transmission>::Data) {
-        self.connection().read::<RDCCS>(buffer);
-
+    pub fn read_ccs(&mut self, buffer: &mut <RDCCS as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDCCS>(buffer)
     }
 
     /// ## Read ID1
     /// > Reference: p. 252
     ///
     /// Reads the first identification value from the device.
-    pub fn read_id1(&mut self, buffer: &mut <RDID1 as Transmission>::Data) {
-        self.connection().read::<RDID1>(buffer);
-
+    pub fn read_id1(&mut self, buffer: &mut <RDID1 as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDID1>(buffer)
     }
 
     /// ## Read ID2
     /// > Reference: p. 253
     ///
     /// Reads the second identification value from the device.
-    pub fn read_id2(&mut self, buffer: &mut <RDID2 as Transmission>::Data) {
-        self.connection().read::<RDID2>(buffer);
-
+    pub fn read_id2(&mut self, buffer: &mut <RDID2 as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDID2>(buffer)
     }
 
     /// ## Read ID3
     /// > Reference: p. 254
     ///
     /// Reads the third identification value from the device.
-    pub fn read_id3(&mut self, buffer: &mut <RDID3 as Transmission>::Data) {
-        self.connection().read::<RDID3>(buffer);
-
+    pub fn read_id3(&mut self, buffer: &mut <RDID3 as Transmission>::Data) -> InstructionResult {
+        self.connection().read::<RDID3>(buffer)
     }
 
     /// ## Command2 BKx Selection
@@ -523,13 +540,18 @@ impl<C: Connection> ST7701S<C>
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension(&mut self, transmission: &CommandExtension) -> InstructionResult {
+    pub fn select_command_extension(
+        &mut self,
+        transmission: &CommandExtension,
+    ) -> InstructionResult {
         let next_state = *transmission;
-        self.connection().write::<CND2BKXSEL>(&transmission.as_tx_data()).inspect(|_| {
-            self.modify_state(|state| {
-                state.command_extension = next_state;
-            });
-        })
+        self.connection()
+            .write::<CND2BKXSEL>(&transmission.as_tx_data())
+            .inspect(|_| {
+                self.modify_state(|state| {
+                    state.command_extension = next_state;
+                });
+            })
     }
 
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
@@ -539,7 +561,8 @@ impl<C: Connection> ST7701S<C>
     /// allows fine-tuning of the display's color response and image quality by
     /// setting multiple voltage control points.
     pub fn positive_gamma_control(&mut self, transmission: &VoltageControl) -> InstructionResult {
-        self.connection().write::<PVGAMCTRL>(&transmission.as_tx_data())
+        self.connection()
+            .write::<PVGAMCTRL>(&transmission.as_tx_data())
     }
 
     /// ## `BK0: 0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
@@ -593,7 +616,6 @@ impl<C: Connection> ST7701S<C>
     /// Configures the number of display lines and line delta for the panel. This
     /// affects the vertical resolution and timing.
     pub fn line_setting(&mut self, settings: &LineSettings) -> InstructionResult {
-
         self.connection().write::<LNESET>(&settings.as_tx_data())
     }
 
