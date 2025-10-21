@@ -3,7 +3,11 @@ use crate::{
     transmission_mapping,
 };
 
-pub type Brightness = BitField<7>;
+transmission_mapping!(
+    pub struct Brightness<1> (
+        0: (D0(value<7>),),
+    );
+);
 
 transmission_mapping! {
     pub struct BrightnessControl<1> (

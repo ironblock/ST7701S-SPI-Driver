@@ -1,13 +1,13 @@
 use crate::st7701s_spi::{
-    device::{Protocol, ST7701S},
+    device::ST7701S,
     parameters::{
         general::Switch,
         register::{Bank, CommandExtension},
-    },
+    }, protocol::connection::Connection,
 };
 use Switch::*;
 
-pub fn init_sequence<T: Protocol>(device: &mut ST7701S<T>) {
+pub fn init_sequence<C: Connection, E>(device: &mut ST7701S<C, E>) {
     device.select_command_extension(
         CommandExtension::new()
             .set_extended_commands(On)
@@ -15,7 +15,7 @@ pub fn init_sequence<T: Protocol>(device: &mut ST7701S<T>) {
     );
 
     // SPI_WriteComm(0xC0); // LNESET
-    device.line_setting(settings);
+    // device.line_setting(settings);
     // SPI_WriteData(0x3B); // LDE_EN
     // SPI_WriteData(0x00); // Line Delta
 

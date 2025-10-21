@@ -1,37 +1,46 @@
-use std::array;
+use crate::st7701s_spi::transmissions::Transmission;
 
-#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct Bk0;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct Bk1;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct Bk3;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Location {
-    All(u8),
+    Any(u8),
     BK0(u8),
     BK1(u8),
     BK3(u8),
 }
 impl Location {
-    pub fn as_u8(&self) -> u8 {
+    pub const fn as_u8(&self) -> u8 {
         match self {
-            Self::All(addr) => *addr,
-            Self::BK0(addr) => *addr,
-            Self::BK1(addr) => *addr,
-            Self::BK3(addr) => *addr,
+            Self::Any(address) => *address,
+            Self::BK0(address) => *address,
+            Self::BK1(address) => *address,
+            Self::BK3(address) => *address,
         }
     }
 }
 
-pub trait DataBuffer: AsRef<[u8]> + AsMut<[u8]> + IntoIterator<Item = u8> {}
-impl<const N: usize> DataBuffer for [u8; N] where Self: IntoIterator<Item = u8, IntoIter = array::IntoIter<u8, N>> {}
 
-pub trait CommandInstruction {
+pub trait Instruction {
     const LOCATION: Location;
 }
-pub trait WriteInstruction {
-    const LOCATION: Location;
-    type Buffer: DataBuffer;
+
+pub trait Command: Instruction {}
+impl <T> Command for T where T: Instruction {}
+
+pub trait Write: Instruction + Transmission {}
+impl <T> Write for T where T: Instruction + Transmission {}
+
+pub trait Read: Instruction + Transmission {
 }
-pub trait ReadInstruction {
-    const LOCATION: Location;
-    type Buffer: DataBuffer;
-}
+impl <T> Read for T where T: Instruction + Transmission {}
 
 macro_rules! instructions {
     (@as_location $EVIS:vis fn(&self) => ($LOC:path, $ADDR:literal)) => {
@@ -47,7 +56,7 @@ macro_rules! instructions {
     ($EVIS:vis enum $GROUP:ident<$LOC:path $(,$SHARED:literal)?> {
        $($DVIS:vis const $NAME:ident = ($($ADDR:literal,)? $TYPE:ident$(<$PACKET:literal>)*),)+
     }) => {
-        #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
+        #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
         #[repr(u8)]
         $EVIS enum $GROUP {
             $($NAME$( = $ADDR)?),+
@@ -57,35 +66,43 @@ macro_rules! instructions {
         }
 
         $(
-            $DVIS struct $NAME;
-            impl $TYPE for $NAME {
+            #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+            $DVIS struct $NAME
+                where Self: $TYPE
+                $(
+                    , Self: $crate::st7701s_spi::transmissions::Transmission<Data = [u8; $PACKET]>
+                )?;
+
+            impl $crate::st7701s_spi::address::Instruction for $NAME {
                 const LOCATION: Location = $GROUP::as_location(&$GROUP::$NAME);
-                $(type Buffer = [u8; $PACKET];)?
             }
+            $(
+                impl $crate::st7701s_spi::transmissions::Transmission for $NAME {
+                    type Data = [u8; $PACKET];
+                    type MapToData<U> = [U; $PACKET];
+                }
+            )?
         )+
     };
 }
 
 pub mod special {
-    use crate::st7701s_spi::address::{ Location, WriteInstruction};
-    use WriteInstruction as Write;
+    use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {
-            pub enum Special<Location::All, 0xFF> {
-                pub const CND2BKXSEL = (Write<5>),
-                pub const DSTB       = (Write<5>),
-                pub const DSTBT      = (Write<5>),
-            }
+        pub enum Special<Location::Any, 0xFF> {
+            pub const CND2BKXSEL = (Write<5>),
+            pub const DSTB       = (Write<5>),
+            pub const DSTBT      = (Write<5>),
+        }
     }
 }
 
 pub mod core {
-    use crate::st7701s_spi::address::{
-         CommandInstruction as Command, Location, ReadInstruction as Read, WriteInstruction as Write,
-    };
+    use crate::st7701s_spi::address::{Command, Location, Read, Write};
 
     instructions! {
-        enum Core<Location::All> {
+        enum Core<Location::Any> {
             pub const NOP            = (0x00, Command),
             pub const SWRESET        = (0x01, Write<1>),
             pub const RDDID          = (0x04, Read<3>),
@@ -153,37 +170,37 @@ pub mod core {
 }
 
 pub mod bk0 {
-    use crate::st7701s_spi::address::{ Location, WriteInstruction as Write};
+    use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {
         pub enum BK0<Location::BK0> {
-        pub const PVGAMCTRL          = (0xB0, Write<16>),
-        pub const NVGAMCTRL          = (0xB1, Write<16>),
-        pub const DGMEN              = (0xB8, Write<1>),
-        pub const DGMLUTR            = (0xB9, Write<64>),
-        pub const DGMLUTB            = (0xBA, Write<64>),
-        pub const PWMCLKSEL          = (0xBC, Write<1>),
-        pub const LNESET             = (0xC0, Write<2>),
-        pub const PORCTRL            = (0xC1, Write<2>),
-        pub const INVSET             = (0xC2, Write<2>),
-        pub const RGBCTRL            = (0xC3, Write<4>),
-        pub const PARCTRL            = (0xC5, Write<2>),
-        pub const SDIR               = (0xC7, Write<1>),
-        pub const PDOSET             = (0xC8, Write<1>),
-        pub const COLCTRL            = (0xCD, Write<1>),
-        pub const SRECTRL            = (0xE0, Write<3>),
-        pub const NRCTRL             = (0xE1, Write<11>),
-        pub const SECTRL             = (0xE2, Write<13>),
-        pub const CCCTRL             = (0xE3, Write<4>),
-        pub const SKCTRL             = (0xE4, Write<2>),
-        pub const NVMSETE            = (0xEA, Write<1>),
-        pub const CABCCTRL           = (0xEE, Write<1>),
+            pub const PVGAMCTRL          = (0xB0, Write<16>),
+            pub const NVGAMCTRL          = (0xB1, Write<16>),
+            pub const DGMEN              = (0xB8, Write<1>),
+            pub const DGMLUTR            = (0xB9, Write<64>),
+            pub const DGMLUTB            = (0xBA, Write<64>),
+            pub const PWMCLKSEL          = (0xBC, Write<1>),
+            pub const LNESET             = (0xC0, Write<2>),
+            pub const PORCTRL            = (0xC1, Write<2>),
+            pub const INVSET             = (0xC2, Write<2>),
+            pub const RGBCTRL            = (0xC3, Write<4>),
+            pub const PARCTRL            = (0xC5, Write<2>),
+            pub const SDIR               = (0xC7, Write<1>),
+            pub const PDOSET             = (0xC8, Write<1>),
+            pub const COLCTRL            = (0xCD, Write<1>),
+            pub const SRECTRL            = (0xE0, Write<3>),
+            pub const NRCTRL             = (0xE1, Write<11>),
+            pub const SECTRL             = (0xE2, Write<13>),
+            pub const CCCTRL             = (0xE3, Write<4>),
+            pub const SKCTRL             = (0xE4, Write<2>),
+            pub const NVMSETE            = (0xEA, Write<1>),
+            pub const CABCCTRL           = (0xEE, Write<1>),
         }
     }
 }
 
 pub mod bk1 {
-    use crate::st7701s_spi::address::{ Location, WriteInstruction as Write};
+    use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {
         pub enum BK1<Location::BK1> {
@@ -208,7 +225,7 @@ pub mod bk1 {
 }
 
 pub mod bk3 {
-    use crate::st7701s_spi::address::{ Location, WriteInstruction as Write};
+    use crate::st7701s_spi::address::{Location, Write};
 
     instructions! {
         pub enum BK3<Location::BK3> {

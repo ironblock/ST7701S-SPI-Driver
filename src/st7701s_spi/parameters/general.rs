@@ -1,4 +1,4 @@
-use crate::{bit_value_enum, st7701s_spi::address::{ReadInstruction, WriteInstruction}};
+use crate::bit_value_enum;
 
 #[macro_export]
 macro_rules! state_struct {
@@ -22,14 +22,6 @@ macro_rules! state_struct {
             }
         }
     };
-}
-
-pub trait EncodeData<W: WriteInstruction> {
-    fn encode(&self) -> W::Buffer;
-}
-
-pub trait DecodeData<R: ReadInstruction> {
-    fn decode(data: &R::Buffer) -> Self;
 }
 
 bit_value_enum! {

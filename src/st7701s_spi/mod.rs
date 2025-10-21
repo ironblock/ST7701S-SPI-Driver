@@ -7,3 +7,4 @@ pub mod sequences;
 pub mod device;
 pub mod state;
 pub mod transmissions;
+pub mod protocol;

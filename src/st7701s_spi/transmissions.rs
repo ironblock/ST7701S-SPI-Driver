@@ -1,4 +1,42 @@
-use std::fmt::{Display, Formatter};
+use std::{borrow::Borrow, fmt::{Display, Formatter}};
+
+pub trait Transmission {
+    type Data: Borrow<[u8]> + AsRef<[u8]> + AsMut<[u8]> + IntoIterator<Item = u8>;
+    type MapToData<U>: Borrow<[U]> + AsRef<[U]>   + IntoIterator<Item = U>;
+}
+
+// pub struct DataBuffer<const PACKETS: usize>(<Self as Transmission>::Data) where Self: Transmission<Data = [u8; PACKETS]>;
+// impl <const PACKETS: usize> Transmission for DataBuffer<PACKETS> {
+//     type Data = [u8; PACKETS];
+//     type MapToData<U> = [U; PACKETS];
+// }
+// impl <const PACKETS: usize> DataBuffer<PACKETS> {
+//     pub const fn new() -> Self {
+//         Self([0; PACKETS])
+//     }
+// }
+// impl <const PACKETS: usize>Deref for DataBuffer<PACKETS> {
+//     type Target = [u8; PACKETS];
+
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
+// impl <const PACKETS: usize> DerefMut for DataBuffer<PACKETS> {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.0
+//     }
+// }
+
+pub trait Parametric where Self: Transmission {
+    type BitMasks: AsRef<[BitMask]> + IntoIterator<Item = BitMask>;
+
+    const INITIAL_VALUE: <Self as Transmission>::Data;
+    const ARGUMENT_MASK: <Self as Transmission>::MapToData<BitMask>;
+
+    fn as_tx_data(&self) -> <Self as Transmission>::Data;
+    fn from_rx_data(packets: &<Self as Transmission>::Data) -> Self;
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct BitMask(usize);
@@ -250,8 +288,8 @@ macro_rules! transmission_mapping {
     (@base_value)               => { 0 };
     (@value_type ($T:ident<$BITS:literal, $ALIAS:ty $(, $VAL:tt)?>)) => { $ALIAS $(<$VAL>)? };
     (@value_type ($T:ident<$BITS:literal>)) => { BitField<$BITS> };
-    (@initial_value ($T:ident, $($VAL:tt,)?)) => {
-        $T::INITIAL_VALUE
+    (@initial_value ($T:path, $($VAL:tt,)?)) => {
+        <$T>::INITIAL_VALUE
     };
     (@argument_mask $($T:tt)+) => {
         BitMask::new(0) $(.merge(& $T::SHIFT_MASK))+
@@ -265,7 +303,7 @@ macro_rules! transmission_mapping {
                         $D:ident(
                             $ARG:ident<$BITS:literal>
                             $(as $ALIAS:ty)?
-                            $(= $VAL:expr)?
+                            $(= $VAL:tt)?
                         )
                     ,)*
                 ) $(= $BASE:literal)?
@@ -278,50 +316,22 @@ macro_rules! transmission_mapping {
                 use $crate::st7701s_spi::transmissions::{BitField};
                 use super::*;
 
-                pub type Transmission = [u8; $LENGTH];
-
                 $(
                     $(
                         pub type [<$ARG:camel Value>] = transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>));
                         pub type [<$ARG:camel Field>] = $D<$BITS $(, {$ALIAS::INITIAL_VALUE})? $(, { $VAL })?>;
                     )*
                 )+
-
-                pub const INITIAL_VALUE: Transmission = [
-                    $(
-                        $crate::transmission_mapping!(@base_value $($BASE)?)
-                        $(| $crate::transmission_mapping!(
-                            @initial_value (
-                                [<$ARG:camel Field>],
-                                $($ALIAS,)?
-                                $($VAL,)?
-                            ))
-                        )*
-                    ),+
-                ];
-
-                pub const ARGUMENT_MASK: [BitMask; $LENGTH] = [
-                    $(
-                        BitMask::new(0)
-                            $(.merge(&[<$ARG:camel Field>]::SHIFT_MASK))*
-                    ),+
-                ];
             }
 
             $(#[$META])*
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-            $SV struct [<$NAME:camel>]([<$NAME:snake _types>]::Transmission);
+            $SV struct [<$NAME:camel>]([u8; $LENGTH])
+                where Self: Parametric,
+                      Self: Transmission<Data = [u8; $LENGTH]>;
             impl [<$NAME:camel>] {
                 pub const fn new() -> Self {
-                    Self::from_packets([<$NAME:snake _types>]::INITIAL_VALUE)
-                }
-
-                pub const fn from_packets(packets: [<$NAME:snake _types>]::Transmission) -> Self {
-                    Self(packets)
-                }
-
-                pub const fn as_packets(self) -> [<$NAME:snake _types>]::Transmission {
-                    self.0
+                    Self(Self::INITIAL_VALUE)
                 }
 
                 $(
@@ -339,6 +349,41 @@ macro_rules! transmission_mapping {
                         }
                     )*
                 )+
+            }
+            impl $crate::st7701s_spi::transmissions::Transmission for [<$NAME:camel>] {
+                type Data = [u8; $LENGTH];
+                type MapToData<U> = [U; $LENGTH];
+            }
+            impl $crate::st7701s_spi::transmissions::Parametric for [<$NAME:camel>] {
+                type BitMasks = Self::MapToData<BitMask>;
+
+                const INITIAL_VALUE: Self::Data = [
+                    $(
+                        $crate::transmission_mapping!(@base_value $($BASE)?)
+                        $(| $crate::transmission_mapping!(
+                            @initial_value (
+                                [<$NAME:snake _types>]::[<$ARG:camel Field>],
+                                $($ALIAS,)?
+                                $($VAL,)?
+                            ))
+                        )*
+                    ),+
+                ];
+
+                const ARGUMENT_MASK: Self::BitMasks = [
+                    $(
+                        BitMask::new(0)
+                            $(.merge(&[<$NAME:snake _types>]::[<$ARG:camel Field>]::SHIFT_MASK))*
+                    ),+
+                ];
+
+                fn as_tx_data(&self) -> Self::Data {
+                    self.0
+                }
+
+                fn from_rx_data(packets: &Self::Data) -> Self {
+                    Self(*packets)
+                }
             }
             impl Default for [<$NAME:camel>] {
                 fn default() -> Self {

@@ -16,18 +16,19 @@
 //! device, there may exist race conditions or other timing issues that won't be
 //! exposed on that hardware.
 
-extern crate num;
-extern crate spidev;
-
+use linux_embedded_hal::SpidevDevice;
 use log::info;
-use st7701s::st7701s_spi::{panel::TDOMODE, sequences::sequence_tdo::init, device::HalfDuplexSPI};
+use st7701s::st7701s_spi::{device::ST7701S, panel::TDOMODE, sequences::init};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");
+    let mut connection = SpidevDevice::open("/dev/spidev1.0").expect("Failed to open SPI device").inspect(|device| {
 
-    let mut display = HalfDuplexSPI::new(String::from("/dev/spidev1.0"));
-    let mode = TDOMODE;
+        info!("SPI device opened successfully");
+        device.configure(SpidevDevice::THREE_WIRE_SPI).expect("Failed to configure SPI device");
+    });
 
+    let mut display = ST7701S::new().connect_spi_three_wire("/dev/spidev1.0", None);
 
-    init(&mut display, mode);
+    init(&mut display, TDOMODE);
 }

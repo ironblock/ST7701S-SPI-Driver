@@ -1,143 +1,88 @@
 extern crate spidev;
 
-use spidev::{SpiModeFlags, Spidev, SpidevOptions};
-use std::{
-    io::{self, Read, Write},
-    path::Path,
-};
+use crate::st7701s_spi::{protocol::connection::Connection, state::domains::DeviceState};
 
-use crate::st7701s_spi::{
-    address::{CommandInstruction, DataBuffer, Location, ReadInstruction, WriteInstruction}, state::{domains::DeviceState},
-};
+struct NotConnected;
 
-pub enum DCX {
-    Command = 0x00,
-    Parameter = 0x01,
+pub trait Connected {
+    type ConnectionType: Connection;
+
+    fn connection(&self) -> &Self::ConnectionType;
 }
 
-pub trait Protocol {
-    fn tx_command(&mut self, location: Location) -> io::Result<usize>;
-    fn tx_parameters(&mut self, parameters: impl DataBuffer) -> io::Result<usize>;
-    fn rx_parameters(&mut self, buffer: &mut impl DataBuffer) -> io::Result<usize>;
+pub type StateModifier<T: Stateful> = for<'a> fn(&'a mut T::StateType);
+pub type StateAccessor<T: Stateful, U> = for<'a> fn(&'a T::StateType) -> &'a U;
+pub type StateAccessorMut<T: Stateful, U> = for<'a> fn(&'a mut T::StateType) -> &'a mut U;
+pub trait Stateful {
+    type StateType;
+
+    fn state(&self) -> &Self::StateType;
+
+    fn state_mut(&mut self) -> &mut Self::StateType;
+
+    fn modify_state(&mut self, modifier: impl FnOnce(&mut Self::StateType));
+
+    fn reset(&mut self);
 }
 
-pub type ReadResult<R> = Result<<R as ReadInstruction>::Buffer, io::Error>;
+pub trait ActiveDevice: Connected + Stateful {}
+impl<T> ActiveDevice for T where T: Connected + Stateful {}
 
-/// This is a 3-wire SPI implementation. Reads and writes share the SDA pin and
-/// are performed half-duplex
-pub struct Spi3Wire {
-    device: Spidev,
-}
-impl Spi3Wire {
-    pub const DEFAULT_OPTIONS: SpidevOptions = SpidevOptions {
-        bits_per_word: Some(9),
-        max_speed_hz: Some(20_0000),
-        lsb_first: Some(false),
-        spi_mode: Some(SpiModeFlags::SPI_MODE_0),
-    };
-
-    pub fn new(spi_device: &Path, spi_options: &SpidevOptions) -> Self {
-        let mut device = Spidev::open(spi_device).expect("Failed to open SPI device");
-
-        device
-            .configure(spi_options)
-            .expect("Failed to configure SPI device");
-
-        Self { device }
-    }
-}
-
-impl Protocol for Spi3Wire {
-    fn tx_command(&mut self, location: Location) -> io::Result<usize> {
-        self.device.write(&[DCX::Command as u8, location.as_u8()])
-    }
-
-    fn tx_parameters(&mut self, parameters: impl DataBuffer) -> io::Result<usize> {
-        let mut written: usize = 0;
-
-        for byte in parameters.into_iter() {
-            written += self.device.write(&[DCX::Parameter as u8, byte])?;
-        }
-
-        io::Result::Ok(written)
-    }
-
-    fn rx_parameters(&mut self, buffer: &mut impl DataBuffer) -> io::Result<usize> {
-        self.device.read(buffer.as_mut())
-    }
-}
-
-pub trait Stateful<T> {
-    fn state(&self) -> &T;
-    fn state_mut(&mut self) -> &mut T;
-
-    fn modify_state<F: FnOnce(&mut T)>(&mut self, f: F)  {
-        f(self.state_mut());
-    }
-
-    fn reset(&mut self) where T: Default
-    {
-        *self.state_mut() = T::default();
-    }
-}
-
-pub trait Device {
-    fn connection(&mut self) -> &mut impl Protocol;
-
-    fn command<C: CommandInstruction>(&mut self) -> io::Result<usize> {
-        self.connection().tx_command(C::LOCATION)
-    }
-
-    fn write<W: WriteInstruction>(&mut self, parameters: W::Buffer) -> io::Result<usize> {
-        let mut written: usize = 0;
-
-        written += self.connection().tx_command(W::LOCATION)?;
-        written += self.connection().tx_parameters(parameters)?;
-
-        io::Result::Ok(written)
-    }
-
-    fn read<R: ReadInstruction<Buffer = impl DataBuffer>>(
-        &mut self,
-    ) -> Result<R::Buffer, io::Error> {
-        let mut buffer = R::allocate_buffer();
-
-    self.connection().tx_command(R::LOCATION)?;
-    self.connection().rx_parameters(&mut buffer)?;
-
-        Result::Ok(buffer)
-    }
-}
-
-pub struct ST7701S<T: Protocol> {
-    connection: T,
+pub struct ST7701S<C, E> {
+    pub connection: C,
+    extension: Option<E>,
     state: DeviceState,
 }
-impl <T: Protocol> Stateful<DeviceState> for ST7701S<T> {
-    fn state(&self) -> &DeviceState {
+
+impl<C, E> ST7701S<C, E> {
+    pub const fn new() -> ST7701S<NotConnected, E> {
+        ST7701S {
+            connection: NotConnected,
+            extension: None,
+            state: DeviceState::new(),
+        }
+    }
+
+    pub fn set_extension(&mut self, extension: E) {
+        self.extension = Some(extension);
+    }
+}
+
+impl<E> ST7701S<NotConnected, E> {
+    pub fn connect<C: Connection>(self, connection: C) -> ST7701S<C, E> {
+        ST7701S {
+            connection,
+            extension: self.extension,
+            state: DeviceState::new(),
+        }
+    }
+}
+
+impl<C: Connection, E> Stateful for ST7701S<C, E> {
+    type StateType = DeviceState;
+
+    fn state(&self) -> &Self::StateType {
         &self.state
     }
 
-    fn state_mut(&mut self) -> &mut DeviceState {
+    fn state_mut(&mut self) -> &mut Self::StateType {
         &mut self.state
     }
-}
-impl <T: Protocol> Device for ST7701S<T> {
-    #[allow(refining_impl_trait)]
-    fn connection(&mut self) -> &mut T {
-        &mut self.connection
+
+    fn modify_state(&mut self, modifier: impl FnOnce(&mut Self::StateType)) {
+        modifier(&mut self.state);
+    }
+
+    fn reset(&mut self) {
+        self.extension = None;
+        self.state = DeviceState::default();
     }
 }
 
-impl ST7701S<Spi3Wire> {
-    pub fn new(spi_device: &Path, spi_options: &SpidevOptions) -> Self {
-        let mut spi = Spidev::open(spi_device).expect("Failed to open SPI device");
-        spi.configure(spi_options)
-            .expect("Failed to configure SPI device");
+impl<C: Connection, E> Connected for ST7701S<C, E> {
+    type ConnectionType = C;
 
-        Self {
-            connection: Spi3Wire::new(spi_device, spi_options),
-            state: DeviceState::new(),
-        }
+    fn connection(&self) -> &Self::ConnectionType {
+        &self.connection
     }
 }
