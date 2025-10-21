@@ -1,9 +1,9 @@
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::bk1::*;
-use crate::st7701s_spi::address::bk3::*;
+use crate::st7701s_spi::address::{bk3::*, ExtensionBk0, ExtensionBk1, ExtensionBk3};
 use crate::st7701s_spi::address::core::*;
 use crate::st7701s_spi::address::special::*;
+use crate::st7701s_spi::address::{AnyExtension, bk1::*};
 use crate::st7701s_spi::{
     address::bk0::*,
     device::*,
@@ -27,7 +27,7 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-impl<C: Connection> ST7701S<C> {
+impl<C: Connection, E> ST7701S<C, E> {
     /// ## No Operation
     ///
     /// This command is "do nothing". It has no effect on the display, but it
@@ -58,9 +58,11 @@ impl<C: Connection> ST7701S<C> {
     /// (with no arguments), and p. 188 refers to it as a **write**. As only a
     /// write can have arguments and 0x01 is the constant argument in both
     /// references, SWRESET's canonical representation here is as a **write**.
-    pub fn software_reset(&mut self) -> io::Result<()> {
+    pub fn software_reset(self) -> ST7701S<C, AnyExtension> {
         const RESET_PARAMETERS: [u8; 1] = [0x01];
-        self.connection().write::<SWRESET>(&RESET_PARAMETERS)?;
+        self.connection()
+            .write::<SWRESET>(&RESET_PARAMETERS)
+            .expect("failed to send software reset command");
         let delay;
         let condition;
 
@@ -77,10 +79,10 @@ impl<C: Connection> ST7701S<C> {
             condition,
             delay
         );
-        self.reset();
+
         thread::sleep(time::Duration::from_millis(delay));
 
-        io::Result::Ok(())
+        self.reset()
     }
 
     /// ## Read Display ID
@@ -228,7 +230,9 @@ impl<C: Connection> ST7701S<C> {
     /// ### Considerations
     ///   1. Brightness value must be set separately (see `__DISBV`)
     ///   2. Dimming control can only be set when using manual brightness control)
-    pub fn brightness_control(&'_ mut self) -> Configure<'_, Self, RDCTRLD, WRCTRLD, BrightnessControl> {
+    pub fn brightness_control(
+        &'_ mut self,
+    ) -> Configure<'_, Self, RDCTRLD, WRCTRLD, BrightnessControl> {
         Configure::new(self, |state| &mut state.config.brightness_control)
     }
 
@@ -554,6 +558,30 @@ impl<C: Connection> ST7701S<C> {
             })
     }
 
+    /// ## `Special: 0xFF` `DSTB` Deep Standby Mode Enable
+    /// > Reference: p. 285
+    ///
+    /// Enables deep standby mode, reducing power consumption to a minimum. The
+    /// display will not respond to most commands until reactivated.
+    pub fn deep_standby_enable(&mut self) -> InstructionResult {
+        use crate::st7701s_spi::address::special::DSTB;
+        const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
+        self.connection().write::<DSTB>(&PARAMS)
+    }
+
+    /// ## `Special: 0xFF` `DSTBT` Deep Standby Mode Active
+    /// > Reference: p. 286
+    ///
+    /// Indicates whether deep standby mode is currently active. Used for
+    /// diagnostics and power management.
+    pub fn deep_standby_active(&mut self) -> InstructionResult {
+        use crate::st7701s_spi::address::special::DSTBT;
+        const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
+        self.connection().write::<DSTBT>(&PARAMS)
+    }
+}
+
+impl <C: Connection> ST7701S<C, ExtensionBk0> {
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
     /// > See p. 261
     ///
@@ -754,29 +782,9 @@ impl<C: Connection> ST7701S<C> {
     pub fn cabc_control(&mut self, setting: u8) -> InstructionResult {
         self.connection().write::<CABCCTRL>(&[setting])
     }
+}
 
-    /// ## `Special: 0xFF` `DSTB` Deep Standby Mode Enable
-    /// > Reference: p. 285
-    ///
-    /// Enables deep standby mode, reducing power consumption to a minimum. The
-    /// display will not respond to most commands until reactivated.
-    pub fn deep_standby_enable(&mut self) -> InstructionResult {
-        use crate::st7701s_spi::address::special::DSTB;
-        const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
-        self.connection().write::<DSTB>(&PARAMS)
-    }
-
-    /// ## `Special: 0xFF` `DSTBT` Deep Standby Mode Active
-    /// > Reference: p. 286
-    ///
-    /// Indicates whether deep standby mode is currently active. Used for
-    /// diagnostics and power management.
-    pub fn deep_standby_active(&mut self) -> InstructionResult {
-        use crate::st7701s_spi::address::special::DSTBT;
-        const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
-        self.connection().write::<DSTBT>(&PARAMS)
-    }
-
+impl <C: Connection> ST7701S<C, ExtensionBk1> {
     /// ## `BK1: 0xB0` `VRHS` Vop Amplitude Setting
     /// > Reference: p. 287
     ///
@@ -908,7 +916,9 @@ impl<C: Connection> ST7701S<C> {
     pub fn mipi_setting_4(&mut self, setting: u8) -> InstructionResult {
         self.connection().write::<MIPISET4>(&[setting])
     }
+}
 
+impl <C: Connection> ST7701S<C, ExtensionBk3> {
     /// ## `BK3: 0xCA` `NVMSET` NVM Setting
     /// > Reference: p. 304
     ///

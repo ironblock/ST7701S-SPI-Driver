@@ -72,7 +72,7 @@ where
         self.field().is_none()
     }
 
-    fn select(mut self, parameters: P) -> InstructionResult {
+    pub fn select(mut self, parameters: P) -> InstructionResult {
         self.connection()
             .write::<SELECT>(&parameters.as_tx_data())
             .inspect(move |_| {
@@ -80,7 +80,7 @@ where
             })
     }
 
-    fn disable(mut self) -> InstructionResult {
+    pub fn disable(mut self) -> InstructionResult {
         self.connection().command::<DISABLE>().inspect(|_| {
             *self.field_mut() = None;
         })
@@ -99,12 +99,12 @@ where
     WRITE: Write<Data = P::Data>,
     P: Parametric,
 {
-    fn read(mut self, buffer: &mut P::Data) -> InstructionResult {
+    pub fn read(mut self, buffer: &mut P::Data) -> InstructionResult {
         self.connection().read::<READ>(buffer).inspect(move |_| {
             *self.field_mut() = P::from_rx_data(buffer);
         })
     }
-    fn write(mut self, next_state: P) -> InstructionResult {
+    pub fn write(mut self, next_state: P) -> InstructionResult {
         self.connection()
             .write::<WRITE>(&next_state.as_tx_data())
             .inspect(move |_| {

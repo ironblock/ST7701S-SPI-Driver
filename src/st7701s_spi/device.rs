@@ -1,6 +1,6 @@
 extern crate spidev;
 
-use crate::st7701s_spi::{parameters::register::Bank, protocol::connection::Connection, state::domains::DeviceState};
+use crate::st7701s_spi::{address::AnyExtension, protocol::connection::Connection, state::domains::DeviceState};
 
 pub struct NotConnected;
 
@@ -21,48 +21,60 @@ pub trait Stateful {
     fn state_mut(&mut self) -> &mut Self::StateType;
 
     fn modify_state(&mut self, modifier: impl FnOnce(&mut Self::StateType));
-
-    fn reset(&mut self);
 }
 
 pub trait ActiveDevice: Connected + Stateful {}
 impl<T> ActiveDevice for T where T: Connected + Stateful {}
 
-pub struct ST7701S<C> {
+pub struct ST7701S<C, E> {
     pub connection: C,
-    extension: Option<Bank>,
+    extension: E,
     state: DeviceState,
 }
 
-impl<C> ST7701S<C> {
-    pub const fn new(connection: C) -> ST7701S<C> {
+impl ST7701S<NotConnected, AnyExtension> {
+    pub const fn new() -> ST7701S<NotConnected, AnyExtension> {
+        ST7701S {
+            connection: NotConnected,
+            extension: AnyExtension,
+            state: DeviceState::new(),
+        }
+    }
+
+    pub fn connect<C: Connection>(self, connection: C) -> ST7701S<C, AnyExtension> {
         ST7701S {
             connection,
-            extension: None,
+            extension: self.extension,
+            state: self.state,
+        }
+    }
+}
+
+impl Default for ST7701S<NotConnected, AnyExtension> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl <C, E> ST7701S<C, E> {
+    pub fn set_extension<N>(self, extension: N) -> ST7701S<C, N> {
+        ST7701S {
+            connection: self.connection,
+            extension,
+            state: self.state,
+        }
+    }
+
+    pub fn reset(self) -> ST7701S<C, AnyExtension> {
+        ST7701S {
+            connection: self.connection,
+            extension: AnyExtension,
             state: DeviceState::new(),
         }
     }
 }
 
-impl <C: Connection> ST7701S<C> {
-    pub fn extension(&self) -> Option<&Bank> {
-        self.extension.as_ref()
-    }
-
-    pub fn extension_mut(&mut self) -> Option<&mut Bank> {
-        self.extension.as_mut()
-    }
-
-    pub fn set_extension(&mut self, extension: Bank) {
-        self.extension = Some(extension);
-    }
-
-    pub fn clear_extension(&mut self) {
-        self.extension = None;
-    }
-}
-
-impl<C: Connection> Stateful for ST7701S<C> {
+impl<C: Connection, E> Stateful for ST7701S<C, E> {
     type StateType = DeviceState;
 
     fn state(&self) -> &Self::StateType {
@@ -77,13 +89,9 @@ impl<C: Connection> Stateful for ST7701S<C> {
         modifier(&mut self.state);
     }
 
-    fn reset(&mut self) {
-        self.extension = None;
-        self.state = DeviceState::default();
-    }
 }
 
-impl<C: Connection> Connected for ST7701S<C> {
+impl<C: Connection, E> Connected for ST7701S<C, E> {
     type ConnectionType = C;
 
     fn connection(&self) -> &Self::ConnectionType {

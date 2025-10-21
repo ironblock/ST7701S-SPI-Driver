@@ -4,9 +4,9 @@ use crate::st7701s_spi::address::{Command, Read, Write};
 
 pub type InstructionResult = io::Result<()>;
 pub trait Connection {
-    fn command<C: Command>(&self) -> InstructionResult;
+    fn command<C: Command>(&self) -> Result<(), io::Error>;
 
-    fn write<W: Write>(&self, parameters: &W::Data) -> InstructionResult;
+    fn write<W: Write>(&self, parameters: &W::Data) -> Result<(), io::Error>;
 
-    fn read<R: Read>(&self, buffer: &mut R::Data) -> InstructionResult;
+    fn read<R: Read>(&self, buffer: &mut R::Data) -> Result<(), io::Error>;
 }

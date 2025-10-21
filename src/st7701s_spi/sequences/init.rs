@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::st7701s_spi::{
     device::ST7701S,
     parameters::{
@@ -7,12 +9,14 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-pub fn init_sequence<C: Connection>(display: &mut ST7701S<C>) {
+pub fn init_sequence<C: Connection, E>(display: &mut ST7701S<C, E>) -> io::Result<()> {
     display.select_command_extension(
         CommandExtension::new()
             .set_extended_commands(On)
             .set_bank(Bank::BK0),
-    );
+    )?;
+
+    Ok(())
 
     // SPI_WriteComm(0xC0); // LNESET
     // device.line_setting(settings);
