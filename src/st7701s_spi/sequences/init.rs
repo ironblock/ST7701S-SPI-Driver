@@ -7,8 +7,8 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-pub fn init_sequence<C: Connection, E>(device: &mut ST7701S<C, E>) {
-    device.select_command_extension(
+pub fn init_sequence<C: Connection>(display: &mut ST7701S<C>) {
+    display.select_command_extension(
         CommandExtension::new()
             .set_extended_commands(On)
             .set_bank(Bank::BK0),

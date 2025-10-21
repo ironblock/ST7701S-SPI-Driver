@@ -20,7 +20,7 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-impl<C: Connection, E> ST7701S<C, E>
+impl<C: Connection> ST7701S<C>
 {
     /// ## No Operation
     ///

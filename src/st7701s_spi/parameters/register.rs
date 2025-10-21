@@ -41,10 +41,10 @@ bit_value_enum! {
 
 transmission_mapping! {
     pub struct CommandExtension<5>(
-        1: () = 0b0111_0111,
-        2: () = 0b0000_0001,
+        0: () = 0b0111_0111,
+        1: () = 0b0000_0001,
+        2: () = 0b0000_0000,
         3: () = 0b0000_0000,
-        4: () = 0b0000_0000,
-        5: (D4(extended_commands<1> as Switch), D0(bank<2> as Bank),),
+        4: (D4(extended_commands<1> as Switch), D0(bank<2> as Bank),),
     );
 }

@@ -18,17 +18,14 @@
 
 use linux_embedded_hal::SpidevDevice;
 use log::info;
-use st7701s::st7701s_spi::{device::ST7701S, panel::TDOMODE, sequences::init};
+use st7701s::st7701s_spi::{device::ST7701S, panel::TDOMODE, protocol::spi::*, sequences::init::{self, init_sequence}};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");
-    let mut connection = SpidevDevice::open("/dev/spidev1.0").expect("Failed to open SPI device").inspect(|device| {
+    let mut device = SpidevDevice::open("/dev/spidev1.0").expect("Failed to open SPI device");
+    device.configure(&ThreeWireSPI::DEFAULT_OPTIONS).expect("Failed to configure SPI device");
 
-        info!("SPI device opened successfully");
-        device.configure(SpidevDevice::THREE_WIRE_SPI).expect("Failed to configure SPI device");
-    });
+    let mut display= ST7701S::new(ThreeWireSPI { device });
 
-    let mut display = ST7701S::new().connect_spi_three_wire("/dev/spidev1.0", None);
-
-    init(&mut display, TDOMODE);
+    init_sequence(&mut display);
 }

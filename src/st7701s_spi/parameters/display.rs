@@ -36,7 +36,7 @@ bit_value_enum! {
 
 transmission_mapping! {
     pub struct GammaCurve<1> (
-        1: (D0(GC<2> as Curve),),
+        0: (D0(GC<2> as Curve),),
     );
 }
 
@@ -57,22 +57,22 @@ transmission_mapping! {
     /// > - `PVGAMCTRL`         p. 261, 262
     /// > - `NVGAMCTRL`         p. 263, 264
     pub struct VoltageControl<16>(
-        1:  (D6(AJ0<2> as VoltageBias), D0(  VC0<4>),),
-        2:  (D6(AJ1<2> as VoltageBias), D0(  VC4<6>),),
-        3:  (D6(AJ2<2> as VoltageBias), D0(  VC8<6>),),
-        4:  (                           D0( VC16<4>),),
-        5:  (D6(AJ3<2> as VoltageBias), D0( VC24<4>),),
-        6:  (                           D0( VC52<6>),),
-        7:  (                           D0( VC80<6>),),
-        8:  (                           D0(VC108<4>),),
-        9:  (                           D0(VC147<4>),),
-        10: (                           D0(VC175<6>),),
-        11: (                           D0(VC203<4>),),
-        12: (D6(AJ4<2> as VoltageBias), D0(VC231<4>),),
-        13: (                           D0(VC239<4>),),
-        14: (D6(AJ5<2> as VoltageBias), D0(VC247<6>),),
-        15: (D6(AJ6<2> as VoltageBias), D0(VC251<6>),),
-        16: (D6(AJ7<2> as VoltageBias), D0(VC255<4>),),
+        0:  (D6(AJ0<2> as VoltageBias), D0(  VC0<4>),),
+        1:  (D6(AJ1<2> as VoltageBias), D0(  VC4<6>),),
+        2:  (D6(AJ2<2> as VoltageBias), D0(  VC8<6>),),
+        3:  (                           D0( VC16<4>),),
+        4:  (D6(AJ3<2> as VoltageBias), D0( VC24<4>),),
+        5:  (                           D0( VC52<6>),),
+        6:  (                           D0( VC80<6>),),
+        7:  (                           D0(VC108<4>),),
+        8:  (                           D0(VC147<4>),),
+        9:  (                           D0(VC175<6>),),
+        10: (                           D0(VC203<4>),),
+        11: (D6(AJ4<2> as VoltageBias), D0(VC231<4>),),
+        12: (                           D0(VC239<4>),),
+        13: (D6(AJ5<2> as VoltageBias), D0(VC247<6>),),
+        14: (D6(AJ6<2> as VoltageBias), D0(VC251<6>),),
+        15: (D6(AJ7<2> as VoltageBias), D0(VC255<4>),),
     );
 }
 

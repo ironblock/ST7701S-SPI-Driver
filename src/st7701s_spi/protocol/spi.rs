@@ -17,7 +17,7 @@ pub trait SpiProtocol: Connection {
     fn device_mut(&mut self) -> &mut SpidevDevice;
 }
 
-struct ThreeWireSPI
+pub struct ThreeWireSPI
 where
     Self: SpiProtocol,
 {

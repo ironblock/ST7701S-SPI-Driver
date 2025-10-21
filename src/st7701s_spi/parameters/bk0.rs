@@ -3,8 +3,8 @@ use crate::{st7701s_spi::{parameters::general::Switch, transmissions::*}, transm
 
 transmission_mapping!(
     pub struct LineSettings<2>(
-        1: (D7(line_delta_enable<1> as Switch), D0(lines<7>),),
-        2: (D1(line_delta<7>),),
+        0: (D7(line_delta_enable<1> as Switch), D0(lines<7>),),
+        1: (D1(line_delta<7>),),
     );
 );
 
