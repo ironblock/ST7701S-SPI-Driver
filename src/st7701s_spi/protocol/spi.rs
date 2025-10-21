@@ -55,13 +55,13 @@ impl SpiProtocol for ThreeWireSPI {
 
 impl Connection for ThreeWireSPI {
     fn command<C: Command>(&self) -> io::Result<()> {
-        let command = Self::format_command(C::LOCATION.as_u8());
+        let command = Self::format_command(C::ADDRESS);
 
         self.device.transfer(&mut SpidevTransfer::write(&command))
     }
 
     fn write<W: Write>(&self, parameters: &W::Data) -> io::Result<()> {
-        let command = Self::format_command(W::LOCATION.as_u8());
+        let command = Self::format_command(W::ADDRESS);
         let parameters = Self::format_parameters(parameters.as_ref());
 
         self.device.transfer_multiple(&mut [
@@ -71,7 +71,7 @@ impl Connection for ThreeWireSPI {
     }
 
     fn read<R: Read>(&self, buffer: &mut R::Data) -> io::Result<()> {
-        let command = Self::format_command(R::LOCATION.as_u8());
+        let command = Self::format_command(R::ADDRESS);
 
         self.device.transfer_multiple(&mut [
             SpidevTransfer::write(&command),

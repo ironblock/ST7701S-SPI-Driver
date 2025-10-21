@@ -1,23 +1,19 @@
 use std::io;
 
 use crate::st7701s_spi::{
-    device::ST7701S,
-    parameters::{
-        general::Switch,
-        register::{Bank, CommandExtension},
-    }, protocol::connection::Connection,
+    address::ExtensionBk0, device::ST7701S, parameters::{
+        bk0::LineSettings, general::Switch, register::{Bank, CommandExtension}
+    }, protocol::connection::Connection
 };
 use Switch::*;
 
 pub fn init_sequence<C: Connection, E>(display: &mut ST7701S<C, E>) -> io::Result<()> {
-    display.select_command_extension(
-        CommandExtension::new()
-            .set_extended_commands(On)
-            .set_bank(Bank::BK0),
+    let mut display = display.select_command_extension(ExtensionBk0);
+
+    display.line_setting(LineSettings::new()
+        .set_lines(0x3B)
+        .set_line_delta(Off),
     )?;
-
-    Ok(())
-
     // SPI_WriteComm(0xC0); // LNESET
     // device.line_setting(settings);
     // SPI_WriteData(0x3B); // LDE_EN
@@ -291,4 +287,6 @@ pub fn init_sequence<C: Connection, E>(display: &mut ST7701S<C, E>) -> io::Resul
     // SPI_WriteComm(0x3A); // pixel format
     // SPI_WriteData(0x60);//0x60 18bit   0x50 16bit
     // #endif
+
+    Ok(())
 }

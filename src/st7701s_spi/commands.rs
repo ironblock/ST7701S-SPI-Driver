@@ -1,9 +1,9 @@
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::{bk3::*, ExtensionBk0, ExtensionBk1, ExtensionBk3};
 use crate::st7701s_spi::address::core::*;
 use crate::st7701s_spi::address::special::*;
 use crate::st7701s_spi::address::{AnyExtension, bk1::*};
+use crate::st7701s_spi::address::{Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3, bk3::*};
 use crate::st7701s_spi::{
     address::bk0::*,
     device::*,
@@ -544,18 +544,24 @@ impl<C: Connection, E> ST7701S<C, E> {
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension(
-        &mut self,
-        transmission: &CommandExtension,
-    ) -> InstructionResult {
-        let next_state = *transmission;
+    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<C, N> {
+        let mut transmission = CommandExtension::new();
+
+        if let Some(extension) = N::EXTENSION {
+            transmission.set_extended_commands(On).set_bank(extension);
+        } else {
+            transmission.set_extended_commands(Off);
+        }
+
         self.connection()
             .write::<CND2BKXSEL>(&transmission.as_tx_data())
             .inspect(|_| {
                 self.modify_state(|state| {
-                    state.command_extension = next_state;
+                    state.command_extension = transmission;
                 });
-            })
+            });
+
+        self.set_extension(extension)
     }
 
     /// ## `Special: 0xFF` `DSTB` Deep Standby Mode Enable
@@ -581,7 +587,7 @@ impl<C: Connection, E> ST7701S<C, E> {
     }
 }
 
-impl <C: Connection> ST7701S<C, ExtensionBk0> {
+impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
     /// > See p. 261
     ///
@@ -784,7 +790,7 @@ impl <C: Connection> ST7701S<C, ExtensionBk0> {
     }
 }
 
-impl <C: Connection> ST7701S<C, ExtensionBk1> {
+impl<C: Connection> ST7701S<C, ExtensionBk1> {
     /// ## `BK1: 0xB0` `VRHS` Vop Amplitude Setting
     /// > Reference: p. 287
     ///
@@ -918,7 +924,7 @@ impl <C: Connection> ST7701S<C, ExtensionBk1> {
     }
 }
 
-impl <C: Connection> ST7701S<C, ExtensionBk3> {
+impl<C: Connection> ST7701S<C, ExtensionBk3> {
     /// ## `BK3: 0xCA` `NVMSET` NVM Setting
     /// > Reference: p. 304
     ///

@@ -1,38 +1,35 @@
-use crate::st7701s_spi::transmissions::Transmission;
+use crate::st7701s_spi::{parameters::register::Bank, transmissions::Transmission};
+
+pub trait Extension {
+    const EXTENSION: Option<Bank>;
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct AnyExtension;
+impl Extension for AnyExtension {
+    const EXTENSION: Option<Bank> = None;
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtensionBk0;
+impl Extension for ExtensionBk0 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK0);
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtensionBk1;
+impl Extension for ExtensionBk1 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK1);
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtensionBk3;
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Location {
-    Any(u8),
-    BK0(u8),
-    BK1(u8),
-    BK3(u8),
-}
-impl Location {
-    pub const fn as_u8(&self) -> u8 {
-        match self {
-            Self::Any(address) => *address,
-            Self::BK0(address) => *address,
-            Self::BK1(address) => *address,
-            Self::BK3(address) => *address,
-        }
-    }
+impl Extension for ExtensionBk3 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK3);
 }
 
-
-pub trait Instruction {
-    const LOCATION: Location;
+pub trait Instruction: Extension {
+    const ADDRESS: u8;
 }
 
 pub trait Command: Instruction {}
@@ -46,38 +43,46 @@ pub trait Read: Instruction + Transmission {
 impl <T> Read for T where T: Instruction + Transmission {}
 
 macro_rules! instructions {
-    (@as_location $EVIS:vis fn(&self) => ($LOC:path, $ADDR:literal)) => {
-        pub const fn as_location(&self) -> Location {
-            $LOC($ADDR)
+    (@as_u8 $EVIS:vis fn(&self) => ($ADDR:literal)) => {
+        pub const fn as_u8(&self) -> u8 {
+            $ADDR
         }
     };
-    (@as_location $EVIS:vis fn(&self) => ($LOC:path)) => {
-        pub const fn as_location(&self) -> Location where Self: Sized + Copy {
-            $LOC(*self as u8)
+    (@as_u8 $EVIS:vis fn(&self) => ()) => {
+        pub const fn as_u8(&self) -> u8 {
+            *self as u8
         }
     };
-    ($EVIS:vis enum $GROUP:ident<$LOC:path $(,$SHARED:literal)?> {
+    ($EVIS:vis enum $GROUP:ident<$LOC:ident $(,$SHARED:literal)?> {
        $($DVIS:vis const $NAME:ident = ($($ADDR:literal,)? $TYPE:ident$(<$PACKET:literal>)*),)+
     }) => {
         #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
         #[repr(u8)]
-        $EVIS enum $GROUP {
+        $EVIS enum $GROUP where
+                      Self: $crate::st7701s_spi::address::Extension {
             $($NAME$( = $ADDR)?),+
         }
+        impl $crate::st7701s_spi::address::Extension for $GROUP {
+            const EXTENSION: Option<$crate::st7701s_spi::parameters::register::Bank> = $LOC::EXTENSION;
+        }
         impl $GROUP {
-            instructions!(@as_location $EVIS fn(&self) => ($LOC$(, $SHARED)?));
+            instructions!(@as_u8 $EVIS fn(&self) => ($($SHARED)?));
         }
 
         $(
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
             $DVIS struct $NAME
-                where Self: $TYPE
+                where Self: $TYPE,
+                      Self: $crate::st7701s_spi::address::Extension
                 $(
                     , Self: $crate::st7701s_spi::transmissions::Transmission<Data = [u8; $PACKET]>
                 )?;
 
+            impl $crate::st7701s_spi::address::Extension for $NAME {
+                const EXTENSION: Option<$crate::st7701s_spi::parameters::register::Bank> = $LOC::EXTENSION;
+            }
             impl $crate::st7701s_spi::address::Instruction for $NAME {
-                const LOCATION: Location = $GROUP::as_location(&$GROUP::$NAME);
+                const ADDRESS: u8 = $GROUP::as_u8(&$GROUP::$NAME);
             }
             $(
                 impl $crate::st7701s_spi::transmissions::Transmission for $NAME {
@@ -91,10 +96,10 @@ macro_rules! instructions {
 
 pub mod special {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{Location, Write};
+    use crate::st7701s_spi::address::{AnyExtension, Write};
 
     instructions! {
-        pub enum Special<Location::Any, 0xFF> {
+        pub enum Special<AnyExtension, 0xFF> {
             pub const CND2BKXSEL = (Write<5>),
             pub const DSTB       = (Write<5>),
             pub const DSTBT      = (Write<5>),
@@ -104,10 +109,10 @@ pub mod special {
 
 pub mod core {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{Command, Location, Read, Write};
+    use crate::st7701s_spi::address::{AnyExtension, Command, Read, Write};
 
     instructions! {
-        enum Core<Location::Any> {
+        enum Core<AnyExtension> {
             pub const NOP            = (0x00, Command),
             pub const SWRESET        = (0x01, Write<1>),
             pub const RDDID          = (0x04, Read<3>),
@@ -176,10 +181,10 @@ pub mod core {
 
 pub mod bk0 {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{Location, Write};
+    use crate::st7701s_spi::{address::{ExtensionBk0, Write}};
 
     instructions! {
-        pub enum BK0<Location::BK0> {
+        pub enum BK0<ExtensionBk0> {
             pub const PVGAMCTRL          = (0xB0, Write<16>),
             pub const NVGAMCTRL          = (0xB1, Write<16>),
             pub const DGMEN              = (0xB8, Write<1>),
@@ -206,10 +211,11 @@ pub mod bk0 {
 }
 
 pub mod bk1 {
-    use crate::st7701s_spi::address::{Location, Write};
+    #![allow(clippy::upper_case_acronyms)]
+    use crate::st7701s_spi::address::{ExtensionBk1, Write};
 
     instructions! {
-        pub enum BK1<Location::BK1> {
+        pub enum BK1<ExtensionBk1> {
             pub const VRHS           = (0xB0, Write<1>),
             pub const VCOMS          = (0xB1, Write<1>),
             pub const VGHSS          = (0xB2, Write<1>),
@@ -232,10 +238,10 @@ pub mod bk1 {
 
 pub mod bk3 {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{Location, Write};
+    use crate::st7701s_spi::address::{ExtensionBk3, Write};
 
     instructions! {
-        pub enum BK3<Location::BK3> {
+        pub enum BK3<ExtensionBk3> {
             pub const NVMSET         = (0xCA, Write<1>),
             pub const PROMACT        = (0xCC, Write<1>),
         }

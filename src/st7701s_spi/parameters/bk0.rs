@@ -1,9 +1,10 @@
 use crate::{st7701s_spi::{parameters::general::Switch, transmissions::*}, transmission_mapping};
 
+use Switch::*;
 
 transmission_mapping!(
     pub struct LineSettings<2>(
-        0: (D7(line_delta_enable<1> as Switch), D0(lines<7>),),
+        0: (D7(line_delta_enable<1> as Switch = On), D0(lines<7> = 0x2B),),
         1: (D1(line_delta<7>),),
     );
 );

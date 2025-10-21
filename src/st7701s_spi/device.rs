@@ -1,6 +1,6 @@
 extern crate spidev;
 
-use crate::st7701s_spi::{address::AnyExtension, protocol::connection::Connection, state::domains::DeviceState};
+use crate::st7701s_spi::{ address::{AnyExtension, Extension}, protocol::connection::Connection, state::domains::DeviceState};
 
 pub struct NotConnected;
 
@@ -26,7 +26,7 @@ pub trait Stateful {
 pub trait ActiveDevice: Connected + Stateful {}
 impl<T> ActiveDevice for T where T: Connected + Stateful {}
 
-pub struct ST7701S<C, E> {
+pub struct ST7701S<C, E > {
     pub connection: C,
     extension: E,
     state: DeviceState,
@@ -57,7 +57,7 @@ impl Default for ST7701S<NotConnected, AnyExtension> {
 }
 
 impl <C, E> ST7701S<C, E> {
-    pub fn set_extension<N>(self, extension: N) -> ST7701S<C, N> {
+    pub fn set_extension<N: Extension>(self, extension: N) -> ST7701S<C, N> {
         ST7701S {
             connection: self.connection,
             extension,

@@ -5,29 +5,6 @@ pub trait Transmission {
     type MapToData<U>: Borrow<[U]> + AsRef<[U]>   + IntoIterator<Item = U>;
 }
 
-// pub struct DataBuffer<const PACKETS: usize>(<Self as Transmission>::Data) where Self: Transmission<Data = [u8; PACKETS]>;
-// impl <const PACKETS: usize> Transmission for DataBuffer<PACKETS> {
-//     type Data = [u8; PACKETS];
-//     type MapToData<U> = [U; PACKETS];
-// }
-// impl <const PACKETS: usize> DataBuffer<PACKETS> {
-//     pub const fn new() -> Self {
-//         Self([0; PACKETS])
-//     }
-// }
-// impl <const PACKETS: usize>Deref for DataBuffer<PACKETS> {
-//     type Target = [u8; PACKETS];
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-// impl <const PACKETS: usize> DerefMut for DataBuffer<PACKETS> {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.0
-//     }
-// }
-
 pub trait Parametric where Self: Transmission {
     type BitMasks: AsRef<[BitMask]> + IntoIterator<Item = BitMask>;
 
@@ -286,14 +263,27 @@ macro_rules! bit_value_enum {
 macro_rules! transmission_mapping {
     (@base_value $BASE:literal) => { $BASE };
     (@base_value)               => { 0 };
-    (@value_type ($T:ident<$BITS:literal, $ALIAS:ty $(, $VAL:tt)?>)) => { $ALIAS $(<$VAL>)? };
-    (@value_type ($T:ident<$BITS:literal>)) => { BitField<$BITS> };
-    (@initial_value ($T:path, $($VAL:tt,)?)) => {
-        <$T>::INITIAL_VALUE
+
+    (@value_type ($T:ident<$BITS:literal, $ALIAS:ty>)) => { $ALIAS };
+    (@value_type ($T:ident<$BITS:literal>)) =>            { BitField<$BITS> };
+
+    (@initial_value ()) => {
+        0
     };
+    (@initial_value ($ALIAS:ident,)) => {
+        $ALIAS::INITIAL_VALUE
+    };
+    (@initial_value ($ALIAS:ident, $ALIAS_INITIAL:ident,)) => {
+        $ALIAS_INITIAL.as_u8()
+    };
+    (@initial_value ($VAL:literal,)) => {
+        $VAL
+    };
+
     (@argument_mask $($T:tt)+) => {
         BitMask::new(0) $(.merge(& $T::SHIFT_MASK))+
     };
+
     (
         $(#[$META:meta])*
         $SV:vis struct $NAME:ident<$LENGTH:literal> (
@@ -301,9 +291,9 @@ macro_rules! transmission_mapping {
                 $INDEX:literal: (
                     $(
                         $D:ident(
-                            $ARG:ident<$BITS:literal>
-                            $(as $ALIAS:ty)?
-                            $(= $VAL:tt)?
+                            $ARG:ident<$BITS:tt>
+                            $(as $ALIAS:ident $(= $ALIAS_INITIAL:ident)?)?
+                            $(= $VAL:literal)?
                         )
                     ,)*
                 ) $(= $BASE:literal)?
@@ -319,7 +309,12 @@ macro_rules! transmission_mapping {
                 $(
                     $(
                         pub type [<$ARG:camel Value>] = transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>));
-                        pub type [<$ARG:camel Field>] = $D<$BITS $(, {$ALIAS::INITIAL_VALUE})? $(, { $VAL })?>;
+                        pub type [<$ARG:camel Field>] = $D<$BITS, {transmission_mapping!(
+                            @initial_value (
+                                $($ALIAS, $($ALIAS_INITIAL,)?)?
+                                $($VAL,)?
+                            )
+                        )}>;
                     )*
                 )+
             }
@@ -360,13 +355,7 @@ macro_rules! transmission_mapping {
                 const INITIAL_VALUE: Self::Data = [
                     $(
                         $crate::transmission_mapping!(@base_value $($BASE)?)
-                        $(| $crate::transmission_mapping!(
-                            @initial_value (
-                                [<$NAME:snake _types>]::[<$ARG:camel Field>],
-                                $($ALIAS,)?
-                                $($VAL,)?
-                            ))
-                        )*
+                        $(| [<$NAME:snake _types>]::[<$ARG:camel Field>]::INITIAL_VALUE)*
                     ),+
                 ];
 
