@@ -35,7 +35,7 @@ impl<'a, DEVICE: ActiveDevice, COMMANDS, STATE> Abstraction<'a, DEVICE, COMMANDS
     }
 }
 
-pub type Toggle<'a, DEVICE, ON:Command, OFF:Command> = Abstraction<'a, DEVICE, (ON, OFF), Switch>;
+pub type Toggle<'a, DEVICE, ON, OFF> = Abstraction<'a, DEVICE, (ON, OFF), Switch>;
 impl<'a, DEVICE, ON, OFF> Toggle<'a, DEVICE, ON, OFF>
 where
     DEVICE: ActiveDevice,
@@ -88,10 +88,10 @@ where
 }
 
 pub type Configure<'a,
-    DEVICE: ActiveDevice,
-    READ: Read<Data = P::Data>,
-    WRITE: Write<Data = P::Data>,
-    P: Parametric> = Abstraction<'a, DEVICE, (READ, WRITE), P>;
+    DEVICE,
+    READ,
+    WRITE,
+    P> = Abstraction<'a, DEVICE, (READ, WRITE), P>;
 impl<DEVICE, READ, WRITE, P> Configure<'_, DEVICE, READ, WRITE, P>
 where
     DEVICE: ActiveDevice,

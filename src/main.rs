@@ -18,7 +18,7 @@
 
 use linux_embedded_hal::SpidevDevice;
 use log::info;
-use st7701s::st7701s_spi::{device::ST7701S, panel::TDOMODE, protocol::spi::*, sequences::init::{self, init_sequence}};
+use st7701s::st7701s_spi::{device::ST7701S, protocol::spi::*, sequences::init::init_sequence};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");

@@ -54,7 +54,7 @@ impl<C: Connection> ST7701S<C>
     /// references, SWRESET's canonical representation here is as a **write**.
     pub fn software_reset(&mut self) -> io::Result<()> {
         const RESET_PARAMETERS: [u8; 1] = [0x01];
-        let result = self.connection().write::<SWRESET>(&RESET_PARAMETERS)?;
+        self.connection().write::<SWRESET>(&RESET_PARAMETERS)?;
         let delay;
         let condition;
 
@@ -73,7 +73,7 @@ impl<C: Connection> ST7701S<C>
         self.reset();
         thread::sleep(time::Duration::from_millis(delay));
 
-        io::Result::Ok(result)
+        io::Result::Ok(())
     }
 
     /// ## Read Display ID
@@ -269,7 +269,7 @@ impl<C: Connection> ST7701S<C>
     /// > `GAMSET` p. 208
     ///
     pub fn select_gamma_curve(&mut self, transmission: GammaCurve) -> InstructionResult {
-        let gamma_curve = transmission.gc().clone();
+        let gamma_curve = transmission.gc();
 
         self.connection().write::<GAMSET>(&transmission.as_tx_data()).inspect(|_| {
             self.modify_state(|state| {
@@ -524,7 +524,7 @@ impl<C: Connection> ST7701S<C>
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
     pub fn select_command_extension(&mut self, transmission: &CommandExtension) -> InstructionResult {
-        let next_state = transmission.clone();
+        let next_state = *transmission;
         self.connection().write::<CND2BKXSEL>(&transmission.as_tx_data()).inspect(|_| {
             self.modify_state(|state| {
                 state.command_extension = next_state;
@@ -567,7 +567,7 @@ impl<C: Connection> ST7701S<C>
     /// Sets the digital gamma look-up table for the red color channel. Each entry
     /// defines the gamma correction for a specific input value.
     pub fn digital_gamma_lut_red(&mut self, lut_data: &GammaLutRed) -> InstructionResult {
-        self.connection().write::<DGMLUTR>(&*lut_data)
+        self.connection().write::<DGMLUTR>(lut_data)
     }
 
     /// ## `BK0: 0xBA` `DGMLUTB` Digital Gamma Look-up Table for Blue
@@ -576,7 +576,7 @@ impl<C: Connection> ST7701S<C>
     /// Sets the digital gamma look-up table for the blue color channel. Each entry
     /// defines the gamma correction for a specific input value.
     pub fn digital_gamma_lut_blue(&mut self, lut_data: &GammaLutBlue) -> InstructionResult {
-        self.connection().write::<DGMLUTB>(&*lut_data)
+        self.connection().write::<DGMLUTB>(lut_data)
     }
 
     /// ## `BK0: 0xBC` `PWMCLKSEL` PWM CLK select
