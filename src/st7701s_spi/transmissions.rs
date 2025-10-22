@@ -215,13 +215,16 @@ pub type D0<const BITS: usize, const INITIAL: u8 = 0> = PacketField<BITS, 0, INI
 
 #[macro_export]
 macro_rules! bit_value_enum {
-    ($VIS:vis enum $NAME:ident<$BITS:literal> {
+    (
+        $(#[$META:meta])*
+        $VIS:vis enum $NAME:ident<$BITS:literal> {
         $(const $V1:ident = $N1:literal,)*
         #[$DEFAULT:meta]
         $(const $V2:ident = $N2:literal,)+
     }) => {
         pastey::paste! {
             $VIS type [<$NAME Value>] = $crate::st7701s_spi::transmissions::BitField<$BITS>;
+            $(#[$META])*
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
             #[repr(u8)]
             $VIS enum $NAME {
@@ -410,5 +413,5 @@ macro_rules! transmission_mapping {
                 }
             }
         }
-    };
+    }
 }

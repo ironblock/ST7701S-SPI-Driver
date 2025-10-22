@@ -5,7 +5,12 @@ use crate::{
 };
 use Switch::*;
 
+// ============================================================================
+// Tearing Effect - p. 212
+// ============================================================================
+
 bit_value_enum! {
+    /// Tearing Effect Signal Mode
     pub enum TearingEffectMode<1> {
         #[default]
         const Vertical = 0,
@@ -14,18 +19,24 @@ bit_value_enum! {
 }
 
 transmission_mapping! {
+    /// ## Tearing Effect Line Configuration
+    /// Configures the tearing effect signal output mode
+    /// > Reference: `TELON` p. 212
     pub struct TearingEffectSignal<1> (
         0: (D0(tearing_effect<1> as TearingEffectMode),),
     );
 }
 
-
+// ============================================================================
+// Gamma Curve Selection - p. 208
+// ============================================================================
 
 // FIXME: This isn't necessarily correct, and the datasheet indicates
 // that the initial value is "RESERVED". Maybe better to set this to
 // something that can never be matched, or change the trait to not
 // require an initial value?
 bit_value_enum! {
+    /// Gamma Curve Selection
     pub enum Curve<2> {
         #[default]
         const GC1 = 0,
@@ -36,12 +47,20 @@ bit_value_enum! {
 }
 
 transmission_mapping! {
+    /// ## Gamma Curve Selection
+    /// Selects one of four predefined gamma curves
+    /// > Reference: `GAMSET` p. 208
     pub struct GammaCurve<1> (
         0: (D0(GC<2> as Curve),),
     );
 }
 
+// ============================================================================
+// Gamma Voltage Control - p. 261-264
+// ============================================================================
+
 bit_value_enum! {
+    /// Voltage Bias Adjustment
     pub enum VoltageBias<2> {
         #[default]
         const A = 0x00,
@@ -77,7 +96,14 @@ transmission_mapping! {
     );
 }
 
+// ============================================================================
+// Display Image Mode - p. 204-208
+// ============================================================================
+
 transmission_mapping! {
+    /// ## Display Image Mode Settings
+    /// Controls color inversion, pixel fill modes, and gamma curve selection
+    /// > Reference: `INVOFF`/`INVON` p. 204-205, `ALLPOFF`/`ALLPON` p. 206-207, `GAMSET` p. 208
     pub struct DisplayImageMode<1> (
         0: (
             D5(   invert_colors<1> as Switch),
@@ -88,7 +114,14 @@ transmission_mapping! {
     );
 }
 
+// ============================================================================
+// Display Signal Mode - p. 211-212
+// ============================================================================
+
 transmission_mapping! {
+    /// ## Tearing Effect Signal Configuration
+    /// Configures tearing effect signal output
+    /// > Reference: `TEOFF`/`TELON` p. 211-212
     pub struct DisplaySignalMode<1> (
         0: (
             D7(tearing_effect_line<1> as Switch),
@@ -97,21 +130,40 @@ transmission_mapping! {
     );
 }
 
+// ============================================================================
+// Line Settings - p. 213
+// ============================================================================
+
 transmission_mapping!(
+    /// ## Tearing Effect Scan Line
+    /// Sets the scan line at which the tearing effect signal is output
+    /// > Reference: `TESCAN` p. 213
     pub struct LineSettings<2>(
         0: (D7(extra_line<1> as Switch = On), D0(line<7> = 0x2B),),
         1: (D1(line_delta<2>),),
     );
 );
 
+// ============================================================================
+// Porch Control - p. 269
+// ============================================================================
+
 transmission_mapping!(
+    /// ## Vertical Porch Control
+    /// Configures vertical back and front porch timing
+    /// > Reference: `BK0: PORCTRL` p. 269
     pub struct PorchControl<2>(
         0: (D0(vertical_back_porch<8>  = 0x04),),
         1: (D0(vertical_front_porch<8> = 0x02),),
     );
 );
 
+// ============================================================================
+// Inversion Selection - p. 270
+// ============================================================================
+
 bit_value_enum!(
+    /// Polarity Inversion Pattern
     pub enum PolarityInversion<3> {
         #[default]
         const OneDot = 0b000,
@@ -121,6 +173,9 @@ bit_value_enum!(
 );
 
 transmission_mapping!(
+    /// ## Display Inversion Selection
+    /// Configures the display inversion pattern and timing
+    /// > Reference: `BK0: INVSEL` p. 270
     pub struct InversionSelection<2>(
         0: (D0(polarity_inversion<3> as PolarityInversion),),
         1: (D0(RTNI<5>),),

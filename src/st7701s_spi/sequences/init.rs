@@ -73,7 +73,7 @@ pub fn init_sequence<C: Connection, E: Extension>(
 
     let display = display.select_command_extension(ExtensionBk1);
 
-    // SPI_WriteComm(0xB0); VOP amplitude
+    // SPI_WriteComm(0xB0);  VOP amplitude
     // SPI_WriteData(0x5d);//5d
 
     // SPI_WriteComm(0xB1); 	//VCOM amplitude setting
