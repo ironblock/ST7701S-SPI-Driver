@@ -1,6 +1,6 @@
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::core::*;
+use crate::st7701s_spi::{address::core::*, parameters::display::{InversionSelection, LineSettings, PorchControl}};
 use crate::st7701s_spi::address::special::*;
 use crate::st7701s_spi::address::{AnyExtension, bk1::*};
 use crate::st7701s_spi::address::{Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3, bk3::*};
@@ -15,10 +15,6 @@ use crate::st7701s_spi::{
 use crate::st7701s_spi::{
     device::ST7701S,
     parameters::{
-        bk0::{
-            GammaLutBlue, GammaLutRed, InversionSettings, LineSettings, PartialControl,
-            PorchControl, RgbControl,
-        },
         brightness::{Brightness, BrightnessControl},
         color::{ColorChannel, PixelExtrema},
         display::{GammaCurve, VoltageControl},
@@ -559,7 +555,7 @@ impl<C: Connection, E> ST7701S<C, E> {
                 self.modify_state(|state| {
                     state.command_extension = transmission;
                 });
-            });
+            }).expect("failed to select command extension");
 
         self.set_extension(extension)
     }
@@ -594,9 +590,9 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures the positive voltage gamma curve for the display. This command
     /// allows fine-tuning of the display's color response and image quality by
     /// setting multiple voltage control points.
-    pub fn positive_gamma_control(&mut self, transmission: &VoltageControl) -> InstructionResult {
+    pub fn positive_gamma_control(&mut self, parameters: &VoltageControl) -> InstructionResult {
         self.connection()
-            .write::<PVGAMCTRL>(&transmission.as_tx_data())
+            .write::<PVGAMCTRL>(&parameters.as_tx_data())
     }
 
     /// ## `BK0: 0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
@@ -605,8 +601,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures the negative voltage gamma curve for the display. This command
     /// complements PVGAMCTRL and is used to adjust the display's color response for
     /// negative voltages.
-    pub fn negative_gamma_control(&mut self, gamma_params: &[u8; 16]) -> InstructionResult {
-        self.connection().write::<NVGAMCTRL>(gamma_params)
+    pub fn negative_gamma_control(&mut self, parameters: &VoltageControl) -> InstructionResult {
+        self.connection().write::<NVGAMCTRL>(&parameters.as_tx_data())
     }
 
     /// ## `BK0: 0xB8` `DGMEN` Digital Gamma Enable
@@ -623,18 +619,18 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Sets the digital gamma look-up table for the red color channel. Each entry
     /// defines the gamma correction for a specific input value.
-    pub fn digital_gamma_lut_red(&mut self, lut_data: &GammaLutRed) -> InstructionResult {
-        self.connection().write::<DGMLUTR>(lut_data)
-    }
+    // pub fn digital_gamma_lut_red(&mut self, lut_data: &GammaLutRed) -> InstructionResult {
+    //     self.connection().write::<DGMLUTR>(lut_data)
+    // }
 
     /// ## `BK0: 0xBA` `DGMLUTB` Digital Gamma Look-up Table for Blue
     /// > Reference: p. 267
     ///
     /// Sets the digital gamma look-up table for the blue color channel. Each entry
     /// defines the gamma correction for a specific input value.
-    pub fn digital_gamma_lut_blue(&mut self, lut_data: &GammaLutBlue) -> InstructionResult {
-        self.connection().write::<DGMLUTB>(lut_data)
-    }
+    // pub fn digital_gamma_lut_blue(&mut self, lut_data: &GammaLutBlue) -> InstructionResult {
+    //     self.connection().write::<DGMLUTB>(lut_data)
+    // }
 
     /// ## `BK0: 0xBC` `PWMCLKSEL` PWM CLK select
     /// > Reference: p. 268
@@ -659,18 +655,16 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Sets the front and back porch timing for the display. Proper porch settings
     /// are important for stable image rendering and synchronization.
     pub fn porch_control(&mut self, settings: &PorchControl) -> InstructionResult {
-        let params = [settings.vertical_back_porch, settings.vertical_front_porch];
-        self.connection().write::<PORCTRL>(&params)
+        self.connection().write::<PORCTRL>(&settings.as_tx_data())
     }
 
-    /// ## `BK0: 0xC2` `INVSET` Inversion selection & Frame Rate Control
+    /// ## `BK0: 0xC2` `INVSEL` Inversion Selection & Frame Rate Control
     /// > Reference: p. 271
     ///
     /// Controls display inversion and frame rate settings. Proper inversion settings
     /// ensure correct color representation and can affect display smoothness.
-    pub fn inversion_select(&mut self, settings: &InversionSettings) -> InstructionResult {
-        let params = [settings.inversion_mode, settings.rtni];
-        self.connection().write::<INVSET>(&params)
+    pub fn inversion_select(&mut self, settings: &InversionSelection) -> InstructionResult {
+        self.connection().write::<INVSET>(&settings.as_tx_data())
     }
 
     /// ## `BK0: 0xC3` `RGBCTRL` RGB control
@@ -679,25 +673,25 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures the RGB interface mode and signal polarities. This command is
     /// essential for matching the display's timing and signal requirements to the
     /// host system.
-    pub fn rgb_control(&mut self, settings: &RgbControl) -> InstructionResult {
-        let params = [
-            settings.param1,
-            settings.param2,
-            settings.param3,
-            settings.param4,
-        ];
-        self.connection().write::<RGBCTRL>(&params)
-    }
+    // pub fn rgb_control(&mut self, settings: &RgbControl) -> InstructionResult {
+    //     let params = [
+    //         settings.param1,
+    //         settings.param2,
+    //         settings.param3,
+    //         settings.param4,
+    //     ];
+    //     self.connection().write::<RGBCTRL>(&params)
+    // }
 
     /// ## `BK0: 0xC5` `PARCTRL` Partial Area Control
     /// > Reference: p. 273
     ///
     /// Configures partial display mode settings, allowing only a portion of the
     /// display to be updated for power savings or special effects.
-    pub fn partial_area(&mut self, settings: &PartialControl) -> InstructionResult {
-        let params = [settings.start_config, settings.end_config];
-        self.connection().write::<PARCTRL>(&params)
-    }
+    // pub fn partial_area(&mut self, settings: &PartialControl) -> InstructionResult {
+    //     let params = [settings.start_config, settings.end_config];
+    //     self.connection().write::<PARCTRL>(&params)
+    // }
 
     /// ## `BK0: 0xC7` `SDIR` X-direction Control
     /// > Reference: p. 274

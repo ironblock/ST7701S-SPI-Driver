@@ -3,6 +3,7 @@ use crate::{
     st7701s_spi::{parameters::general::Switch, transmissions::*},
     transmission_mapping,
 };
+use Switch::*;
 
 bit_value_enum! {
     pub enum TearingEffectMode<1> {
@@ -43,10 +44,10 @@ transmission_mapping! {
 bit_value_enum! {
     pub enum VoltageBias<2> {
         #[default]
-        const L1 = 0,
-        const L0 = 1,
-        const R0 = 2,
-        const R1 = 3,
+        const A = 0x00,
+        const B = 0x01,
+        const C = 0x02,
+        const D = 0x03,
     }
 }
 
@@ -95,3 +96,33 @@ transmission_mapping! {
         ),
     );
 }
+
+transmission_mapping!(
+    pub struct LineSettings<2>(
+        0: (D7(extra_line<1> as Switch = On), D0(line<7> = 0x2B),),
+        1: (D1(line_delta<2>),),
+    );
+);
+
+transmission_mapping!(
+    pub struct PorchControl<2>(
+        0: (D0(vertical_back_porch<8>  = 0x04),),
+        1: (D0(vertical_front_porch<8> = 0x02),),
+    );
+);
+
+bit_value_enum!(
+    pub enum PolarityInversion<3> {
+        #[default]
+        const OneDot = 0b000,
+        const TwoDot = 0b001,
+        const Column = 0b111,
+    }
+);
+
+transmission_mapping!(
+    pub struct InversionSelection<2>(
+        0: (D0(polarity_inversion<3> as PolarityInversion),),
+        1: (D0(RTNI<5>),),
+    );
+);

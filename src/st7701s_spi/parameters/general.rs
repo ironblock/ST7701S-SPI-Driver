@@ -5,7 +5,7 @@ macro_rules! state_struct {
     ($VIS:vis struct $NAME:ident {
         $($FVIS:vis $FIELD:ident: $TYPE:ty = $VAL:expr,)+
     }) => {
-        #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+        #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
         $VIS struct $NAME {
             $($FVIS $FIELD: $TYPE,)+
         }

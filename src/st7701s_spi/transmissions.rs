@@ -1,11 +1,17 @@
-use std::{borrow::Borrow, fmt::{Display, Formatter}};
+use std::{
+    borrow::Borrow,
+    fmt::{Display, Formatter},
+};
 
 pub trait Transmission {
     type Data: Borrow<[u8]> + AsRef<[u8]> + AsMut<[u8]> + IntoIterator<Item = u8>;
-    type MapToData<U>: Borrow<[U]> + AsRef<[U]>   + IntoIterator<Item = U>;
+    type MapToData<U>: Borrow<[U]> + AsRef<[U]> + IntoIterator<Item = U>;
 }
 
-pub trait Parametric where Self: Transmission {
+pub trait Parametric
+where
+    Self: Transmission,
+{
     type BitMasks: AsRef<[BitMask]> + IntoIterator<Item = BitMask>;
 
     const INITIAL_VALUE: <Self as Transmission>::Data;
@@ -103,30 +109,43 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
         Self { value: INITIAL }
     }
 
-    pub const fn from_bit_sized<const SOURCE: usize, const VALUE: u8>() -> Self {
+    const fn assert_source(source: usize) {
+        assert!(
+            source == Self::BIT_SIZE,
+            "SOURCE does not match target BIT_SIZE"
+        );
+    }
+
+    const fn assert_value(value: u8) {
+        assert!(
+            Self::SIZE_MASK.apply(value) == value,
+            "Value exceeds BitField range"
+        );
+    }
+
+    pub const fn from_const<const SOURCE: usize, const VALUE: u8>() -> Self {
         const {
-            assert!(
-                SOURCE == Self::BIT_SIZE,
-                "SOURCE does not match target BIT_SIZE"
-            );
-            assert!(
-                Self::SIZE_MASK.apply(VALUE) == VALUE,
-                "Value exceeds BitField range"
-            );
+            Self::assert_source(SOURCE);
+            Self::assert_value(VALUE);
         };
 
         Self { value: VALUE }
     }
 
-    pub const fn from_raw_sized<const SOURCE: usize>(value: u8) -> Self {
+    pub const fn from_const_source<const SOURCE: usize>(value: u8) -> Self {
         const {
-            assert!(
-                SOURCE == Self::BIT_SIZE,
-                "SOURCE does not match target BIT_SIZE"
-            )
+            Self::assert_source(SOURCE);
         };
 
         Self { value }
+    }
+
+    pub const fn from_const_value<const VALUE: u8>() -> Self {
+        const {
+            Self::assert_value(VALUE);
+        };
+
+        Self { value: VALUE }
     }
 
     pub const fn as_u8(&self) -> u8 {
@@ -169,15 +188,19 @@ impl<const BITS: usize, const SHIFT: usize, const INITIAL: u8> PacketField<BITS,
     }
 
     pub const fn extract_bit_value(target: u8) -> BitField<BITS, INITIAL> {
-        BitField::<BITS, INITIAL>::from_raw_sized::<BITS>(Self::extract_raw_value(target))
+        BitField::<BITS, INITIAL>::from_const_source::<BITS>(Self::extract_raw_value(target))
     }
 
     pub const fn set_raw_value(target: &mut u8, value: u8) {
         *target |= Self::shift_raw_value(value);
     }
 
-    pub const fn set_bit_value(target: &mut u8, value: BitField<BITS>) {
+    pub const fn set_from_bitfield(target: &mut u8, value: BitField<BITS>) {
         *target |= Self::shift_bit_value(value);
+    }
+
+    pub const fn set_const<const VALUE: u8>(target: &mut u8) {
+        *target |= Self::shift_bit_value(BitField::<BITS>::from_const_value::<VALUE>());
     }
 }
 
@@ -218,8 +241,8 @@ macro_rules! bit_value_enum {
 
                 pub const fn as_bit_value(&self) -> [<$NAME Value>] {
                     match self {
-                        $($NAME::$V1 => [<$NAME Value>]::from_bit_sized::<$BITS, $N1>(),)*
-                        $($NAME::$V2 => [<$NAME Value>]::from_bit_sized::<$BITS, $N2>(),)+
+                        $($NAME::$V1 => [<$NAME Value>]::from_const::<$BITS, $N1>(),)*
+                        $($NAME::$V2 => [<$NAME Value>]::from_const::<$BITS, $N2>(),)+
                     }
                 }
 
@@ -336,9 +359,16 @@ macro_rules! transmission_mapping {
                                     ::extract_bit_value(self.0[$INDEX]))
                         }
 
-                        pub fn [<set_ $ARG:lower>](&mut self, value: [<$NAME:snake _types>]::[<$ARG:camel Value>]) -> &mut Self {
+                        pub const fn [<set_ $ARG:lower _const>]<const VALUE: u8>(mut self) -> Self {
                             $D::<$BITS>
-                                ::set_bit_value(&mut self.0[$INDEX], value.into());
+                                ::set_const::<VALUE>(&mut self.0[$INDEX]);
+
+                            self
+                        }
+
+                        pub fn [<set_ $ARG:lower>](mut self, value: [<$NAME:snake _types>]::[<$ARG:camel Value>]) -> Self {
+                            $D::<$BITS>
+                                ::set_from_bitfield(&mut self.0[$INDEX], value.into());
 
                             self
                         }

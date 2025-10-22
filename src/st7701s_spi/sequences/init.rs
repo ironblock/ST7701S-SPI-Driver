@@ -1,31 +1,41 @@
 use std::io;
 
 use crate::st7701s_spi::{
-    address::ExtensionBk0, device::ST7701S, parameters::{
-        bk0::LineSettings, general::Switch, register::{Bank, CommandExtension}
-    }, protocol::connection::Connection
+    address::{Extension, ExtensionBk0, ExtensionBk1},
+    device::ST7701S,
+    parameters::{
+        display::{
+            InversionSelection, LineSettings, PolarityInversion, PorchControl, VoltageBias,
+            VoltageControl,
+        },
+        general::Switch,
+    },
+    protocol::connection::Connection,
 };
 use Switch::*;
 
-pub fn init_sequence<C: Connection, E>(display: &mut ST7701S<C, E>) -> io::Result<()> {
+pub fn init_sequence<C: Connection, E: Extension>(
+    display: ST7701S<C, E>,
+) -> Result<ST7701S<C, impl Extension>, io::Error> {
     let mut display = display.select_command_extension(ExtensionBk0);
 
-    display.line_setting(LineSettings::new()
-        .set_lines(0x3B)
-        .set_line_delta(Off),
+    display.line_setting(
+        &LineSettings::new()
+            .set_extra_line(On)
+            .set_line_const::<27>(),
     )?;
-    // SPI_WriteComm(0xC0); // LNESET
-    // device.line_setting(settings);
-    // SPI_WriteData(0x3B); // LDE_EN
-    // SPI_WriteData(0x00); // Line Delta
 
-    // SPI_WriteComm(0xC1); // PORCTRL
-    // SPI_WriteData(0x0B); // VBP
-    // SPI_WriteData(0x02); // VFP
+    display.porch_control(
+        &PorchControl::new()
+            .set_vertical_back_porch_const::<11>()
+            .set_vertical_front_porch_const::<2>(),
+    )?;
 
-    // SPI_WriteComm(0xC2); // INVSEL
-    // SPI_WriteData(0x00); // This should have fixed bits but doesn't??
-    // SPI_WriteData(0x02); // RTNI
+    display.inversion_select(
+        &InversionSelection::new()
+            .set_polarity_inversion(PolarityInversion::OneDot)
+            .set_rtni_const::<2>(),
+    )?;
 
     // SPI_WriteComm(0xCC); // ?????????
     // SPI_WriteData(0x10);
@@ -33,48 +43,35 @@ pub fn init_sequence<C: Connection, E>(display: &mut ST7701S<C, E>) -> io::Resul
     // SPI_WriteComm(0xCD); // COLCTRL
     // SPI_WriteData(0x08); // 00001000 MDT 1, pixel collect to DB[17:0]
 
-    // SPI_WriteComm ( 0xB0); // Positive Voltage Gamma Control
-    // SPI_WriteData ( 0x02); //
-    // SPI_WriteData ( 0x13);
-    // SPI_WriteData ( 0x1B);
-    // SPI_WriteData ( 0x0D);
-    // SPI_WriteData ( 0x10);
-    // SPI_WriteData ( 0x05);
-    // SPI_WriteData ( 0x08);
-    // SPI_WriteData ( 0x07);
-    // SPI_WriteData ( 0x07);
-    // SPI_WriteData ( 0x24);
-    // SPI_WriteData ( 0x04);
-    // SPI_WriteData ( 0x11);
-    // SPI_WriteData ( 0x0E);
-    // SPI_WriteData ( 0x2C);
-    // SPI_WriteData ( 0x33);
-    // SPI_WriteData ( 0x1D);
+    let gamma_voltage = VoltageControl::new().set_aj0(VoltageBias::A)
+            .set_vc0_const::<0x02>()
+            .set_aj1(VoltageBias::A)
+            .set_vc4_const::<0x13>()
+            .set_aj2(VoltageBias::A)
+            .set_vc8_const::<0x1B>()
+            .set_vc16_const::<0x0D>()
+            .set_aj3(VoltageBias::A)
+            .set_vc24_const::<0x10>()
+            .set_vc52_const::<0x05>()
+            .set_vc80_const::<0x08>()
+            .set_vc108_const::<0x07>()
+            .set_vc147_const::<0x07>()
+            .set_vc175_const::<0x24>()
+            .set_vc203_const::<0x04>()
+            .set_aj4(VoltageBias::A)
+            .set_vc231_const::<0x11>()
+            .set_vc239_const::<0x0E>()
+            .set_aj5(VoltageBias::A)
+            .set_vc247_const::<0x2C>()
+            .set_aj6(VoltageBias::A)
+            .set_vc251_const::<0x33>()
+            .set_aj7(VoltageBias::A)
+            .set_vc255_const::<0x1D>();
 
-    // SPI_WriteComm ( 0xB1); //Negative Voltage Gamma Control
-    // SPI_WriteData ( 0x05);
-    // SPI_WriteData ( 0x13);
-    // SPI_WriteData ( 0x1B);
-    // SPI_WriteData ( 0x0D);
-    // SPI_WriteData ( 0x11);
-    // SPI_WriteData ( 0x05);
-    // SPI_WriteData ( 0x08);
-    // SPI_WriteData ( 0x07);
-    // SPI_WriteData ( 0x07);
-    // SPI_WriteData ( 0x24);
-    // SPI_WriteData ( 0x04);
-    // SPI_WriteData ( 0x11);
-    // SPI_WriteData ( 0x0E);
-    // SPI_WriteData ( 0x2C);
-    // SPI_WriteData ( 0x33);
-    // SPI_WriteData ( 0x1D);
+    display.positive_gamma_control(&gamma_voltage)?;
+    display.negative_gamma_control(&gamma_voltage)?;
 
-    // SPI_WriteComm(0xFF);
-    // SPI_WriteData(0x77);
-    // SPI_WriteData(0x01);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x11); // BK1 command2
+    let display = display.select_command_extension(ExtensionBk1);
 
     // SPI_WriteComm(0xB0); VOP amplitude
     // SPI_WriteData(0x5d);//5d
@@ -288,5 +285,5 @@ pub fn init_sequence<C: Connection, E>(display: &mut ST7701S<C, E>) -> io::Resul
     // SPI_WriteData(0x60);//0x60 18bit   0x50 16bit
     // #endif
 
-    Ok(())
+    Ok(display)
 }

@@ -25,7 +25,7 @@ fn main() {
     let mut device = SpidevDevice::open("/dev/spidev1.0").expect("Failed to open SPI device");
     device.configure(&ThreeWireSPI::DEFAULT_OPTIONS).expect("Failed to configure SPI device");
 
-    let mut display= ST7701S::new().connect(ThreeWireSPI { device });
+    let display= ST7701S::new().connect(ThreeWireSPI { device });
 
-    init_sequence(&mut display).expect("Failed to initialize display");
+    init_sequence(display);
 }

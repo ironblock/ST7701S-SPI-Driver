@@ -2,7 +2,7 @@ use std::io;
 
 use crate::st7701s_spi::address::{Command, Read, Write};
 
-pub type InstructionResult = io::Result<()>;
+pub type InstructionResult<T = ()> = io::Result<T>;
 pub trait Connection {
     fn command<C: Command>(&self) -> Result<(), io::Error>;
 
