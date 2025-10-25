@@ -324,9 +324,9 @@ macro_rules! transmission_mapping {
                             $(as $ALIAS:ident $(= $ALIAS_INITIAL:ident)?)?
                             $(= $VAL:literal)?
                         )
-                    ),*
+                    ,)*
                 ) $(= $BASE:literal)?
-            ),+
+            ,)+
         );
     ) => {
         pastey::paste! {
@@ -351,7 +351,7 @@ macro_rules! transmission_mapping {
             $(#[$META])*
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
             $SV struct [<$NAME:camel>]([u8; $LENGTH])
-                where Self: ParametricTransmission<Data = [u8; $LENGTH]>;
+                where Self: $crate::st7701s_spi::transmissions::ParametricTransmission<Data = [u8; $LENGTH]>;
             impl [<$NAME:camel>] {
                 pub const fn new() -> Self {
                     Self(Self::INITIAL_VALUE)
@@ -359,7 +359,7 @@ macro_rules! transmission_mapping {
 
                 $(
                     $(
-                        pub const fn [<$ARG:lower _const>](&self) -> BitField<$BITS> {
+                        pub const fn [<$ARG:lower _const>](&self) -> $crate::st7701s_spi::transmissions::BitField<$BITS> {
                             $D::<$BITS>::extract_bit_value(self.0[$INDEX])
                         }
 
@@ -391,7 +391,7 @@ macro_rules! transmission_mapping {
                 type MapToData<U> = [U; $LENGTH];
             }
             impl $crate::st7701s_spi::transmissions::Parametric for [<$NAME:camel>] {
-                type BitMasks = Self::MapToData<BitMask>;
+                type BitMasks = Self::MapToData<$crate::st7701s_spi::transmissions::BitMask>;
 
                 const INITIAL_VALUE: Self::Data = [
                     $(
@@ -402,7 +402,7 @@ macro_rules! transmission_mapping {
 
                 const ARGUMENT_MASK: Self::BitMasks = [
                     $(
-                        BitMask::new(0)
+                        $crate::st7701s_spi::transmissions::BitMask::new(0)
                             $(.merge(&[<$NAME:snake _types>]::[<$ARG:camel Field>]::SHIFT_MASK))*
                     ),+
                 ];
