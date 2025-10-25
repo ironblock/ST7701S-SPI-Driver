@@ -1,17 +1,19 @@
 extern crate spidev;
 
 use crate::st7701s_spi::{
-    address::{AnyExtension, Extension},
-    protocol::connection::Connection,
-    state::domains::DeviceState,
+    address::{AnyExtension, Command, Extension, Read, Write},
+    protocol::connection::{Connection, InstructionResult},
+    state::domains::DeviceState, transmissions::{ParametricTransmission},
 };
 
 pub struct NotConnected;
 
 pub trait Connected {
     type ConnectionType: Connection;
+    type ExtensionType: Extension;
 
     fn connection(&self) -> &Self::ConnectionType;
+    fn extension(&self) -> &Self::ExtensionType;
 }
 
 pub type StateModifier<T> = for<'a> fn(&'a mut <T as Stateful>::StateType);
@@ -31,8 +33,8 @@ pub trait ActiveDevice: Connected + Stateful {}
 impl<T> ActiveDevice for T where T: Connected + Stateful {}
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct ST7701S<C, E> {
-    pub connection: C,
+pub struct ST7701S<X, E: Extension> {
+    pub connection: X,
     extension: E,
     state: DeviceState,
 }
@@ -46,7 +48,7 @@ impl ST7701S<NotConnected, AnyExtension> {
         }
     }
 
-    pub fn connect<C: Connection>(self, connection: C) -> ST7701S<C, AnyExtension> {
+    pub fn connect<X: Connection>(self, connection: X) -> ST7701S<X, AnyExtension> {
         ST7701S {
             connection,
             extension: self.extension,
@@ -61,8 +63,8 @@ impl Default for ST7701S<NotConnected, AnyExtension> {
     }
 }
 
-impl<C, E> ST7701S<C, E> {
-    pub fn set_extension<N: Extension>(self, extension: N) -> ST7701S<C, N> {
+impl<X, E: Extension> ST7701S<X, E> {
+    pub fn set_extension<N: Extension>(self, extension: N) -> ST7701S<X, N> {
         ST7701S {
             connection: self.connection,
             extension,
@@ -70,7 +72,7 @@ impl<C, E> ST7701S<C, E> {
         }
     }
 
-    pub fn reset(self) -> ST7701S<C, AnyExtension> {
+    pub fn reset(self) -> ST7701S<X, AnyExtension> {
         ST7701S {
             connection: self.connection,
             extension: AnyExtension,
@@ -79,7 +81,7 @@ impl<C, E> ST7701S<C, E> {
     }
 }
 
-impl<C: Connection, E> Stateful for ST7701S<C, E> {
+impl<X: Connection, E: Extension> Stateful for ST7701S<X, E> {
     type StateType = DeviceState;
 
     fn state(&self) -> &Self::StateType {
@@ -95,10 +97,39 @@ impl<C: Connection, E> Stateful for ST7701S<C, E> {
     }
 }
 
-impl<C: Connection, E> Connected for ST7701S<C, E> {
-    type ConnectionType = C;
+impl<X: Connection, E: Extension> Connected for ST7701S<X, E> {
+    type ConnectionType = X;
+    type ExtensionType = E;
 
     fn connection(&self) -> &Self::ConnectionType {
         &self.connection
+    }
+
+    fn extension(&self) -> &Self::ExtensionType {
+        &self.extension
+    }
+
+}
+
+impl <X: Connection, E: Extension> ST7701S<X, E> {
+    pub const fn extensions_match<T: Extension>() -> bool {
+        match (E::EXTENSION, T::EXTENSION) {
+            (Some(setting), Some(instruction)) => setting as u8 == instruction as u8,
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    pub fn command<C: Command>(&self) -> InstructionResult {
+        self.connection.command::<C>()
+    }
+
+    pub fn write<W: Write>(&self, parameters: &impl ParametricTransmission<Data =  W::Data>) -> InstructionResult {
+        const { assert!(Self::extensions_match::<W>(), "current selected bank does not include write command's location"); }
+        self.connection.write::<W>(&parameters.as_tx_data())
+    }
+
+    pub fn read<R: Read>(&self, buffer: &mut impl ParametricTransmission<Data = R::Data>) -> InstructionResult {
+        self.connection.read::<R>(&mut buffer.as_tx_data())
     }
 }

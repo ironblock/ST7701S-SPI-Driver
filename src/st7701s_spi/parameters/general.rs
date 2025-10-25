@@ -65,3 +65,6 @@ bit_value_enum! {
         const Rising = 1,
     }
 }
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+pub struct Volts(pub f32);

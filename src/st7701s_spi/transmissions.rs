@@ -21,6 +21,9 @@ where
     fn from_rx_data(packets: &<Self as Transmission>::Data) -> Self;
 }
 
+pub trait ParametricTransmission: Transmission + Parametric {}
+impl<T> ParametricTransmission for T where T: Transmission + Parametric {}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct BitMask(usize);
 impl BitMask {
@@ -321,9 +324,9 @@ macro_rules! transmission_mapping {
                             $(as $ALIAS:ident $(= $ALIAS_INITIAL:ident)?)?
                             $(= $VAL:literal)?
                         )
-                    ,)*
+                    ),*
                 ) $(= $BASE:literal)?
-            ,)+
+            ),+
         );
     ) => {
         pastey::paste! {
@@ -348,8 +351,7 @@ macro_rules! transmission_mapping {
             $(#[$META])*
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
             $SV struct [<$NAME:camel>]([u8; $LENGTH])
-                where Self: Parametric,
-                      Self: Transmission<Data = [u8; $LENGTH]>;
+                where Self: ParametricTransmission<Data = [u8; $LENGTH]>;
             impl [<$NAME:camel>] {
                 pub const fn new() -> Self {
                     Self(Self::INITIAL_VALUE)
@@ -357,9 +359,15 @@ macro_rules! transmission_mapping {
 
                 $(
                     $(
+                        pub const fn [<$ARG:lower _const>](&self) -> BitField<$BITS> {
+                            $D::<$BITS>::extract_bit_value(self.0[$INDEX])
+                        }
+
                         pub fn [<$ARG:lower>](&self) -> [<$NAME:snake _types>]::[<$ARG:camel Value>] {
-                                <transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>))>::from($D::<$BITS>
-                                    ::extract_bit_value(self.0[$INDEX]))
+                            <transmission_mapping!(
+                                @value_type ($ARG<$BITS $(,$ALIAS)?>)
+                            )>
+                                ::from($D::<$BITS>::extract_bit_value(self.0[$INDEX]))
                         }
 
                         pub const fn [<set_ $ARG:lower _const>]<const VALUE: u8>(mut self) -> Self {

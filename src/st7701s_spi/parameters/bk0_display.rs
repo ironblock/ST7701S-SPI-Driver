@@ -100,12 +100,21 @@ transmission_mapping! {
 // ============================================================================
 
 bit_value_enum! {
-    /// Pixel Format
-    pub enum PixelFormat<2> {
+    pub enum MDT<1> {
         #[default]
-        const Format16Bit = 0b01,
-        const Format18Bit = 0b10,
-        const Format24Bit = 0b11,
+        const Normal      = 0,
+        const CollectToDB = 1,
+    }
+}
+bit_value_enum! {
+    /// Pixel Format
+    pub enum EndPixelFormat<3> {
+        #[default]
+        const CopySelfMSB  = 0x00,
+        const CopyGreenMSB = 0x01,
+        const CopySelfLSB  = 0x02,
+        const FixZero      = 0x04,
+        const FixOne       = 0x05,
     }
 }
 
@@ -115,10 +124,10 @@ transmission_mapping! {
     /// > Reference: `COLCTRL` p. 276
     pub struct ColorControl<1>(
         0: (
-            D6(pwm_polarity<1> as Logic),
-            D5(led_polarity<1> as Logic),
-            D2(pixel_format<2> as PixelFormat),
-            D0(end_pixel_format<2> as PixelFormat),
+            D5(pwm_polarity<1> as Direction),
+            D4(led_polarity<1> as Direction),
+            D3(mdt<1> as MDT),
+            D0(end_pixel_format<3> as EndPixelFormat),
         ),
     );
 }

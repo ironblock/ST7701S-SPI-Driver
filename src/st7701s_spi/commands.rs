@@ -17,7 +17,7 @@ use crate::st7701s_spi::{
     parameters::{display::TearingEffectSignal, register::CommandExtension},
     protocol::connection::{Connection, InstructionResult},
     state::abstractions::{Configure, Select, Toggle},
-    transmissions::{Parametric as _, Transmission},
+    transmissions::{Transmission},
 };
 use crate::st7701s_spi::{
     device::ST7701S,
@@ -30,7 +30,7 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-impl<C: Connection, E> ST7701S<C, E> {
+impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// ## No Operation
     ///
     /// This command is "do nothing". It has no effect on the display, but it
@@ -318,8 +318,7 @@ impl<C: Connection, E> ST7701S<C, E> {
     pub fn select_gamma_curve(&mut self, transmission: GammaCurve) -> InstructionResult {
         let gamma_curve = transmission.gc();
 
-        self.connection()
-            .write::<GAMSET>(&transmission.as_tx_data())
+        self.write::<GAMSET>(&transmission)
             .inspect(|_| {
                 self.modify_state(|state| {
                     state.image.set_gamma_curve(gamma_curve);
@@ -566,8 +565,7 @@ impl<C: Connection, E> ST7701S<C, E> {
             transmission.set_extended_commands(Off);
         }
 
-        self.connection()
-            .write::<CND2BKXSEL>(&transmission.as_tx_data())
+        self.write::<CND2BKXSEL>(&transmission)
             .inspect(|_| {
                 self.modify_state(|state| {
                     state.command_extension = transmission;
@@ -608,8 +606,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// allows fine-tuning of the display's color response and image quality by
     /// setting multiple voltage control points.
     pub fn positive_gamma_control(&mut self, parameters: &VoltageControl) -> InstructionResult {
-        self.connection()
-            .write::<PVGAMCTRL>(&parameters.as_tx_data())
+        self.write::<PVGAMCTRL>(parameters)
     }
 
     /// ## `BK0: 0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
@@ -619,7 +616,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// complements PVGAMCTRL and is used to adjust the display's color response for
     /// negative voltages.
     pub fn negative_gamma_control(&mut self, parameters: &VoltageControl) -> InstructionResult {
-        self.connection().write::<NVGAMCTRL>(&parameters.as_tx_data())
+        self.write::<NVGAMCTRL>(parameters)
     }
 
     /// ## `BK0: 0xB8` `DGMEN` Digital Gamma Enable
@@ -662,8 +659,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Configures the number of display lines and line delta for the panel. This
     /// affects the vertical resolution and timing.
-    pub fn line_setting(&mut self, settings: &LineSettings) -> InstructionResult {
-        self.connection().write::<LNESET>(&settings.as_tx_data())
+    pub fn line_setting(&mut self, parameters: &LineSettings) -> InstructionResult {
+        self.write::<LNESET>(parameters)
     }
 
     /// ## `BK0: 0xC1` `PORCTRL` Porch Control
@@ -671,8 +668,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Sets the front and back porch timing for the display. Proper porch settings
     /// are important for stable image rendering and synchronization.
-    pub fn porch_control(&mut self, settings: &PorchControl) -> InstructionResult {
-        self.connection().write::<PORCTRL>(&settings.as_tx_data())
+    pub fn porch_control(&mut self, parameters: &PorchControl) -> InstructionResult {
+        self.write::<PORCTRL>(parameters)
     }
 
     /// ## `BK0: 0xC2` `INVSEL` Inversion Selection & Frame Rate Control
@@ -680,8 +677,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Controls display inversion and frame rate settings. Proper inversion settings
     /// ensure correct color representation and can affect display smoothness.
-    pub fn inversion_select(&mut self, settings: &InversionSelection) -> InstructionResult {
-        self.connection().write::<INVSET>(&settings.as_tx_data())
+    pub fn inversion_select(&mut self, parameters: &InversionSelection) -> InstructionResult {
+        self.write::<INVSET>(parameters)
     }
 
     /// ## `BK0: 0xC3` `RGBCTRL` RGB control
@@ -690,8 +687,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures the RGB interface mode and signal polarities. This command is
     /// essential for matching the display's timing and signal requirements to the
     /// host system.
-    pub fn rgb_control(&mut self, settings: &RgbControl) -> InstructionResult {
-        self.connection().write::<RGBCTRL>(&settings.as_tx_data())
+    pub fn rgb_control(&mut self, parameters: &RgbControl) -> InstructionResult {
+        self.write::<RGBCTRL>(parameters)
     }
 
     /// ## `BK0: 0xC5` `PARCTRL` Partial Area Control
@@ -699,8 +696,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Configures partial display mode settings, allowing only a portion of the
     /// display to be updated for power savings or special effects.
-    pub fn partial_area(&mut self, settings: &PartialControl) -> InstructionResult {
-        self.connection().write::<PARCTRL>(&settings.as_tx_data())
+    pub fn partial_area(&mut self, parameters: &PartialControl) -> InstructionResult {
+        self.write::<PARCTRL>(parameters)
     }
 
     /// ## `BK0: 0xC7` `SDIR` X-direction Control
@@ -708,8 +705,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Sets the direction of pixel scanning along the X-axis. This is used for
     /// display orientation and mirroring.
-    pub fn scan_direction(&mut self, settings: &ScanDirectionControl) -> InstructionResult {
-        self.connection().write::<SDIR>(&settings.as_tx_data())
+    pub fn scan_direction(&mut self, parameters: &ScanDirectionControl) -> InstructionResult {
+        self.write::<SDIR>(parameters)
     }
 
     /// ## `BK0: 0xC8` `PDOSET` Pseudo-Dot inversion diving setting
@@ -717,8 +714,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Configures pseudo-dot inversion settings to improve display uniformity and
     /// reduce artifacts.
-    pub fn pseudo_dot_inversion(&mut self, settings: &PseudoDotInversion) -> InstructionResult {
-        self.connection().write::<PDOSET>(&settings.as_tx_data())
+    pub fn pseudo_dot_inversion(&mut self, parameters: &PseudoDotInversion) -> InstructionResult {
+        self.write::<PDOSET>(parameters)
     }
 
     /// ## `BK0: 0xCD` `COLCTRL` Color Control
@@ -727,8 +724,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Adjusts color control parameters such as PWM polarity, LED polarity, pixel
     /// format, and end pixel format. These settings affect color rendering and
     /// backlight behavior.
-    pub fn color_control(&mut self, settings: &ColorControl) -> InstructionResult {
-        self.connection().write::<COLCTRL>(&settings.as_tx_data())
+    pub fn color_control(&mut self, parameters: &ColorControl) -> InstructionResult {
+        self.write::<COLCTRL>(parameters)
     }
 
     /// ## `BK0: 0xE0` `SRECTRL` Sunlight Readable Enhancement
@@ -736,8 +733,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Enables and configures sunlight readability enhancement features, improving
     /// display visibility in bright environments.
-    pub fn sunlight_readable_enhancement(&mut self, settings: &SunlightEnhancement) -> InstructionResult {
-        self.connection().write::<SRECTRL>(&settings.as_tx_data())
+    pub fn sunlight_readable_enhancement(&mut self, parameters: &SunlightEnhancement) -> InstructionResult {
+        self.write::<SRECTRL>(parameters)
     }
 
     /// ## `BK0: 0xE1` `NRCTRL` Noise Reduce Control
@@ -745,8 +742,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Sets noise reduction parameters to improve image quality and reduce visual
     /// artifacts.
-    pub fn noise_reduction_control(&mut self, settings: &NoiseReduction) -> InstructionResult {
-        self.connection().write::<NRCTRL>(&settings.as_tx_data())
+    pub fn noise_reduction_control(&mut self, parameters: &NoiseReduction) -> InstructionResult {
+        self.write::<NRCTRL>(parameters)
     }
 
     /// ## `BK0: 0xE2` `SECTRL` Sharpness and Edge Enhancement
@@ -754,8 +751,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Adjusts image sharpness and edge enhancement algorithms to improve perceived
     /// image clarity and detail definition.
-    pub fn sharpness_control(&mut self, settings: &SharpnessControl) -> InstructionResult {
-        self.connection().write::<SECTRL>(&settings.as_tx_data())
+    pub fn sharpness_control(&mut self, parameters: &SharpnessControl) -> InstructionResult {
+        self.write::<SECTRL>(parameters)
     }
 
     /// ## `BK0: 0xE3` `CCCTRL` Color Calibration
@@ -763,8 +760,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Sets color calibration parameters to ensure accurate color reproduction
     /// across different viewing conditions and manufacturing tolerances.
-    pub fn color_calibration_control(&mut self, settings: &ColorCalibration) -> InstructionResult {
-        self.connection().write::<CCCTRL>(&settings.as_tx_data())
+    pub fn color_calibration_control(&mut self, parameters: &ColorCalibration) -> InstructionResult {
+        self.write::<CCCTRL>(parameters)
     }
 
     /// ## `BK0: 0xE4` `SKCTRL` Skin Tone Preservation
@@ -772,8 +769,8 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Enables skin tone preservation features for more natural human skin
     /// representation in images and videos.
-    pub fn skin_tone_control(&mut self, settings: &SkinToneControl) -> InstructionResult {
-        self.connection().write::<SKCTRL>(&settings.as_tx_data())
+    pub fn skin_tone_control(&mut self, parameters: &SkinToneControl) -> InstructionResult {
+        self.write::<SKCTRL>(parameters)
     }
 
     /// ## `BK0: 0xEA` `NVMSETE` NVM Set Enable
@@ -799,8 +796,9 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     /// > Reference: p. 283
     ///
     /// Sets the positive voltage amplitude (VOP) for the voltage regulator.
-    pub fn vop_amplitude_setting(&mut self, voltage: VregPositiveVoltage) -> InstructionResult {
-        self.connection().write::<VRHS>(&[voltage])
+    /// `Vop = 3.5375 + (VRHA[7:0] x 0.0125);`
+    pub fn set_operating_voltage(&mut self, parameters: &OperatingVoltage) -> InstructionResult {
+        self.write::<VRHS>(parameters)
     }
 
     /// ## `BK1: 0xB1` `VCOMS` VCOM Setting
@@ -808,72 +806,73 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Configures the VCOM voltage level for optimal display performance and
     /// contrast.
-    pub fn vcom_setting(&mut self, voltage: VcomVoltage) -> InstructionResult {
-        self.connection().write::<VCOMS>(&[voltage])
+    pub fn set_common_voltage(&mut self, parameters: &CommonVoltage) -> InstructionResult {
+        self.write::<VCOMS>(parameters)
     }
 
     /// ## `BK1: 0xB2` `VGHSS` VGH Voltage Setting
     /// > Reference: p. 285
     ///
     /// Sets the VGH (gate high) voltage level.
-    pub fn vgh_setting(&mut self, voltage: VghVoltage) -> InstructionResult {
-        self.connection().write::<VGHSS>(&[voltage])
+    pub fn set_gate_high_voltage(&mut self, parameters: &GateHighVoltage) -> InstructionResult {
+        self.write::<VGHSS>(parameters)
     }
 
     /// ## `BK1: 0xB3` `TESTCMD` Test Command
     /// > Reference: p. 286
     ///
-    /// Reserved for factory testing. Not intended for normal operation.
-    pub fn test_command(&mut self, value: u8) -> InstructionResult {
-        self.connection().write::<TESTCMD>(&[value])
+    /// Unknown purpose, not documented.
+    pub fn test_command(&mut self) -> InstructionResult {
+        const VALUE: u8 = 0x80;
+        self.connection().write::<TESTCMD>(&[VALUE])
     }
 
     /// ## `BK1: 0xB5` `VGLS` VGL Voltage Setting
     /// > Reference: p. 287
     ///
     /// Sets the VGL (gate low) voltage level.
-    pub fn vgl_setting(&mut self, voltage: VglVoltage) -> InstructionResult {
-        self.connection().write::<VGLS>(&[voltage])
+    pub fn set_gate_low_voltage(&mut self, parameters: &GateLowVoltage) -> InstructionResult {
+        self.write::<VGLS>(parameters)
     }
 
     /// ## `BK1: 0xB7` `PWCTRL1` Power Control 1
     /// > Reference: p. 288
     ///
     /// Primary power control settings including AVDD, AVEE, and VGH/VGL multipliers.
-    pub fn power_control_1(&mut self, settings: &PowerControl1) -> InstructionResult {
-        self.connection().write::<PWCTRL1>(&settings.as_tx_data())
+    pub fn power_control_1(&mut self, parameters: &PowerControl1) -> InstructionResult {
+        self.write::<PWCTRL1>(parameters)
     }
 
     /// ## `BK1: 0xB8` `PWCTRL2` Power Control 2
     /// > Reference: p. 289
     ///
     /// Secondary power control settings for fine-tuning voltage generation.
-    pub fn power_control_2(&mut self, settings: &PowerControl2) -> InstructionResult {
-        self.connection().write::<PWCTRL2>(&settings.as_tx_data())
+    pub fn power_control_2(&mut self, parameters: &PowerControl2) -> InstructionResult {
+        self.write::<PWCTRL2>(parameters)
     }
 
     /// ## `BK1: 0xBA` `PCLKS1` Panel Clock Setting 1
     /// > Reference: p. 294
     ///
     /// Configures the primary panel clock settings for display timing control.
-    pub fn panel_clock_setting_1(&mut self, settings: &PanelClockSetting1) -> InstructionResult {
-        self.connection().write::<PCLKS1>(&settings.as_tx_data())
+    pub fn panel_clock_setting_1(&mut self, parameters: &PanelClockSetting1) -> InstructionResult {
+        self.write::<PCLKS1>(parameters)
     }
 
     /// ## `BK1: 0xBB` `PCLKS2` Panel Clock Setting 2
     /// > Reference: p. 295
     ///
     /// Sets secondary panel clock parameters for fine timing adjustments.
-    pub fn panel_clock_setting_2(&mut self, settings: &PanelClockSetting2) -> InstructionResult {
-        self.connection().write::<PCLKS2>(&settings.as_tx_data())
+    pub fn panel_clock_setting_2(&mut self, parameters: &PanelClockSetting2) -> InstructionResult {
+        self.write::<PCLKS2>(parameters)
     }
 
     /// ## `BK1: 0xBC` `PCLKS3` Panel Clock Setting 3
     /// > Reference: p. 296
     ///
     /// Adjusts tertiary panel clock settings for advanced timing control.
-    pub fn panel_clock_setting_3(&mut self, settings: &PanelClockSetting3) -> InstructionResult {
-        self.connection().write::<PCLKS3>(&settings.as_tx_data())
+    pub fn panel_clock_setting_3(&mut self, parameters: &PanelClockSetting3) -> InstructionResult {
+        self.write::<PCLKS3>(parameters)
     }
 
     /// ## `BK1: 0xC1` `SPD1` Source Pre-Drive Timing Set 1
@@ -881,48 +880,48 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Configures timing parameters for the source driver pre-drive stage, which
     /// affects signal integrity and display performance.
-    pub fn source_pre_drive_timing_1(&mut self, settings: &SourcePreDriveTiming1) -> InstructionResult {
-        self.connection().write::<SPD1>(&settings.as_tx_data())
+    pub fn source_pre_drive_timing_1(&mut self, parameters: &SourcePreDriveTiming1) -> InstructionResult {
+        self.write::<SPD1>(parameters)
     }
 
     /// ## `BK1: 0xC2` `SPD2` Source Pre-Drive Timing Set 2
     /// > Reference: p. 299
     ///
     /// Fine-tunes additional source pre-drive timing parameters for display optimization.
-    pub fn source_pre_drive_timing_2(&mut self, settings: &SourcePreDriveTiming2) -> InstructionResult {
-        self.connection().write::<SPD2>(&settings.as_tx_data())
+    pub fn source_pre_drive_timing_2(&mut self, parameters: &SourcePreDriveTiming2) -> InstructionResult {
+        self.write::<SPD2>(parameters)
     }
 
     /// ## `BK1: 0xD0` `MIPISET1` MIPI Setting 1
     /// > Reference: p. 299
     ///
     /// Configures primary MIPI interface settings for communication with the host.
-    pub fn mipi_setting_1(&mut self, settings: &MipiSetting1) -> InstructionResult {
-        self.connection().write::<MIPISET1>(&settings.as_tx_data())
+    pub fn mipi_setting_1(&mut self, parameters: &MipiSetting1) -> InstructionResult {
+        self.write::<MIPISET1>(parameters)
     }
 
     /// ## `BK1: 0xD1` `MIPISET2` MIPI Setting 2
     /// > Reference: p. 300
     ///
     /// Sets detailed MIPI communication parameters for advanced interface control.
-    pub fn mipi_setting_2(&mut self, settings: &MipiSetting2) -> InstructionResult {
-        self.connection().write::<MIPISET2>(&settings.as_tx_data())
+    pub fn mipi_setting_2(&mut self, parameters: &MipiSetting2) -> InstructionResult {
+        self.write::<MIPISET2>(parameters)
     }
 
     /// ## `BK1: 0xD2` `MIPISET3` MIPI Setting 3
     /// > Reference: p. 301
     ///
     /// Configures additional MIPI interface parameters.
-    pub fn mipi_setting_3(&mut self, settings: &MipiSetting3) -> InstructionResult {
-        self.connection().write::<MIPISET3>(&settings.as_tx_data())
+    pub fn mipi_setting_3(&mut self, parameters: &MipiSetting3) -> InstructionResult {
+        self.write::<MIPISET3>(parameters)
     }
 
     /// ## `BK1: 0xD3` `MIPISET4` MIPI Setting 4
     /// > Reference: p. 302
     ///
     /// Sets final MIPI interface settings for complete configuration.
-    pub fn mipi_setting_4(&mut self, settings: &MipiSetting4) -> InstructionResult {
-        self.connection().write::<MIPISET4>(&settings.as_tx_data())
+    pub fn mipi_setting_4(&mut self, parameters: &MipiSetting4) -> InstructionResult {
+        self.write::<MIPISET4>(parameters)
     }
 }
 

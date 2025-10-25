@@ -4,11 +4,10 @@ use crate::st7701s_spi::{
     address::{Extension, ExtensionBk0, ExtensionBk1},
     device::ST7701S,
     parameters::{
-        display::{
+        bk0_display::{ColorControl, MDT}, bk1_power::{CommonVoltage, GateHighVoltage, GateLowVoltage, OperatingVoltage}, display::{
             InversionSelection, LineSettings, PolarityInversion, PorchControl, VoltageBias,
             VoltageControl,
-        },
-        general::Switch,
+        }, general::Switch
     },
     protocol::connection::Connection,
 };
@@ -40,8 +39,7 @@ pub fn init_sequence<C: Connection, E: Extension>(
     // SPI_WriteComm(0xCC); // ?????????
     // SPI_WriteData(0x10);
 
-    // SPI_WriteComm(0xCD); // COLCTRL
-    // SPI_WriteData(0x08); // 00001000 MDT 1, pixel collect to DB[17:0]
+    display.color_control(&ColorControl::new().set_mdt(MDT::CollectToDB))?;
 
     let gamma_voltage = VoltageControl::new().set_aj0(VoltageBias::A)
             .set_vc0_const::<0x02>()
@@ -71,25 +69,25 @@ pub fn init_sequence<C: Connection, E: Extension>(
     display.positive_gamma_control(&gamma_voltage)?;
     display.negative_gamma_control(&gamma_voltage)?;
 
-    let display = display.select_command_extension(ExtensionBk1);
+    let mut display = display.select_command_extension(ExtensionBk1);
 
-    // SPI_WriteComm(0xB0);  VOP amplitude
-    // SPI_WriteData(0x5d);//5d
+    display.set_operating_voltage(
+        &OperatingVoltage::new().set_amplitude_const::<0x5D>(),
+    )?;
 
-    // SPI_WriteComm(0xB1); 	//VCOM amplitude setting
-    // SPI_WriteData(0x43); //43
+    display.set_common_voltage(
+        &CommonVoltage::new().set_amplitude_const::<0x43>(),
+    )?;
 
-    // SPI_WriteComm(0xB2); 	//VGH Voltage setting
-    // SPI_WriteData(0x81);	//12V
+    display.set_gate_high_voltage(&GateHighVoltage::new().set_amplitude_volts(12.0))?;
 
-    // SPI_WriteComm(0xB3); // Test command
-    // SPI_WriteData(0x80); // required static
+    display.test_command()?;
 
-    // SPI_WriteComm(0xB5); 	//VGL Voltage setting
-    // SPI_WriteData(0x43);	//-8.3V
+    display.set_gate_low_voltage(&GateLowVoltage::new().set_amplitude_volts(-8.14))?;
 
     // SPI_WriteComm(0xB7); // power control 1
     // SPI_WriteData(0x85);
+    display.power_control_1(settings)
 
     // SPI_WriteComm(0xB8);// power control 2
     // SPI_WriteData(0x20);

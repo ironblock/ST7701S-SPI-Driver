@@ -1,6 +1,9 @@
+use core::panic;
+use std::fmt::Display;
+
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::*},
+    st7701s_spi::{parameters::general::{Switch, Volts}, transmissions::*},
     transmission_mapping,
 };
 use MipiLaneCount::*;
@@ -96,67 +99,226 @@ transmission_mapping! {
 // Voltage Control Settings - p. 287-291
 // ============================================================================
 
-/// VRHS - Vreg1 Output Positive Voltage (0xB0)
-/// Range: Typically 4.0V to 6.5V in steps
-/// > Reference: `VRHS` p. 287
-pub type VregPositiveVoltage = u8;
+transmission_mapping! {
+    pub struct OperatingVoltage<1>(
+        0: (D0(amplitude<8> = 0x4D),),
+    );
+}
+impl OperatingVoltage {
+    pub const fn values(&self) -> (u8, f32,) {
+        let vrha = self.amplitude_const().as_u8();
+        let vop = 3.5375 + (vrha as f32 * 0.0125);
 
-/// VCOMS - VCOM Voltage Setting (0xB1)
-/// Range: Typically -2.5V to 0V in steps
-/// > Reference: `VCOMS` p. 288
-pub type VcomVoltage = u8;
+        (vrha, vop,)
+    }
+}
+impl Display for OperatingVoltage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (vrha, vop,) = self.values();
 
-/// VGHSS - VGH Voltage Setting (0xB2)
-/// Range: Gate high voltage, typically 10V to 17V
-/// > Reference: `VGHSS` p. 289
-pub type VghVoltage = u8;
+        write!(f, "VOP Amplitude: {:.4} V (VRHA: 0x{:02X})", vop, vrha)
+    }
+}
 
-/// VGLS - VGL Voltage Setting (0xB5)
-/// Range: Gate low voltage, typically -10V to -7V
-/// > Reference: `VGLS` p. 291
-pub type VglVoltage = u8;
+transmission_mapping! {
+    pub struct CommonVoltage<1>(
+        0: (D0(amplitude<8> = 0x40),),
+    );
+}
+impl CommonVoltage {
+    pub const fn values(&self) -> (u8, f32,) {
+        let vcom = self.amplitude_const().as_u8();
+        let vop = 0.1 + (vcom as f32 * 0.0125);
+
+        (vcom, vop,)
+    }
+}
+impl Display for CommonVoltage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (vcom, vop,) = self.values();
+
+        write!(f, "VCOM Amplitude: {:.4} V (VCOM: 0x{:02X})", vop, vcom)
+    }
+}
+
+bit_value_enum! {
+    /// VGH Voltage Setting
+    pub enum GateHighAmplitude<4> {
+        #[default]
+        const Pos11_5 = 0x00,
+        const Pos12_0 = 0x01,
+        const Pos12_5 = 0x02,
+        const Pos13_0 = 0x03,
+        const Pos13_5 = 0x04,
+        const Pos14_0 = 0x05,
+        const Pos14_5 = 0x06,
+        const Pos15_0 = 0x07,
+        const Pos15_5 = 0x08,
+        const Pos16_0 = 0x09,
+        const Pos16_5 = 0x0A,
+        const Pos17_0 = 0x0B,
+    }
+}
+impl GateHighAmplitude {
+    pub const fn from_voltage(volts: f32) -> Self {
+        match volts {
+            11.5 => Pos11_5,
+            12.0 => Pos12_0,
+            12.5 => Pos12_5,
+            13.0 => Pos13_0,
+            13.5 => Pos13_5,
+            14.0 => Pos14_0,
+            14.5 => Pos14_5,
+            15.0 => Pos15_0,
+            15.5 => Pos15_5,
+            16.0 => Pos16_0,
+            16.5 => Pos16_5,
+            17.0 => Pos17_0,
+            _ => panic!("Invalid VGH voltage specified"),
+        }
+    }
+
+    pub const fn as_volts(&self) -> f32 {
+        match self {
+            Pos11_5 => 11.5,
+            Pos12_0 => 12.0,
+            Pos12_5 => 12.5,
+            Pos13_0 => 13.0,
+            Pos13_5 => 13.5,
+            Pos14_0 => 14.0,
+            Pos14_5 => 14.5,
+            Pos15_0 => 15.0,
+            Pos15_5 => 15.5,
+            Pos16_0 => 16.0,
+            Pos16_5 => 16.5,
+            Pos17_0 => 17.0,
+        }
+    }
+}
+
+use GateHighAmplitude::*;
+
+transmission_mapping! {
+    pub struct GateHighVoltage<1>(
+        0: (D0(amplitude<4> as GateHighAmplitude = Pos12_5),),
+    );
+}
+impl GateHighVoltage {
+    pub fn set_amplitude_volts(self, volts: f32) -> Self {
+        self.set_amplitude(GateHighAmplitude::from_voltage(volts))
+    }
+
+    pub fn values(&self) -> (u8, f32,) {
+        let vghss = self.amplitude();
+
+        (vghss.as_u8(), vghss.as_volts())
+    }
+}
+impl Display for GateHighVoltage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (vghss, voltage,) = self.values();
+
+        write!(f, "VGH Voltage: {:.1} V (VGHSS: 0x{:02X})", voltage, vghss)
+    }
+}
+
+
+bit_value_enum! {
+    pub enum GateLowAmplitude<4> {
+        #[default]
+        const Neg7_06= 0x00,
+        const Neg7_47= 0x01,
+        const Neg7_91= 0x02,
+        const Neg8_14= 0x03,
+        const Neg8_65= 0x04,
+        const Neg8_92= 0x05,
+        const Neg9_21 = 0x06,
+        const Neg9_51 = 0x07,
+        const Neg9_83 = 0x08,
+        const Neg10_17 = 0x09,
+        const Neg10_53 = 0x0A,
+        const Neg10_91 = 0x0B,
+        const Neg11_31 = 0x0C,
+        const Neg11_74 = 0x0D,
+        const Neg12_20 = 0x0E,
+        const Neg12_69 = 0x0F,
+    }
+}
+use GateLowAmplitude::*;
+impl GateLowAmplitude {
+    pub const fn from_voltage(volts: f32) -> Self {
+        match volts {
+            -7.06 => Neg7_06,
+            -7.47 => Neg7_47,
+            -7.91 => Neg7_91,
+            -8.14 => Neg8_14,
+            -8.65 => Neg8_65,
+            -8.92 => Neg8_92,
+            -9.21 => Neg9_21,
+            -9.51 => Neg9_51,
+            -9.83 => Neg9_83,
+            -10.17 => Neg10_17,
+            -10.53 => Neg10_53,
+            -10.91 => Neg10_91,
+            -11.31 => Neg11_31,
+            -11.74 => Neg11_74,
+            -12.20 => Neg12_20,
+            -12.69 => Neg12_69,
+            _ => panic!("Invalid VGL voltage specified"),
+        }
+    }
+
+    pub const fn as_volts(&self) -> f32 {
+        match self {
+            Neg7_06 => -7.06,
+            Neg7_47 => -7.47,
+            Neg7_91 => -7.91,
+            Neg8_14 => -8.14,
+            Neg8_65 => -8.65,
+            Neg8_92 => -8.92,
+            Neg9_21 => -9.21,
+            Neg9_51 => -9.51,
+            Neg9_83 => -9.83,
+            Neg10_17 => -10.17,
+            Neg10_53 => -10.53,
+            Neg10_91 => -10.91,
+            Neg11_31 => -11.31,
+            Neg11_74 => -11.74,
+            Neg12_20 => -12.20,
+            Neg12_69 => -12.69,
+        }
+    }
+}
+
+transmission_mapping! {
+    pub struct GateLowVoltage<1>(
+        0: (D0(amplitude<4> as GateLowAmplitude = Neg9_51),) = 0b0100_00000,
+    );
+}
+impl GateLowVoltage {
+    pub fn values(&self) -> (u8, f32,) {
+        let vgls = self.amplitude();
+
+        (vgls.as_u8(), vgls.as_volts())
+    }
+
+    pub fn set_amplitude_volts(self, volts: f32) -> Self {
+        self.set_amplitude(GateLowAmplitude::from_voltage(volts))
+    }
+}
+impl Display for GateLowVoltage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (vgls, voltage,) = self.values();
+
+        write!(f, "VGL Voltage: {:.2} V (VGLS: 0x{:02X})", voltage, vgls)
+    }
+}
 
 // ============================================================================
 // Power Control Settings - p. 292-293
 // ============================================================================
 
-bit_value_enum! {
-    /// AVDD Voltage Level
-    pub enum AvddLevel<3> {
-        #[default]
-        const V6_4 = 0b000,
-        const V6_6 = 0b001,
-        const V6_8 = 0b010,
-        const V7_0 = 0b011,
-        const V7_2 = 0b100,
-        const V7_4 = 0b101,
-        const V7_6 = 0b110,
-        const V7_8 = 0b111,
-    }
-}
 
-bit_value_enum! {
-    /// AVCL Voltage Level
-    pub enum AvclLevel<2> {
-        #[default]
-        const Minus4_5 = 0b00,
-        const Minus4_7 = 0b01,
-        const Minus4_9 = 0b10,
-        const Minus5_1 = 0b11,
-    }
-}
-
-transmission_mapping! {
-    /// ## Power Control 1
-    /// Primary power supply configuration
-    /// > Reference: `PWCTRL1` p. 292
-    pub struct PowerControl1<1>(
-        0: (
-            D4(avdd_level<3> as AvddLevel),
-            D0(avcl_level<2> as AvclLevel),
-        ),
-    );
-}
 
 bit_value_enum! {
     /// VGH Voltage Multiplier
