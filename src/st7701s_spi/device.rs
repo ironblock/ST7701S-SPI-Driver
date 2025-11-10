@@ -1,135 +1,132 @@
 extern crate spidev;
 
 use crate::st7701s_spi::{
-    address::{AnyExtension, Command, Extension, Read, Write},
-    protocol::connection::{Connection, InstructionResult},
-    state::domains::DeviceState, transmissions::{ParametricTransmission},
+    protocol::connection::{
+        Command, Connection, Extension, ExtensionAll, InstructionResult, Read, Write,
+        extensions_match,
+    },
+    state::domains::DeviceState,
+    transmissions::ParametricTransmission,
 };
 
-pub struct NotConnected;
+pub type StateModifier = for<'a> fn(&'a mut DeviceState);
+pub type StateAccessor<T> = for<'a> fn(&'a DeviceState) -> &'a T;
+pub type StateAccessorMut<T> = for<'a> fn(&'a mut DeviceState) -> &'a mut T;
 
-pub trait Connected {
-    type ConnectionType: Connection;
-    type ExtensionType: Extension;
-
-    fn connection(&self) -> &Self::ConnectionType;
-    fn extension(&self) -> &Self::ExtensionType;
+pub trait TrackState {
+    fn state(&self) -> &DeviceState;
+    fn state_mut(&mut self) -> &mut DeviceState;
+    fn modify_state(&mut self, modifier: StateModifier);
+    fn reset(self) -> Self;
 }
 
-pub type StateModifier<T> = for<'a> fn(&'a mut <T as Stateful>::StateType);
-pub type StateAccessor<T, U> = for<'a> fn(&'a <T as Stateful>::StateType) -> &'a U;
-pub type StateAccessorMut<T, U> = for<'a> fn(&'a mut <T as Stateful>::StateType) -> &'a mut U;
-pub trait Stateful {
-    type StateType;
-
-    fn state(&self) -> &Self::StateType;
-
-    fn state_mut(&mut self) -> &mut Self::StateType;
-
-    fn modify_state(&mut self, modifier: impl FnOnce(&mut Self::StateType));
+pub trait ExtendedCommands<E: Extension> {
+    fn extension(&self) -> &E;
+    fn extension_mut(&mut self) -> &mut E;
+    fn set_extension<N: Extension>(self, extension: N) -> ST7701S<N>;
 }
 
-pub trait ActiveDevice: Connected + Stateful {}
-impl<T> ActiveDevice for T where T: Connected + Stateful {}
+pub trait InstructionDispatcher {
+    fn command<C: Command>(&self) -> InstructionResult;
+    fn write<W: Write>(&self, data: &W::Data) -> InstructionResult;
+    fn write_parameters<W: Write>(
+        &self,
+        parameters: impl ParametricTransmission<Data = W::Data>,
+    ) -> InstructionResult;
+    fn read<R: Read>(
+        &self,
+        buffer: &mut impl ParametricTransmission<Data = R::Data>,
+    ) -> InstructionResult;
+}
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct ST7701S<X, E: Extension> {
-    pub connection: X,
+#[derive(Debug)]
+pub struct ST7701S<E: Extension>
+where
+    Self: TrackState + ExtendedCommands<E> + InstructionDispatcher,
+{
+    connection: &'static dyn Connection,
     extension: E,
     state: DeviceState,
 }
 
-impl ST7701S<NotConnected, AnyExtension> {
-    pub const fn new() -> ST7701S<NotConnected, AnyExtension> {
-        ST7701S {
-            connection: NotConnected,
-            extension: AnyExtension,
-            state: DeviceState::new(),
-        }
-    }
-
-    pub fn connect<X: Connection>(self, connection: X) -> ST7701S<X, AnyExtension> {
+impl<E: Extension> ST7701S<E> {
+    pub const fn new(connection: &'static impl Connection) -> ST7701S<ExtensionAll> {
         ST7701S {
             connection,
-            extension: self.extension,
-            state: self.state,
-        }
-    }
-}
-
-impl Default for ST7701S<NotConnected, AnyExtension> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<X, E: Extension> ST7701S<X, E> {
-    pub fn set_extension<N: Extension>(self, extension: N) -> ST7701S<X, N> {
-        ST7701S {
-            connection: self.connection,
-            extension,
-            state: self.state,
-        }
-    }
-
-    pub fn reset(self) -> ST7701S<X, AnyExtension> {
-        ST7701S {
-            connection: self.connection,
-            extension: AnyExtension,
+            extension: ExtensionAll,
             state: DeviceState::new(),
         }
     }
 }
 
-impl<X: Connection, E: Extension> Stateful for ST7701S<X, E> {
-    type StateType = DeviceState;
-
-    fn state(&self) -> &Self::StateType {
+impl<E: Extension> TrackState for ST7701S<E> {
+    fn state(&self) -> &DeviceState {
         &self.state
     }
 
-    fn state_mut(&mut self) -> &mut Self::StateType {
+    fn state_mut(&mut self) -> &mut DeviceState {
         &mut self.state
     }
 
-    fn modify_state(&mut self, modifier: impl FnOnce(&mut Self::StateType)) {
+    fn modify_state(&mut self, modifier: StateModifier) {
         modifier(&mut self.state);
+    }
+
+    fn reset(self) -> Self {
+        ST7701S {
+            extension: ExtensionAll,
+            state: DeviceState::new(),
+            connection: self.connection,
+        }
     }
 }
 
-impl<X: Connection, E: Extension> Connected for ST7701S<X, E> {
-    type ConnectionType = X;
-    type ExtensionType = E;
-
-    fn connection(&self) -> &Self::ConnectionType {
-        &self.connection
-    }
-
-    fn extension(&self) -> &Self::ExtensionType {
+impl<E: Extension> ExtendedCommands<E> for ST7701S<E> {
+    fn extension(&self) -> &E {
         &self.extension
     }
 
-}
+    fn extension_mut(&mut self) -> &mut E {
+        &mut self.extension
+    }
 
-impl <X: Connection, E: Extension> ST7701S<X, E> {
-    pub const fn extensions_match<T: Extension>() -> bool {
-        match (E::EXTENSION, T::EXTENSION) {
-            (Some(setting), Some(instruction)) => setting as u8 == instruction as u8,
-            (None, None) => true,
-            _ => false,
+    fn set_extension<N: Extension>(self, extension: N) -> ST7701S<N> {
+        ST7701S {
+            extension,
+            state: self.state,
+            connection: self.connection,
         }
     }
+}
 
-    pub fn command<C: Command>(&self) -> InstructionResult {
-        self.connection.command::<C>()
+impl<E: Extension> InstructionDispatcher for ST7701S<E> {
+    fn command<C: Command>(&self) -> InstructionResult {
+        self.connection.command(C::ADDRESS)
     }
 
-    pub fn write<W: Write>(&self, parameters: &impl ParametricTransmission<Data =  W::Data>) -> InstructionResult {
-        const { assert!(Self::extensions_match::<W>(), "current selected bank does not include write command's location"); }
-        self.connection.write::<W>(&parameters.as_tx_data())
+    fn write<W: Write>(&self, data: &W::Data) -> InstructionResult {
+        const {
+            assert!(
+                extensions_match::<E, W>(),
+                "current selected bank does not include write command's location"
+            );
+        }
+
+        self.connection.write(W::ADDRESS, data.as_ref())
     }
 
-    pub fn read<R: Read>(&self, buffer: &mut impl ParametricTransmission<Data = R::Data>) -> InstructionResult {
-        self.connection.read::<R>(&mut buffer.as_tx_data())
+    fn write_parameters<W: Write>(
+        &self,
+        parameters: impl ParametricTransmission<Data = W::Data>,
+    ) -> InstructionResult {
+        self.write::<W>(&parameters.as_tx_data())
+    }
+
+    fn read<R: Read>(
+        &self,
+        buffer: &mut impl ParametricTransmission<Data = R::Data>,
+    ) -> InstructionResult {
+        self.connection
+            .read(R::ADDRESS, &mut buffer.as_tx_data().as_mut())
     }
 }

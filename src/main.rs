@@ -22,6 +22,7 @@ use st7701s::st7701s_spi::{device::ST7701S, protocol::spi::*, sequences::init::i
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");
+    
     let mut device = SpidevDevice::open("/dev/spidev1.0").expect("Failed to open SPI device");
     device.configure(&ThreeWireSPI::DEFAULT_OPTIONS).expect("Failed to configure SPI device");
 

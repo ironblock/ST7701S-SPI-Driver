@@ -1,46 +1,7 @@
-use crate::st7701s_spi::{parameters::register::Bank, transmissions::Transmission};
-
-pub trait Extension {
-    const EXTENSION: Option<Bank>;
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct AnyExtension;
-impl Extension for AnyExtension {
-    const EXTENSION: Option<Bank> = None;
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionBk0;
-impl Extension for ExtensionBk0 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK0);
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionBk1;
-impl Extension for ExtensionBk1 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK1);
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionBk3;
-impl Extension for ExtensionBk3 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK3);
-}
-
-pub trait Instruction: Extension {
-    const ADDRESS: u8;
-}
-
-pub trait Command: Instruction {}
-impl <T> Command for T where T: Instruction {}
-
-pub trait Write: Instruction + Transmission {}
-impl <T> Write for T where T: Instruction + Transmission {}
-
-pub trait Read: Instruction + Transmission {
-}
-impl <T> Read for T where T: Instruction + Transmission {}
+use crate::st7701s_spi::protocol::connection::{
+    ExtensionAll, Command, Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3, Instruction, Read,
+    Write,
+};
 
 macro_rules! instructions {
     (@as_u8 $EVIS:vis fn(&self) => ($ADDR:literal)) => {
@@ -96,10 +57,10 @@ macro_rules! instructions {
 
 pub mod special {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{AnyExtension, Write};
+    use crate::st7701s_spi::address::{ExtensionAll, Write};
 
     instructions! {
-        pub enum Special<AnyExtension, 0xFF> {
+        pub enum Special<ExtensionAll, 0xFF> {
             pub const CND2BKXSEL = (Write<5>),
             pub const DSTB       = (Write<5>),
             pub const DSTBT      = (Write<5>),
@@ -109,10 +70,10 @@ pub mod special {
 
 pub mod core {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{AnyExtension, Command, Read, Write};
+    use crate::st7701s_spi::address::{ExtensionAll, Command, Read, Write};
 
     instructions! {
-        enum Core<AnyExtension> {
+        enum Core<ExtensionAll> {
             pub const NOP            = (0x00, Command),
             pub const SWRESET        = (0x01, Write<1>),
             pub const RDDID          = (0x04, Read<3>),
@@ -181,7 +142,7 @@ pub mod core {
 
 pub mod bk0 {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::{address::{ExtensionBk0, Write}};
+    use crate::st7701s_spi::address::{ExtensionBk0, Write};
 
     instructions! {
         pub enum BK0<ExtensionBk0> {

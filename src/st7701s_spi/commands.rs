@@ -1,23 +1,16 @@
 use std::{io, thread, time};
 
+use crate::st7701s_spi::address::{bk0::*, bk1::*, bk3::*, special::*};
+use crate::st7701s_spi::protocol::connection::{
+    ExtensionAll, Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3,
+};
 use crate::st7701s_spi::{
     address::core::*,
     parameters::{
         bk0_display::*,
         bk1_power::*,
-        display::{InversionSelection, LineSettings, PorchControl}
-    }
-};
-use crate::st7701s_spi::address::special::*;
-use crate::st7701s_spi::address::{AnyExtension, bk1::*};
-use crate::st7701s_spi::address::{Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3, bk3::*};
-use crate::st7701s_spi::{
-    address::bk0::*,
-    device::*,
-    parameters::{display::TearingEffectSignal, register::CommandExtension},
-    protocol::connection::{Connection, InstructionResult},
-    state::abstractions::{Configure, Select, Toggle},
-    transmissions::{Transmission},
+        display::{InversionSelection, LineSettings, PorchControl},
+    },
 };
 use crate::st7701s_spi::{
     device::ST7701S,
@@ -28,16 +21,22 @@ use crate::st7701s_spi::{
         general::Switch,
     },
 };
+use crate::st7701s_spi::{
+    parameters::{display::TearingEffectSignal, register::CommandExtension},
+    protocol::connection::InstructionResult,
+    state::abstractions::{Configure, Select, Toggle},
+    transmissions::Transmission,
+};
 use Switch::*;
 
-impl<C: Connection, E: Extension> ST7701S<C, E> {
+impl<E: Extension> ST7701S<E> {
     /// ## No Operation
     ///
     /// This command is "do nothing". It has no effect on the display, but it
     /// can be used to terminate parameter write commands. It is also sometimes
     /// required as a buffer between elements in certain sequences.
     pub fn no_operation(&mut self) -> io::Result<()> {
-        self.connection().command::<NOP>()
+        self.command::<NOP>()
     }
 
     /// ## Software Reset
@@ -61,10 +60,9 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// (with no arguments), and p. 188 refers to it as a **write**. As only a
     /// write can have arguments and 0x01 is the constant argument in both
     /// references, SWRESET's canonical representation here is as a **write**.
-    pub fn software_reset(self) -> ST7701S<C, AnyExtension> {
+    pub fn software_reset(self) -> ST7701S<ExtensionAll> {
         const RESET_PARAMETERS: [u8; 1] = [0x01];
-        self.connection()
-            .write::<SWRESET>(&RESET_PARAMETERS)
+        self.write::<SWRESET>(&RESET_PARAMETERS)
             .expect("failed to send software reset command");
         let delay;
         let condition;
@@ -98,7 +96,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDDID as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDDID>(buffer)
+        self.read::<RDDID>(buffer)
     }
 
     /// ## Read Number of Errors on DSI
@@ -110,7 +108,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDNUMED as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDNUMED>(buffer)
+        self.read::<RDNUMED>(buffer)
     }
 
     /// ### Read First Pixel Color Values
@@ -138,9 +136,9 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         buffer: &mut [u8; 1],
     ) -> io::Result<()> {
         match channel {
-            ColorChannel::Red => self.connection().read::<RDRED>(buffer),
-            ColorChannel::Green => self.connection().read::<RDGREEN>(buffer),
-            ColorChannel::Blue => self.connection().read::<RDBLUE>(buffer),
+            ColorChannel::Red => self.read::<RDRED>(buffer),
+            ColorChannel::Green => self.read::<RDGREEN>(buffer),
+            ColorChannel::Blue => self.read::<RDBLUE>(buffer),
         }
     }
 
@@ -150,7 +148,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDDPM as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDDPM>(buffer)
+        self.read::<RDDPM>(buffer)
     }
 
     /// ### `0x0B` `RDDMADCTL`  Read Display MADCTL
@@ -159,7 +157,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDDMADCTL as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDDMADCTL>(buffer)
+        self.read::<RDDMADCTL>(buffer)
     }
 
     /// ### `0x0C` `RDDCOLMOD`  Read Display Pixel Format
@@ -168,7 +166,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDDCOLMOD as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDDCOLMOD>(buffer)
+        self.read::<RDDCOLMOD>(buffer)
     }
 
     /// ### `0x0D` `RDDIM`  Read Display Image Mode
@@ -177,7 +175,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDDIM as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDDIM>(buffer)
+        self.read::<RDDIM>(buffer)
     }
 
     /// ### `0x0E` `RDDSM`  Read Display Signal Mode
@@ -186,7 +184,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDDSM as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDDSM>(buffer)
+        self.read::<RDDSM>(buffer)
     }
 
     /// ## Get Scan Line
@@ -195,7 +193,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// Reads the current scan line being refreshed on the display. Useful for
     /// synchronization and diagnostics.
     pub fn get_scan_line(&mut self, buffer: &mut <GSL as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<GSL>(buffer)
+        self.read::<GSL>(buffer)
     }
 
     /// ## Configure Display Brightness Value
@@ -207,7 +205,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// ### Considerations
     ///   1. Manual brightness control must be enabled (see `__CTRLD`)
-    pub fn brightness_value(&'_ mut self) -> Configure<'_, Self, RDDISBV, WRDISBV, Brightness> {
+    pub fn brightness_value(&'_ mut self) -> Configure<'_, RDDISBV, WRDISBV, Brightness> {
         if cfg!(debug_assertions)
             && self
                 .state()
@@ -233,16 +231,14 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// ### Considerations
     ///   1. Brightness value must be set separately (see `__DISBV`)
     ///   2. Dimming control can only be set when using manual brightness control)
-    pub fn brightness_control(
-        &'_ mut self,
-    ) -> Configure<'_, Self, RDCTRLD, WRCTRLD, BrightnessControl> {
+    pub fn brightness_control(&'_ mut self) -> Configure<'_, RDCTRLD, WRCTRLD, BrightnessControl> {
         Configure::new(self, |state| &mut state.config.brightness_control)
     }
 
     /// ## Toggle Sleep Mode
     /// > Reference: p. 200, 201
     ///
-    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, Self, SLPIN, SLPOUT> {
+    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, SLPIN, SLPOUT> {
         Toggle::new(self, |state| &mut state.mode.sleep)
     }
 
@@ -250,7 +246,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// > Reference: p. 202
     ///
     pub fn enable_partial_mode(&mut self) -> InstructionResult {
-        self.connection().command::<PTLON>().inspect(|_| {
+        self.command::<PTLON>().inspect(|_| {
             self.modify_state(|state| {
                 state.mode.partial = On;
             });
@@ -261,7 +257,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// > Reference: p. 203
     ///
     pub fn enable_normal_mode(&mut self) -> InstructionResult {
-        self.connection().command::<NORON>().inspect(|_| {
+        self.command::<NORON>().inspect(|_| {
             self.modify_state(|state| {
                 state.mode.partial = Off;
                 state.image.set_all_pixels_black(Off);
@@ -275,7 +271,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// > - `INVOFF` p. 204
     /// > - `INVON`  p. 205
     pub fn invert_colors_on(&mut self) -> InstructionResult {
-        self.connection().command::<INVON>().inspect(|_| {
+        self.command::<INVON>().inspect(|_| {
             self.modify_state(|state| {
                 state.image = state.image.set_invert_colors(On);
             })
@@ -283,7 +279,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     }
 
     pub fn invert_colors_off(&mut self) -> InstructionResult {
-        self.connection().command::<INVOFF>().inspect(|_| {
+        self.command::<INVOFF>().inspect(|_| {
             self.modify_state(|state| {
                 state.image = state.image.set_invert_colors(Off);
             })
@@ -296,13 +292,13 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// > - `ALLPON`  p. 207
     pub fn set_all_pixels(&mut self, extrema: PixelExtrema) -> InstructionResult {
         match extrema {
-            PixelExtrema::Black => self.connection().command::<ALLPOFF>().inspect(|_| {
+            PixelExtrema::Black => self.command::<ALLPOFF>().inspect(|_| {
                 self.modify_state(|state| {
                     state.image.set_all_pixels_black(On);
                     state.image.set_all_pixels_white(Off);
                 })
             }),
-            PixelExtrema::White => self.connection().command::<ALLPON>().inspect(|_| {
+            PixelExtrema::White => self.command::<ALLPON>().inspect(|_| {
                 self.modify_state(|state| {
                     state.image.set_all_pixels_black(Off);
                     state.image.set_all_pixels_white(On);
@@ -318,30 +314,29 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     pub fn select_gamma_curve(&mut self, transmission: GammaCurve) -> InstructionResult {
         let gamma_curve = transmission.gc();
 
-        self.write::<GAMSET>(&transmission)
-            .inspect(|_| {
-                self.modify_state(|state| {
-                    state.image.set_gamma_curve(gamma_curve);
-                });
-            })
+        self.write_parameters::<GAMSET>(&transmission).inspect(|_| {
+            self.modify_state(|state| {
+                state.image.set_gamma_curve(gamma_curve);
+            });
+        })
     }
 
     /// ## Display Output
     /// > Reference:
     /// > `DISPOFF` p. 209
     /// > `DISPON`  p. 210
-    pub fn display_output(&'_ mut self) -> Toggle<'_, Self, DISPON, DISPOFF> {
+    pub fn display_output(&'_ mut self) -> Toggle<'_, DISPON, DISPOFF> {
         Toggle::new(self, |state| &mut state.mode.display)
     }
 
     /// ## Toggle Idle Mode
     /// > Reference: p. 215, 216
     ///
-    pub fn idle_mode(&'_ mut self) -> Toggle<'_, Self, IDMON, IDMOFF> {
+    pub fn idle_mode(&'_ mut self) -> Toggle<'_, IDMON, IDMOFF> {
         Toggle::new(self, |state| &mut state.mode.idle)
     }
 
-    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, Self, TEON, TEOFF, TearingEffectSignal> {
+    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, TEON, TEOFF, TearingEffectSignal> {
         Select::new(self, |state| &mut state.tearing_effect)
     }
 
@@ -350,7 +345,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Get or set parameters for adaptive brightness and color enhancement. Enables or
     /// disables color enhancement and selects the enhancement mode.
-    pub fn adaptive_brightness(&'_ mut self) -> Configure<'_, Self, WRCACE, RDCABC, AdaptiveBrightness> {
+    pub fn adaptive_brightness(&'_ mut self) -> Configure<'_, WRCACE, RDCABC, AdaptiveBrightness> {
         Configure::new(self, |state| &mut state.config.adaptive_brightness)
     }
 
@@ -359,7 +354,9 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Get or set the minimum brightness value for Content Adaptive Brightness Control
     /// (CABC).
-    pub fn min_adaptive_brightness(&'_ mut self) -> Configure<'_, Self, WRCABCMB, RDCABCMB, MinAdaptiveBrightness> {
+    pub fn min_adaptive_brightness(
+        &'_ mut self,
+    ) -> Configure<'_, WRCABCMB, RDCABCMB, MinAdaptiveBrightness> {
         Configure::new(self, |state| &mut state.config.min_adaptive_brightness)
     }
 
@@ -371,7 +368,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDABCSDR as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDABCSDR>(buffer)
+        self.read::<RDABCSDR>(buffer)
     }
 
     /// ## Read Black/White Low Bits
@@ -383,7 +380,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDBWLB as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDBWLB>(buffer)
+        self.read::<RDBWLB>(buffer)
     }
 
     /// ## Read Bkx
@@ -391,7 +388,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Bkx calibration value from the device.
     pub fn read_bkx(&mut self, buffer: &mut <RDBKX as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDBKX>(buffer)
+        self.read::<RDBKX>(buffer)
     }
 
     /// ## Read Bky
@@ -399,7 +396,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Bky calibration value from the device.
     pub fn read_bky(&mut self, buffer: &mut <RDBKY as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDBKY>(buffer)
+        self.read::<RDBKY>(buffer)
     }
 
     /// ## Read Wx
@@ -407,7 +404,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Wx calibration value from the device.
     pub fn read_wx(&mut self, buffer: &mut <RDWX as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDWX>(buffer)
+        self.read::<RDWX>(buffer)
     }
 
     /// ## Read Wy
@@ -415,7 +412,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Wy calibration value from the device.
     pub fn read_wy(&mut self, buffer: &mut <RDWY as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDWY>(buffer)
+        self.read::<RDWY>(buffer)
     }
 
     /// ## Read Rx
@@ -423,7 +420,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Rx calibration value from the device.
     pub fn read_rx(&mut self, buffer: &mut <RDRX as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDRX>(buffer)
+        self.read::<RDRX>(buffer)
     }
 
     /// ## Read Ry
@@ -431,7 +428,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Ry calibration value from the device.
     pub fn read_ry(&mut self, buffer: &mut <RDRY as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDRY>(buffer)
+        self.read::<RDRY>(buffer)
     }
 
     /// ## Read Gx
@@ -439,7 +436,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Gx calibration value from the device.
     pub fn read_gx(&mut self, buffer: &mut <RDGX as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDGX>(buffer)
+        self.read::<RDGX>(buffer)
     }
 
     /// ## Read Gy
@@ -447,7 +444,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Gy calibration value from the device.
     pub fn read_gy(&mut self, buffer: &mut <RDGY as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDGY>(buffer)
+        self.read::<RDGY>(buffer)
     }
 
     /// ## Read Blue/A Color Low Bits
@@ -459,7 +456,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
         &mut self,
         buffer: &mut <RDBALB as Transmission>::Data,
     ) -> InstructionResult {
-        self.connection().read::<RDBALB>(buffer)
+        self.read::<RDBALB>(buffer)
     }
 
     /// ## Read Bx
@@ -467,7 +464,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Bx calibration value from the device.
     pub fn read_bx(&mut self, buffer: &mut <RDBX as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDBX>(buffer)
+        self.read::<RDBX>(buffer)
     }
 
     /// ## Read By
@@ -475,7 +472,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the By calibration value from the device.
     pub fn read_by(&mut self, buffer: &mut <RDBY as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDBY>(buffer)
+        self.read::<RDBY>(buffer)
     }
 
     /// ## Read Ax
@@ -483,7 +480,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Ax calibration value from the device.
     pub fn read_ax(&mut self, buffer: &mut <RDAX as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDAX>(buffer)
+        self.read::<RDAX>(buffer)
     }
 
     /// ## Read Ay
@@ -491,7 +488,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the Ay calibration value from the device.
     pub fn read_ay(&mut self, buffer: &mut <RDAY as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDAY>(buffer)
+        self.read::<RDAY>(buffer)
     }
 
     /// ## Read DDB Start
@@ -499,7 +496,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the initial value of the Display Data Bus (DDB) for diagnostics.
     pub fn read_ddbs(&mut self, buffer: &mut <RDDDBS as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDDDBS>(buffer)
+        self.read::<RDDDBS>(buffer)
     }
 
     /// ## Read DDB Continue
@@ -507,7 +504,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the next value of the Display Data Bus (DDB) for diagnostics.
     pub fn read_ddbc(&mut self, buffer: &mut <RDDDBC as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDDDBC>(buffer)
+        self.read::<RDDDBC>(buffer)
     }
 
     /// ## Read First Checksum
@@ -515,7 +512,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the first checksum value for verifying data integrity.
     pub fn read_fcs(&mut self, buffer: &mut <RDFCS as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDFCS>(buffer)
+        self.read::<RDFCS>(buffer)
     }
 
     /// ## Read Continue Checksum
@@ -523,7 +520,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the next checksum value for continued data integrity verification.
     pub fn read_ccs(&mut self, buffer: &mut <RDCCS as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDCCS>(buffer)
+        self.read::<RDCCS>(buffer)
     }
 
     /// ## Read ID1
@@ -531,7 +528,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the first identification value from the device.
     pub fn read_id1(&mut self, buffer: &mut <RDID1 as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDID1>(buffer)
+        self.read::<RDID1>(buffer)
     }
 
     /// ## Read ID2
@@ -539,7 +536,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the second identification value from the device.
     pub fn read_id2(&mut self, buffer: &mut <RDID2 as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDID2>(buffer)
+        self.read::<RDID2>(buffer)
     }
 
     /// ## Read ID3
@@ -547,7 +544,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     ///
     /// Reads the third identification value from the device.
     pub fn read_id3(&mut self, buffer: &mut <RDID3 as Transmission>::Data) -> InstructionResult {
-        self.connection().read::<RDID3>(buffer)
+        self.read::<RDID3>(buffer)
     }
 
     /// ## Command2 BKx Selection
@@ -556,7 +553,7 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<C, N> {
+    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<N> {
         let transmission = CommandExtension::new();
 
         if let Some(extension) = N::EXTENSION {
@@ -565,12 +562,13 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
             transmission.set_extended_commands(Off);
         }
 
-        self.write::<CND2BKXSEL>(&transmission)
+        self.write_parameters::<CND2BKXSEL>(&transmission)
             .inspect(|_| {
                 self.modify_state(|state| {
                     state.command_extension = transmission;
                 });
-            }).expect("failed to select command extension");
+            })
+            .expect("failed to select command extension");
 
         self.set_extension(extension)
     }
@@ -581,9 +579,8 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// Enables deep standby mode, reducing power consumption to a minimum. The
     /// display will not respond to most commands until reactivated.
     pub fn deep_standby_enable(&mut self) -> InstructionResult {
-        use crate::st7701s_spi::address::special::DSTB;
         const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
-        self.connection().write::<DSTB>(&PARAMS)
+        self.write_parameters::<DSTB>(&PARAMS)
     }
 
     /// ## `Special: 0xFF` `DSTBT` Deep Standby Mode Active
@@ -592,13 +589,12 @@ impl<C: Connection, E: Extension> ST7701S<C, E> {
     /// Indicates whether deep standby mode is currently active. Used for
     /// diagnostics and power management.
     pub fn deep_standby_active(&mut self) -> InstructionResult {
-        use crate::st7701s_spi::address::special::DSTBT;
         const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
-        self.connection().write::<DSTBT>(&PARAMS)
+        self.write_parameters::<DSTBT>(&PARAMS)
     }
 }
 
-impl<C: Connection> ST7701S<C, ExtensionBk0> {
+impl ST7701S<ExtensionBk0> {
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
     /// > See p. 261
     ///
@@ -606,7 +602,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// allows fine-tuning of the display's color response and image quality by
     /// setting multiple voltage control points.
     pub fn positive_gamma_control(&mut self, parameters: &VoltageControl) -> InstructionResult {
-        self.write::<PVGAMCTRL>(parameters)
+        self.write_parameters::<PVGAMCTRL>(parameters)
     }
 
     /// ## `BK0: 0xB1` `NVGAMCTRL` Negative Voltage Gamma Control
@@ -616,7 +612,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// complements PVGAMCTRL and is used to adjust the display's color response for
     /// negative voltages.
     pub fn negative_gamma_control(&mut self, parameters: &VoltageControl) -> InstructionResult {
-        self.write::<NVGAMCTRL>(parameters)
+        self.write_parameters::<NVGAMCTRL>(parameters)
     }
 
     /// ## `BK0: 0xB8` `DGMEN` Digital Gamma Enable
@@ -625,7 +621,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Enables or disables digital gamma correction. When enabled, the display uses
     /// digital gamma look-up tables for color adjustment.
     pub fn digital_gamma_enable(&mut self, enable: u8) -> InstructionResult {
-        self.connection().write::<DGMEN>(&[enable])
+        self.write_parameters::<DGMEN>(&[enable])
     }
 
     /// ## `BK0: 0xB9` `DGMLUTR` Digital Gamma Look-up Table for Red
@@ -634,7 +630,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Sets the digital gamma look-up table for the red color channel. Each entry
     /// defines the gamma correction for a specific input value.
     pub fn digital_gamma_lut_red(&mut self, lut_data: &GammaLutRed) -> InstructionResult {
-        self.connection().write::<DGMLUTR>(lut_data)
+        self.write_parameters::<DGMLUTR>(lut_data)
     }
 
     /// ## `BK0: 0xBA` `DGMLUTB` Digital Gamma Look-up Table for Blue
@@ -643,7 +639,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Sets the digital gamma look-up table for the blue color channel. Each entry
     /// defines the gamma correction for a specific input value.
     pub fn digital_gamma_lut_blue(&mut self, lut_data: &GammaLutBlue) -> InstructionResult {
-        self.connection().write::<DGMLUTB>(lut_data)
+        self.write_parameters::<DGMLUTB>(lut_data)
     }
 
     /// ## `BK0: 0xBC` `PWMCLKSEL` PWM CLK select
@@ -651,7 +647,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Selects the clock source for the PWM signal used in backlight control.
     pub fn pwm_clock_select(&mut self, clock_setting: u8) -> InstructionResult {
-        self.connection().write::<PWMCLKSEL>(&[clock_setting])
+        self.write_parameters::<PWMCLKSEL>(&[clock_setting])
     }
 
     /// ## `BK0: 0xC0` `LNESET` Display Line Setting
@@ -660,7 +656,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures the number of display lines and line delta for the panel. This
     /// affects the vertical resolution and timing.
     pub fn line_setting(&mut self, parameters: &LineSettings) -> InstructionResult {
-        self.write::<LNESET>(parameters)
+        self.write_parameters::<LNESET>(parameters)
     }
 
     /// ## `BK0: 0xC1` `PORCTRL` Porch Control
@@ -669,7 +665,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Sets the front and back porch timing for the display. Proper porch settings
     /// are important for stable image rendering and synchronization.
     pub fn porch_control(&mut self, parameters: &PorchControl) -> InstructionResult {
-        self.write::<PORCTRL>(parameters)
+        self.write_parameters::<PORCTRL>(parameters)
     }
 
     /// ## `BK0: 0xC2` `INVSEL` Inversion Selection & Frame Rate Control
@@ -678,7 +674,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Controls display inversion and frame rate settings. Proper inversion settings
     /// ensure correct color representation and can affect display smoothness.
     pub fn inversion_select(&mut self, parameters: &InversionSelection) -> InstructionResult {
-        self.write::<INVSET>(parameters)
+        self.write_parameters::<INVSET>(parameters)
     }
 
     /// ## `BK0: 0xC3` `RGBCTRL` RGB control
@@ -688,7 +684,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// essential for matching the display's timing and signal requirements to the
     /// host system.
     pub fn rgb_control(&mut self, parameters: &RgbControl) -> InstructionResult {
-        self.write::<RGBCTRL>(parameters)
+        self.write_parameters::<RGBCTRL>(parameters)
     }
 
     /// ## `BK0: 0xC5` `PARCTRL` Partial Area Control
@@ -697,7 +693,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures partial display mode settings, allowing only a portion of the
     /// display to be updated for power savings or special effects.
     pub fn partial_area(&mut self, parameters: &PartialControl) -> InstructionResult {
-        self.write::<PARCTRL>(parameters)
+        self.write_parameters::<PARCTRL>(parameters)
     }
 
     /// ## `BK0: 0xC7` `SDIR` X-direction Control
@@ -706,7 +702,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Sets the direction of pixel scanning along the X-axis. This is used for
     /// display orientation and mirroring.
     pub fn scan_direction(&mut self, parameters: &ScanDirectionControl) -> InstructionResult {
-        self.write::<SDIR>(parameters)
+        self.write_parameters::<SDIR>(parameters)
     }
 
     /// ## `BK0: 0xC8` `PDOSET` Pseudo-Dot inversion diving setting
@@ -715,7 +711,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Configures pseudo-dot inversion settings to improve display uniformity and
     /// reduce artifacts.
     pub fn pseudo_dot_inversion(&mut self, parameters: &PseudoDotInversion) -> InstructionResult {
-        self.write::<PDOSET>(parameters)
+        self.write_parameters::<PDOSET>(parameters)
     }
 
     /// ## `BK0: 0xCD` `COLCTRL` Color Control
@@ -725,7 +721,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// format, and end pixel format. These settings affect color rendering and
     /// backlight behavior.
     pub fn color_control(&mut self, parameters: &ColorControl) -> InstructionResult {
-        self.write::<COLCTRL>(parameters)
+        self.write_parameters::<COLCTRL>(parameters)
     }
 
     /// ## `BK0: 0xE0` `SRECTRL` Sunlight Readable Enhancement
@@ -733,8 +729,11 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Enables and configures sunlight readability enhancement features, improving
     /// display visibility in bright environments.
-    pub fn sunlight_readable_enhancement(&mut self, parameters: &SunlightEnhancement) -> InstructionResult {
-        self.write::<SRECTRL>(parameters)
+    pub fn sunlight_readable_enhancement(
+        &mut self,
+        parameters: &SunlightEnhancement,
+    ) -> InstructionResult {
+        self.write_parameters::<SRECTRL>(parameters)
     }
 
     /// ## `BK0: 0xE1` `NRCTRL` Noise Reduce Control
@@ -743,7 +742,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Sets noise reduction parameters to improve image quality and reduce visual
     /// artifacts.
     pub fn noise_reduction_control(&mut self, parameters: &NoiseReduction) -> InstructionResult {
-        self.write::<NRCTRL>(parameters)
+        self.write_parameters::<NRCTRL>(parameters)
     }
 
     /// ## `BK0: 0xE2` `SECTRL` Sharpness and Edge Enhancement
@@ -752,7 +751,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Adjusts image sharpness and edge enhancement algorithms to improve perceived
     /// image clarity and detail definition.
     pub fn sharpness_control(&mut self, parameters: &SharpnessControl) -> InstructionResult {
-        self.write::<SECTRL>(parameters)
+        self.write_parameters::<SECTRL>(parameters)
     }
 
     /// ## `BK0: 0xE3` `CCCTRL` Color Calibration
@@ -760,8 +759,11 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Sets color calibration parameters to ensure accurate color reproduction
     /// across different viewing conditions and manufacturing tolerances.
-    pub fn color_calibration_control(&mut self, parameters: &ColorCalibration) -> InstructionResult {
-        self.write::<CCCTRL>(parameters)
+    pub fn color_calibration_control(
+        &mut self,
+        parameters: &ColorCalibration,
+    ) -> InstructionResult {
+        self.write_parameters::<CCCTRL>(parameters)
     }
 
     /// ## `BK0: 0xE4` `SKCTRL` Skin Tone Preservation
@@ -770,7 +772,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Enables skin tone preservation features for more natural human skin
     /// representation in images and videos.
     pub fn skin_tone_control(&mut self, parameters: &SkinToneControl) -> InstructionResult {
-        self.write::<SKCTRL>(parameters)
+        self.write_parameters::<SKCTRL>(parameters)
     }
 
     /// ## `BK0: 0xEA` `NVMSETE` NVM Set Enable
@@ -778,7 +780,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     ///
     /// Enables or disables Non-Volatile Memory settings for persistent configuration.
     pub fn nvm_set_enable(&mut self, enable: u8) -> InstructionResult {
-        self.connection().write::<NVMSETE>(&[enable])
+        self.write_parameters::<NVMSETE>(&[enable])
     }
 
     /// ## `BK0: 0xEE` `CABCCTRL` Content Adaptive Brightness Control
@@ -787,18 +789,18 @@ impl<C: Connection> ST7701S<C, ExtensionBk0> {
     /// Controls Content Adaptive Brightness Control for dynamic backlight adjustment
     /// based on image content to save power and improve visibility.
     pub fn cabc_control(&mut self, setting: u8) -> InstructionResult {
-        self.connection().write::<CABCCTRL>(&[setting])
+        self.write_parameters::<CABCCTRL>(&[setting])
     }
 }
 
-impl<C: Connection> ST7701S<C, ExtensionBk1> {
+impl ST7701S<ExtensionBk1> {
     /// ## `BK1: 0xB0` `VRHS` VOP Amplitude Setting
     /// > Reference: p. 283
     ///
     /// Sets the positive voltage amplitude (VOP) for the voltage regulator.
     /// `Vop = 3.5375 + (VRHA[7:0] x 0.0125);`
     pub fn set_operating_voltage(&mut self, parameters: &OperatingVoltage) -> InstructionResult {
-        self.write::<VRHS>(parameters)
+        self.write_parameters::<VRHS>(parameters)
     }
 
     /// ## `BK1: 0xB1` `VCOMS` VCOM Setting
@@ -807,7 +809,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     /// Configures the VCOM voltage level for optimal display performance and
     /// contrast.
     pub fn set_common_voltage(&mut self, parameters: &CommonVoltage) -> InstructionResult {
-        self.write::<VCOMS>(parameters)
+        self.write_parameters::<VCOMS>(parameters)
     }
 
     /// ## `BK1: 0xB2` `VGHSS` VGH Voltage Setting
@@ -815,7 +817,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Sets the VGH (gate high) voltage level.
     pub fn set_gate_high_voltage(&mut self, parameters: &GateHighVoltage) -> InstructionResult {
-        self.write::<VGHSS>(parameters)
+        self.write_parameters::<VGHSS>(parameters)
     }
 
     /// ## `BK1: 0xB3` `TESTCMD` Test Command
@@ -824,7 +826,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     /// Unknown purpose, not documented.
     pub fn test_command(&mut self) -> InstructionResult {
         const VALUE: u8 = 0x80;
-        self.connection().write::<TESTCMD>(&[VALUE])
+        self.write_parameters::<TESTCMD>(&[VALUE])
     }
 
     /// ## `BK1: 0xB5` `VGLS` VGL Voltage Setting
@@ -832,23 +834,23 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Sets the VGL (gate low) voltage level.
     pub fn set_gate_low_voltage(&mut self, parameters: &GateLowVoltage) -> InstructionResult {
-        self.write::<VGLS>(parameters)
+        self.write_parameters::<VGLS>(parameters)
     }
 
     /// ## `BK1: 0xB7` `PWCTRL1` Power Control 1
     /// > Reference: p. 288
     ///
     /// Primary power control settings including AVDD, AVEE, and VGH/VGL multipliers.
-    pub fn power_control_1(&mut self, parameters: &PowerControl1) -> InstructionResult {
-        self.write::<PWCTRL1>(parameters)
-    }
+    // pub fn power_control_1(&mut self, parameters: &PowerControl1) -> InstructionResult {
+    //     self.write::<PWCTRL1>(parameters)
+    // }
 
     /// ## `BK1: 0xB8` `PWCTRL2` Power Control 2
     /// > Reference: p. 289
     ///
     /// Secondary power control settings for fine-tuning voltage generation.
     pub fn power_control_2(&mut self, parameters: &PowerControl2) -> InstructionResult {
-        self.write::<PWCTRL2>(parameters)
+        self.write_parameters::<PWCTRL2>(parameters)
     }
 
     /// ## `BK1: 0xBA` `PCLKS1` Panel Clock Setting 1
@@ -856,7 +858,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Configures the primary panel clock settings for display timing control.
     pub fn panel_clock_setting_1(&mut self, parameters: &PanelClockSetting1) -> InstructionResult {
-        self.write::<PCLKS1>(parameters)
+        self.write_parameters::<PCLKS1>(parameters)
     }
 
     /// ## `BK1: 0xBB` `PCLKS2` Panel Clock Setting 2
@@ -864,7 +866,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Sets secondary panel clock parameters for fine timing adjustments.
     pub fn panel_clock_setting_2(&mut self, parameters: &PanelClockSetting2) -> InstructionResult {
-        self.write::<PCLKS2>(parameters)
+        self.write_parameters::<PCLKS2>(parameters)
     }
 
     /// ## `BK1: 0xBC` `PCLKS3` Panel Clock Setting 3
@@ -872,7 +874,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Adjusts tertiary panel clock settings for advanced timing control.
     pub fn panel_clock_setting_3(&mut self, parameters: &PanelClockSetting3) -> InstructionResult {
-        self.write::<PCLKS3>(parameters)
+        self.write_parameters::<PCLKS3>(parameters)
     }
 
     /// ## `BK1: 0xC1` `SPD1` Source Pre-Drive Timing Set 1
@@ -880,16 +882,22 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Configures timing parameters for the source driver pre-drive stage, which
     /// affects signal integrity and display performance.
-    pub fn source_pre_drive_timing_1(&mut self, parameters: &SourcePreDriveTiming1) -> InstructionResult {
-        self.write::<SPD1>(parameters)
+    pub fn source_pre_drive_timing_1(
+        &mut self,
+        parameters: &SourcePreDriveTiming1,
+    ) -> InstructionResult {
+        self.write_parameters::<SPD1>(parameters)
     }
 
     /// ## `BK1: 0xC2` `SPD2` Source Pre-Drive Timing Set 2
     /// > Reference: p. 299
     ///
     /// Fine-tunes additional source pre-drive timing parameters for display optimization.
-    pub fn source_pre_drive_timing_2(&mut self, parameters: &SourcePreDriveTiming2) -> InstructionResult {
-        self.write::<SPD2>(parameters)
+    pub fn source_pre_drive_timing_2(
+        &mut self,
+        parameters: &SourcePreDriveTiming2,
+    ) -> InstructionResult {
+        self.write_parameters::<SPD2>(parameters)
     }
 
     /// ## `BK1: 0xD0` `MIPISET1` MIPI Setting 1
@@ -897,7 +905,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Configures primary MIPI interface settings for communication with the host.
     pub fn mipi_setting_1(&mut self, parameters: &MipiSetting1) -> InstructionResult {
-        self.write::<MIPISET1>(parameters)
+        self.write_parameters::<MIPISET1>(parameters)
     }
 
     /// ## `BK1: 0xD1` `MIPISET2` MIPI Setting 2
@@ -905,7 +913,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Sets detailed MIPI communication parameters for advanced interface control.
     pub fn mipi_setting_2(&mut self, parameters: &MipiSetting2) -> InstructionResult {
-        self.write::<MIPISET2>(parameters)
+        self.write_parameters::<MIPISET2>(parameters)
     }
 
     /// ## `BK1: 0xD2` `MIPISET3` MIPI Setting 3
@@ -913,7 +921,7 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Configures additional MIPI interface parameters.
     pub fn mipi_setting_3(&mut self, parameters: &MipiSetting3) -> InstructionResult {
-        self.write::<MIPISET3>(parameters)
+        self.write_parameters::<MIPISET3>(parameters)
     }
 
     /// ## `BK1: 0xD3` `MIPISET4` MIPI Setting 4
@@ -921,17 +929,17 @@ impl<C: Connection> ST7701S<C, ExtensionBk1> {
     ///
     /// Sets final MIPI interface settings for complete configuration.
     pub fn mipi_setting_4(&mut self, parameters: &MipiSetting4) -> InstructionResult {
-        self.write::<MIPISET4>(parameters)
+        self.write_parameters::<MIPISET4>(parameters)
     }
 }
 
-impl<C: Connection> ST7701S<C, ExtensionBk3> {
+impl ST7701S<ExtensionBk3> {
     /// ## `BK3: 0xCA` `NVMSET` NVM Setting
     /// > Reference: p. 304
     ///
     /// Configures Non-Volatile Memory settings for persistent display configuration.
     pub fn nvm_setting(&mut self, setting: u8) -> InstructionResult {
-        self.connection().write::<NVMSET>(&[setting])
+        self.write_parameters::<NVMSET>(&[setting])
     }
 
     /// ## `BK3: 0xCC` `PROMACT` PROM Activation
@@ -939,6 +947,6 @@ impl<C: Connection> ST7701S<C, ExtensionBk3> {
     ///
     /// Activates PROM (Programmable Read-Only Memory) for factory settings access.
     pub fn prom_activation(&mut self, setting: u8) -> InstructionResult {
-        self.connection().write::<PROMACT>(&[setting])
+        self.write_parameters::<PROMACT>(&[setting])
     }
 }

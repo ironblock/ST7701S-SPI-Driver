@@ -3,8 +3,14 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+pub trait InstructionData:
+    Borrow<[u8]> + AsRef<[u8]> + AsMut<[u8]> + IntoIterator<Item = u8>
+{
+}
+impl<const N: usize> InstructionData for [u8; N] {}
+
 pub trait Transmission {
-    type Data: Borrow<[u8]> + AsRef<[u8]> + AsMut<[u8]> + IntoIterator<Item = u8>;
+    type Data: InstructionData;
     type MapToData<U>: Borrow<[U]> + AsRef<[U]> + IntoIterator<Item = U>;
 }
 
@@ -294,7 +300,7 @@ macro_rules! transmission_mapping {
     (@base_value)               => { 0 };
 
     (@value_type ($T:ident<$BITS:literal, $ALIAS:ty>)) => { $ALIAS };
-    (@value_type ($T:ident<$BITS:literal>)) =>            { BitField<$BITS> };
+    (@value_type ($T:ident<$BITS:literal>)) =>            { $crate::st7701s_spi::transmissions::BitField<$BITS> };
 
     (@initial_value ()) => {
         0
@@ -331,14 +337,10 @@ macro_rules! transmission_mapping {
     ) => {
         pastey::paste! {
             mod [<$NAME:snake _types>] {
-                #[allow(unused_imports)]
-                use $crate::st7701s_spi::transmissions::{BitField};
-                use super::*;
-
                 $(
                     $(
-                        pub type [<$ARG:camel Value>] = transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>));
-                        pub type [<$ARG:camel Field>] = $D<$BITS, {transmission_mapping!(
+                        pub type [<$ARG:camel Value>] = $crate::transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>));
+                        pub type [<$ARG:camel Field>] = $crate::st7701s_spi::transmissions::$D<$BITS, {$crate::transmission_mapping!(
                             @initial_value (
                                 $($ALIAS, $($ALIAS_INITIAL,)?)?
                                 $($VAL,)?

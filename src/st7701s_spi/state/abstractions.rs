@@ -1,29 +1,24 @@
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::st7701s_spi::{
-    address::{Command,  Read, Write},
-    device::{ActiveDevice, StateAccessorMut},
+    device::{ST7701S, StateAccessorMut, TrackState},
     parameters::general::Switch,
-    protocol::connection::{Connection, InstructionResult},
+    protocol::connection::{Command, Extension, InstructionResult, Read, Write},
     transmissions::Parametric,
 };
 
-pub struct Abstraction<'a, DEVICE: ActiveDevice, COMMANDS, STATE> {
-    device: &'a mut DEVICE,
-    accessor: StateAccessorMut<DEVICE, STATE>,
+pub struct Abstraction<'a, COMMANDS, STATE> {
+    device: &'a mut TrackState + InstructionDispatcher,
+    accessor: StateAccessorMut<STATE>,
     marker: PhantomData<COMMANDS>,
 }
-impl<'a, DEVICE: ActiveDevice, COMMANDS, STATE> Abstraction<'a, DEVICE, COMMANDS, STATE> {
-    pub const fn new(device: &'a mut DEVICE, accessor: StateAccessorMut<DEVICE, STATE>) -> Self {
+impl<'a, E: Extension, COMMANDS, STATE> Abstraction<'a, E, COMMANDS, STATE> {
+    pub const fn new(device: &'a mut ST7701S<E>, accessor: StateAccessorMut<STATE>) -> Self {
         Self {
             device,
             accessor,
             marker: PhantomData,
         }
-    }
-
-    pub fn connection(&self) -> &DEVICE::ConnectionType {
-        self.device.connection()
     }
 
     pub fn field(&mut self) -> &STATE {
@@ -35,14 +30,12 @@ impl<'a, DEVICE: ActiveDevice, COMMANDS, STATE> Abstraction<'a, DEVICE, COMMANDS
     }
 }
 
-pub type Toggle<'a, DEVICE, ON, OFF> = Abstraction<'a, DEVICE, (ON, OFF), Switch>;
-impl<'a, DEVICE, ON, OFF> Toggle<'a, DEVICE, ON, OFF>
+pub type Toggle<'a, ON, OFF> = Abstraction<'a, ON, (ON, OFF), Switch>;
+impl<'a, ON, OFF> Toggle<'a, ON, OFF>
 where
-    DEVICE: ActiveDevice,
     ON: Command,
     OFF: Command,
 {
-
     pub fn on(mut self) -> InstructionResult {
         self.connection().command::<ON>().inspect(move |_| {
             *self.field_mut() = Switch::On;
@@ -56,11 +49,9 @@ where
     }
 }
 
-pub type Select<'a, DEVICE, SELECT, DISABLE, P> =
-    Abstraction<'a, DEVICE, (SELECT, DISABLE), Option<P>>;
-impl<DEVICE, SELECT, DISABLE, P> Select<'_, DEVICE, SELECT, DISABLE, P>
+pub type Select<'a, SELECT, DISABLE, P> = Abstraction<'a, (SELECT, DISABLE), Option<P>>;
+impl<SELECT, DISABLE, P> Select<'_, SELECT, DISABLE, P>
 where
-    DEVICE: ActiveDevice,
     SELECT: Write<Data = P::Data>,
     DISABLE: Command,
     P: Parametric,
@@ -87,14 +78,9 @@ where
     }
 }
 
-pub type Configure<'a,
-    DEVICE,
-    READ,
-    WRITE,
-    P> = Abstraction<'a, DEVICE, (READ, WRITE), P>;
-impl<DEVICE, READ, WRITE, P> Configure<'_, DEVICE, READ, WRITE, P>
+pub type Configure<'a, READ, WRITE, P> = Abstraction<'a, (READ, WRITE), P>;
+impl<READ, WRITE, P> Configure<'_, READ, WRITE, P>
 where
-    DEVICE: ActiveDevice,
     READ: Read<Data = P::Data>,
     WRITE: Write<Data = P::Data>,
     P: Parametric,

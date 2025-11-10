@@ -4,18 +4,20 @@ use crate::st7701s_spi::{
     address::{Extension, ExtensionBk0, ExtensionBk1},
     device::ST7701S,
     parameters::{
-        bk0_display::{ColorControl, MDT}, bk1_power::{CommonVoltage, GateHighVoltage, GateLowVoltage, OperatingVoltage}, display::{
+        bk0_display::{ColorControl, MDT},
+        bk1_power::{CommonVoltage, GateHighVoltage, GateLowVoltage, OperatingVoltage},
+        display::{
             InversionSelection, LineSettings, PolarityInversion, PorchControl, VoltageBias,
             VoltageControl,
-        }, general::Switch
+        },
+        general::Switch,
     },
-    protocol::connection::Connection,
 };
 use Switch::*;
 
-pub fn init_sequence<C: Connection, E: Extension>(
-    display: ST7701S<C, E>,
-) -> Result<ST7701S<C, impl Extension>, io::Error> {
+pub fn init_sequence<E: Extension>(
+    display: ST7701S<E>,
+) -> Result<ST7701S<impl Extension>, io::Error> {
     let mut display = display.select_command_extension(ExtensionBk0);
 
     display.line_setting(
@@ -41,43 +43,40 @@ pub fn init_sequence<C: Connection, E: Extension>(
 
     display.color_control(&ColorControl::new().set_mdt(MDT::CollectToDB))?;
 
-    let gamma_voltage = VoltageControl::new().set_aj0(VoltageBias::A)
-            .set_vc0_const::<0x02>()
-            .set_aj1(VoltageBias::A)
-            .set_vc4_const::<0x13>()
-            .set_aj2(VoltageBias::A)
-            .set_vc8_const::<0x1B>()
-            .set_vc16_const::<0x0D>()
-            .set_aj3(VoltageBias::A)
-            .set_vc24_const::<0x10>()
-            .set_vc52_const::<0x05>()
-            .set_vc80_const::<0x08>()
-            .set_vc108_const::<0x07>()
-            .set_vc147_const::<0x07>()
-            .set_vc175_const::<0x24>()
-            .set_vc203_const::<0x04>()
-            .set_aj4(VoltageBias::A)
-            .set_vc231_const::<0x11>()
-            .set_vc239_const::<0x0E>()
-            .set_aj5(VoltageBias::A)
-            .set_vc247_const::<0x2C>()
-            .set_aj6(VoltageBias::A)
-            .set_vc251_const::<0x33>()
-            .set_aj7(VoltageBias::A)
-            .set_vc255_const::<0x1D>();
+    let gamma_voltage = VoltageControl::new()
+        .set_aj0(VoltageBias::A)
+        .set_vc0_const::<0x02>()
+        .set_aj1(VoltageBias::A)
+        .set_vc4_const::<0x13>()
+        .set_aj2(VoltageBias::A)
+        .set_vc8_const::<0x1B>()
+        .set_vc16_const::<0x0D>()
+        .set_aj3(VoltageBias::A)
+        .set_vc24_const::<0x10>()
+        .set_vc52_const::<0x05>()
+        .set_vc80_const::<0x08>()
+        .set_vc108_const::<0x07>()
+        .set_vc147_const::<0x07>()
+        .set_vc175_const::<0x24>()
+        .set_vc203_const::<0x04>()
+        .set_aj4(VoltageBias::A)
+        .set_vc231_const::<0x11>()
+        .set_vc239_const::<0x0E>()
+        .set_aj5(VoltageBias::A)
+        .set_vc247_const::<0x2C>()
+        .set_aj6(VoltageBias::A)
+        .set_vc251_const::<0x33>()
+        .set_aj7(VoltageBias::A)
+        .set_vc255_const::<0x1D>();
 
     display.positive_gamma_control(&gamma_voltage)?;
     display.negative_gamma_control(&gamma_voltage)?;
 
     let mut display = display.select_command_extension(ExtensionBk1);
 
-    display.set_operating_voltage(
-        &OperatingVoltage::new().set_amplitude_const::<0x5D>(),
-    )?;
+    display.set_operating_voltage(&OperatingVoltage::new().set_amplitude_const::<0x5D>())?;
 
-    display.set_common_voltage(
-        &CommonVoltage::new().set_amplitude_const::<0x43>(),
-    )?;
+    display.set_common_voltage(&CommonVoltage::new().set_amplitude_const::<0x43>())?;
 
     display.set_gate_high_voltage(&GateHighVoltage::new().set_amplitude_volts(12.0))?;
 
@@ -87,7 +86,7 @@ pub fn init_sequence<C: Connection, E: Extension>(
 
     // SPI_WriteComm(0xB7); // power control 1
     // SPI_WriteData(0x85);
-    display.power_control_1(settings)
+    // display.power_control_1(settings)
 
     // SPI_WriteComm(0xB8);// power control 2
     // SPI_WriteData(0x20);

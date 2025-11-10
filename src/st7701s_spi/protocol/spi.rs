@@ -1,81 +1,53 @@
-use std::io;
+use std::{fmt::{Debug, Formatter}, fs::File, io, os::fd::{AsRawFd}, sync::Arc};
 
 use linux_embedded_hal::{
-    SpidevDevice,
-    spidev::{SpiModeFlags, SpidevOptions, SpidevTransfer},
+    spidev::{SpiModeFlags, Spidev, SpidevOptions, SpidevTransfer}, SpidevDevice
 };
 
 use crate::st7701s_spi::{
-    address::{Command, Read, Write},
-    protocol::connection::Connection,
+    protocol::connection::{Connection, DcxPacket},
 };
 
-pub trait SpiProtocol: Connection {
-    const DEFAULT_OPTIONS: SpidevOptions;
-
-    fn device(&self) -> &SpidevDevice;
-    fn device_mut(&mut self) -> &mut SpidevDevice;
-}
-
-pub struct ThreeWireSPI
-where
-    Self: SpiProtocol,
-{
-    pub device: SpidevDevice,
+#[derive(Clone)]
+pub struct ThreeWireSPI(pub Arc<SpidevDevice>) where Self: Connection + Debug;
+impl Debug for ThreeWireSPI {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SpidevDevice(fd={})", self.spidev().as_raw_fd())
+    }
 }
 impl ThreeWireSPI {
-    const DCX_COMMAND: u8 = 0;
-    const DCX_PARAMETER: u8 = 1;
-
-    fn format_command(address: u8) -> [u8; 2] {
-        [Self::DCX_COMMAND, address]
-    }
-
-    fn format_parameters(data: &[u8]) -> Vec<u8> {
-        data.iter()
-            .flat_map(|parameter| [Self::DCX_PARAMETER, *parameter])
-            .collect::<Vec<u8>>()
-    }
-}
-impl SpiProtocol for ThreeWireSPI {
-    const DEFAULT_OPTIONS: SpidevOptions = SpidevOptions {
+    pub const DEFAULT_OPTIONS: SpidevOptions = SpidevOptions {
         bits_per_word: Some(9),
         max_speed_hz: Some(20_0000),
         lsb_first: Some(false),
         spi_mode: Some(SpiModeFlags::SPI_MODE_0),
     };
 
-    fn device(&self) -> &SpidevDevice {
-        &self.device
+    fn spidev(&self) -> &Spidev {
+        &self.0.0
     }
-    fn device_mut(&mut self) -> &mut SpidevDevice {
-        &mut self.device
+
+    fn device_file(&self) -> &File {
+        self.spidev().inner()
     }
 }
 
 impl Connection for ThreeWireSPI {
-    fn command<C: Command>(&self) -> io::Result<()> {
-        let command = Self::format_command(C::ADDRESS);
-
-        self.device.transfer(&mut SpidevTransfer::write(&command))
+    fn command(&self, address: u8) -> io::Result<()> {
+        self.spidev().transfer(&mut SpidevTransfer::write(&DcxPacket::format_command(address)))
     }
 
-    fn write<W: Write>(&self, parameters: &W::Data) -> io::Result<()> {
-        let command = Self::format_command(W::ADDRESS);
-        let parameters = Self::format_parameters(parameters.as_ref());
-
-        self.device.transfer_multiple(&mut [
-            SpidevTransfer::write(&command),
-            SpidevTransfer::write(&parameters),
+    fn write(&self, address: u8, parameters: &[u8]) -> io::Result<()> {
+        self.spidev().transfer_multiple(&mut [
+            SpidevTransfer::write(&DcxPacket::format_command(address)),
+            SpidevTransfer::write(DcxPacket::format_parameters(parameters).as_ref()),
         ])
     }
 
-    fn read<R: Read>(&self, buffer: &mut R::Data) -> io::Result<()> {
-        let command = Self::format_command(R::ADDRESS);
-
-        self.device.transfer_multiple(&mut [
-            SpidevTransfer::write(&command),
-            SpidevTransfer::read(buffer.as_mut()),
+    fn read(&self, address: u8, buffer: &mut [u8]) -> io::Result<()> {
+        self.spidev().transfer_multiple(&mut [
+            SpidevTransfer::write(&DcxPacket::format_command(address)),
+            SpidevTransfer::read((&mut *buffer).as_mut()),
         ])
     }
 }
