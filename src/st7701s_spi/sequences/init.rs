@@ -1,7 +1,6 @@
-use std::io;
+use std::any::Any;
 
 use crate::st7701s_spi::{
-    address::{Extension, ExtensionBk0, ExtensionBk1},
     device::ST7701S,
     parameters::{
         bk0_display::{ColorControl, MDT},
@@ -12,12 +11,11 @@ use crate::st7701s_spi::{
         },
         general::Switch,
     },
+    protocol::connection::{ ExtensionBk0, ExtensionBk1},
 };
 use Switch::*;
 
-pub fn init_sequence<E: Extension>(
-    display: ST7701S<E>,
-) -> Result<ST7701S<impl Extension>, io::Error> {
+pub fn init_sequence<E>(display: ST7701S<E>) -> ST7701S<impl Any> {
     let mut display = display.select_command_extension(ExtensionBk0);
 
     display.line_setting(
@@ -282,5 +280,5 @@ pub fn init_sequence<E: Extension>(
     // SPI_WriteData(0x60);//0x60 18bit   0x50 16bit
     // #endif
 
-    Ok(display)
+    display
 }

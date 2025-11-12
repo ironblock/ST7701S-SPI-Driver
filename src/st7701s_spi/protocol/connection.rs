@@ -1,55 +1,32 @@
 use std::{fmt::Debug, io};
 
-use crate::st7701s_spi::{parameters::register::Bank, transmissions::Transmission};
-
-pub trait Extension {
-    const EXTENSION: Option<Bank>;
-}
-
-pub const fn extensions_match<E1: Extension, E2: Extension>() -> bool {
-    match (E1::EXTENSION, E2::EXTENSION) {
-        (Some(setting), Some(instruction)) => setting as u8 == instruction as u8,
-        (None, None) => true,
-        _ => false,
-    }
-}
+use crate::st7701s_spi::transmissions::Transmission;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionAll;
-impl Extension for ExtensionAll {
-    const EXTENSION: Option<Bank> = None;
-}
+pub struct CommandInstruction;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct WriteInstruction;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct ReadInstruction;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtensionBk0;
-impl Extension for ExtensionBk0 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK0);
-}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtensionBk1;
-impl Extension for ExtensionBk1 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK1);
-}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtensionBk3;
-impl Extension for ExtensionBk3 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK3);
-}
 
-pub trait Instruction: Extension {
+pub trait Instruction<T, E> {
     const ADDRESS: u8;
 }
 
-pub trait Command: Instruction + Extension {}
-impl<T> Command for T where T: Instruction {}
-
-pub trait Write: Instruction + Extension + Transmission {}
-impl<T> Write for T where T: Instruction + Transmission {}
-
-pub trait Read: Instruction + Extension + Transmission {}
-impl<T> Read for T where T: Instruction + Transmission {}
+pub type Command<E> = dyn Instruction<CommandInstruction, E>;
+pub type Write<E> = dyn Instruction<WriteInstruction, E> + Transmission;
+pub type Read<E> = dyn Instruction<ReadInstruction, E> + Transmission;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum DcxPacket {

@@ -1,13 +1,4 @@
-use crate::{
-    bit_value_enum,
-    st7701s_spi::{
-        address::{ExtensionBk1, bk1::PWCTRL1},
-        device::ST7701S,
-        protocol::connection::{Connection, InstructionResult},
-    },
-    transmission_mapping,
-};
-
+use crate::{ bit_value_enum};
 
 bit_value_enum! {
     pub enum BiasCurrent<2> {

@@ -14,10 +14,7 @@ pub trait Transmission {
     type MapToData<U>: Borrow<[U]> + AsRef<[U]> + IntoIterator<Item = U>;
 }
 
-pub trait Parametric
-where
-    Self: Transmission,
-{
+pub trait Parametric: Transmission {
     type BitMasks: AsRef<[BitMask]> + IntoIterator<Item = BitMask>;
 
     const INITIAL_VALUE: <Self as Transmission>::Data;
@@ -26,9 +23,6 @@ where
     fn as_tx_data(&self) -> <Self as Transmission>::Data;
     fn from_rx_data(packets: &<Self as Transmission>::Data) -> Self;
 }
-
-pub trait ParametricTransmission: Transmission + Parametric {}
-impl<T> ParametricTransmission for T where T: Transmission + Parametric {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct BitMask(usize);
@@ -337,6 +331,9 @@ macro_rules! transmission_mapping {
     ) => {
         pastey::paste! {
             mod [<$NAME:snake _types>] {
+                #[allow(unused_imports)]
+                use super::*;
+
                 $(
                     $(
                         pub type [<$ARG:camel Value>] = $crate::transmission_mapping!(@value_type ($ARG<$BITS $(,$ALIAS)?>));
@@ -353,7 +350,7 @@ macro_rules! transmission_mapping {
             $(#[$META])*
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
             $SV struct [<$NAME:camel>]([u8; $LENGTH])
-                where Self: $crate::st7701s_spi::transmissions::ParametricTransmission<Data = [u8; $LENGTH]>;
+                where Self: $crate::st7701s_spi::transmissions::Parametric<Data = [u8; $LENGTH]>;
             impl [<$NAME:camel>] {
                 pub const fn new() -> Self {
                     Self(Self::INITIAL_VALUE)

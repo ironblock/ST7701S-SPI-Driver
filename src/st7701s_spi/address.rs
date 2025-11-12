@@ -1,8 +1,3 @@
-use crate::st7701s_spi::protocol::connection::{
-    ExtensionAll, Command, Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3, Instruction, Read,
-    Write,
-};
-
 macro_rules! instructions {
     (@as_u8 $EVIS:vis fn(&self) => ($ADDR:literal)) => {
         pub const fn as_u8(&self) -> u8 {
@@ -14,17 +9,13 @@ macro_rules! instructions {
             *self as u8
         }
     };
-    ($EVIS:vis enum $GROUP:ident<$LOC:ident $(,$SHARED:literal)?> {
+    ($EVIS:vis enum $GROUP:ident<$EXT:ty $(,$SHARED:literal)?> {
        $($DVIS:vis const $NAME:ident = ($($ADDR:literal,)? $TYPE:ident$(<$PACKET:literal>)*),)+
     }) => {
         #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
         #[repr(u8)]
-        $EVIS enum $GROUP where
-                      Self: $crate::st7701s_spi::address::Extension {
+        $EVIS enum $GROUP {
             $($NAME$( = $ADDR)?),+
-        }
-        impl $crate::st7701s_spi::address::Extension for $GROUP {
-            const EXTENSION: Option<$crate::st7701s_spi::parameters::register::Bank> = $LOC::EXTENSION;
         }
         impl $GROUP {
             instructions!(@as_u8 $EVIS fn(&self) => ($($SHARED)?));
@@ -33,18 +24,18 @@ macro_rules! instructions {
         $(
             #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
             $DVIS struct $NAME
-                where Self: $TYPE,
-                      Self: $crate::st7701s_spi::address::Extension
+                where
+                    Self: $TYPE<$EXT>,
+                    Self: $crate::st7701s_spi::protocol::connection::Instruction<$EXT>
                 $(
                     , Self: $crate::st7701s_spi::transmissions::Transmission<Data = [u8; $PACKET]>
                 )?;
 
-            impl $crate::st7701s_spi::address::Extension for $NAME {
-                const EXTENSION: Option<$crate::st7701s_spi::parameters::register::Bank> = $LOC::EXTENSION;
-            }
-            impl $crate::st7701s_spi::address::Instruction for $NAME {
+
+            impl $crate::st7701s_spi::protocol::connection::Instruction<$EXT> for $NAME {
                 const ADDRESS: u8 = $GROUP::as_u8(&$GROUP::$NAME);
             }
+
             $(
                 impl $crate::st7701s_spi::transmissions::Transmission for $NAME {
                     type Data = [u8; $PACKET];
@@ -57,10 +48,10 @@ macro_rules! instructions {
 
 pub mod special {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{ExtensionAll, Write};
+    use crate::st7701s_spi::protocol::connection::Write;
 
     instructions! {
-        pub enum Special<ExtensionAll, 0xFF> {
+        pub enum Special<(),  0xFF> {
             pub const CND2BKXSEL = (Write<5>),
             pub const DSTB       = (Write<5>),
             pub const DSTBT      = (Write<5>),
@@ -70,10 +61,12 @@ pub mod special {
 
 pub mod core {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{ExtensionAll, Command, Read, Write};
+    use std::any::Any;
+
+    use crate::st7701s_spi::protocol::connection::{Command, Read, Write};
 
     instructions! {
-        enum Core<ExtensionAll> {
+        enum Core<()> {
             pub const NOP            = (0x00, Command),
             pub const SWRESET        = (0x01, Write<1>),
             pub const RDDID          = (0x04, Read<3>),
@@ -142,7 +135,7 @@ pub mod core {
 
 pub mod bk0 {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{ExtensionBk0, Write};
+    use crate::st7701s_spi::protocol::connection::{ExtensionBk0, Write};
 
     instructions! {
         pub enum BK0<ExtensionBk0> {
@@ -173,7 +166,7 @@ pub mod bk0 {
 
 pub mod bk1 {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{ExtensionBk1, Write};
+    use crate::st7701s_spi::protocol::connection::{ExtensionBk1, Write};
 
     instructions! {
         pub enum BK1<ExtensionBk1> {
@@ -199,7 +192,7 @@ pub mod bk1 {
 
 pub mod bk3 {
     #![allow(clippy::upper_case_acronyms)]
-    use crate::st7701s_spi::address::{ExtensionBk3, Write};
+    use crate::st7701s_spi::protocol::connection::{ExtensionBk3, Write};
 
     instructions! {
         pub enum BK3<ExtensionBk3> {

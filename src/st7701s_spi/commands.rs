@@ -1,9 +1,8 @@
+use std::any::Any;
 use std::{io, thread, time};
 
 use crate::st7701s_spi::address::{bk0::*, bk1::*, bk3::*, special::*};
-use crate::st7701s_spi::protocol::connection::{
-    ExtensionAll, Extension, ExtensionBk0, ExtensionBk1, ExtensionBk3,
-};
+use crate::st7701s_spi::protocol::connection::{ExtensionBk0, ExtensionBk1, ExtensionBk3};
 use crate::st7701s_spi::{
     address::core::*,
     parameters::{
@@ -29,7 +28,7 @@ use crate::st7701s_spi::{
 };
 use Switch::*;
 
-impl<E: Extension> ST7701S<E> {
+impl<E> ST7701S<E> {
     /// ## No Operation
     ///
     /// This command is "do nothing". It has no effect on the display, but it
@@ -60,9 +59,9 @@ impl<E: Extension> ST7701S<E> {
     /// (with no arguments), and p. 188 refers to it as a **write**. As only a
     /// write can have arguments and 0x01 is the constant argument in both
     /// references, SWRESET's canonical representation here is as a **write**.
-    pub fn software_reset(self) -> ST7701S<ExtensionAll> {
+    pub fn software_reset(self) -> ST7701S<impl Any> {
         const RESET_PARAMETERS: [u8; 1] = [0x01];
-        self.write::<SWRESET>(&RESET_PARAMETERS)
+        self.write_buffer::<SWRESET>(&RESET_PARAMETERS)
             .expect("failed to send software reset command");
         let delay;
         let condition;
@@ -96,7 +95,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDDID as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDDID>(buffer)
+        self.read_to_buffer::<RDDID>(buffer)
     }
 
     /// ## Read Number of Errors on DSI
@@ -108,7 +107,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDNUMED as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDNUMED>(buffer)
+        self.read_to_buffer::<RDNUMED>(buffer)
     }
 
     /// ### Read First Pixel Color Values
@@ -136,9 +135,9 @@ impl<E: Extension> ST7701S<E> {
         buffer: &mut [u8; 1],
     ) -> io::Result<()> {
         match channel {
-            ColorChannel::Red => self.read::<RDRED>(buffer),
-            ColorChannel::Green => self.read::<RDGREEN>(buffer),
-            ColorChannel::Blue => self.read::<RDBLUE>(buffer),
+            ColorChannel::Red => self.read_to_buffer::<RDRED>(buffer),
+            ColorChannel::Green => self.read_to_buffer::<RDGREEN>(buffer),
+            ColorChannel::Blue => self.read_to_buffer::<RDBLUE>(buffer),
         }
     }
 
@@ -148,7 +147,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDDPM as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDDPM>(buffer)
+        self.read_to_buffer::<RDDPM>(buffer)
     }
 
     /// ### `0x0B` `RDDMADCTL`  Read Display MADCTL
@@ -157,7 +156,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDDMADCTL as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDDMADCTL>(buffer)
+        self.read_to_buffer::<RDDMADCTL>(buffer)
     }
 
     /// ### `0x0C` `RDDCOLMOD`  Read Display Pixel Format
@@ -166,7 +165,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDDCOLMOD as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDDCOLMOD>(buffer)
+        self.read_to_buffer::<RDDCOLMOD>(buffer)
     }
 
     /// ### `0x0D` `RDDIM`  Read Display Image Mode
@@ -175,7 +174,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDDIM as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDDIM>(buffer)
+        self.read_to_buffer::<RDDIM>(buffer)
     }
 
     /// ### `0x0E` `RDDSM`  Read Display Signal Mode
@@ -184,7 +183,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDDSM as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDDSM>(buffer)
+        self.read_to_buffer::<RDDSM>(buffer)
     }
 
     /// ## Get Scan Line
@@ -193,7 +192,7 @@ impl<E: Extension> ST7701S<E> {
     /// Reads the current scan line being refreshed on the display. Useful for
     /// synchronization and diagnostics.
     pub fn get_scan_line(&mut self, buffer: &mut <GSL as Transmission>::Data) -> InstructionResult {
-        self.read::<GSL>(buffer)
+        self.read_to_buffer::<GSL>(buffer)
     }
 
     /// ## Configure Display Brightness Value
@@ -205,7 +204,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// ### Considerations
     ///   1. Manual brightness control must be enabled (see `__CTRLD`)
-    pub fn brightness_value(&'_ mut self) -> Configure<'_, RDDISBV, WRDISBV, Brightness> {
+    pub fn brightness_value(&'_ mut self) -> Configure<'_, (), RDDISBV, WRDISBV, Brightness> {
         if cfg!(debug_assertions)
             && self
                 .state()
@@ -231,14 +230,16 @@ impl<E: Extension> ST7701S<E> {
     /// ### Considerations
     ///   1. Brightness value must be set separately (see `__DISBV`)
     ///   2. Dimming control can only be set when using manual brightness control)
-    pub fn brightness_control(&'_ mut self) -> Configure<'_, RDCTRLD, WRCTRLD, BrightnessControl> {
+    pub fn brightness_control(
+        &'_ mut self,
+    ) -> Configure<'_, (), RDCTRLD, WRCTRLD, BrightnessControl> {
         Configure::new(self, |state| &mut state.config.brightness_control)
     }
 
     /// ## Toggle Sleep Mode
     /// > Reference: p. 200, 201
     ///
-    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, SLPIN, SLPOUT> {
+    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, (), SLPIN, SLPOUT> {
         Toggle::new(self, |state| &mut state.mode.sleep)
     }
 
@@ -325,18 +326,18 @@ impl<E: Extension> ST7701S<E> {
     /// > Reference:
     /// > `DISPOFF` p. 209
     /// > `DISPON`  p. 210
-    pub fn display_output(&'_ mut self) -> Toggle<'_, DISPON, DISPOFF> {
+    pub fn display_output(&'_ mut self) -> Toggle<'_, (), DISPON, DISPOFF> {
         Toggle::new(self, |state| &mut state.mode.display)
     }
 
     /// ## Toggle Idle Mode
     /// > Reference: p. 215, 216
     ///
-    pub fn idle_mode(&'_ mut self) -> Toggle<'_, IDMON, IDMOFF> {
+    pub fn idle_mode(&'_ mut self) -> Toggle<'_, (), IDMON, IDMOFF> {
         Toggle::new(self, |state| &mut state.mode.idle)
     }
 
-    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, TEON, TEOFF, TearingEffectSignal> {
+    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, (), TEON, TEOFF, TearingEffectSignal> {
         Select::new(self, |state| &mut state.tearing_effect)
     }
 
@@ -345,7 +346,9 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Get or set parameters for adaptive brightness and color enhancement. Enables or
     /// disables color enhancement and selects the enhancement mode.
-    pub fn adaptive_brightness(&'_ mut self) -> Configure<'_, WRCACE, RDCABC, AdaptiveBrightness> {
+    pub fn adaptive_brightness(
+        &'_ mut self,
+    ) -> Configure<'_, (), WRCACE, RDCABC, AdaptiveBrightness> {
         Configure::new(self, |state| &mut state.config.adaptive_brightness)
     }
 
@@ -356,7 +359,7 @@ impl<E: Extension> ST7701S<E> {
     /// (CABC).
     pub fn min_adaptive_brightness(
         &'_ mut self,
-    ) -> Configure<'_, WRCABCMB, RDCABCMB, MinAdaptiveBrightness> {
+    ) -> Configure<'_, (), WRCABCMB, RDCABCMB, MinAdaptiveBrightness> {
         Configure::new(self, |state| &mut state.config.min_adaptive_brightness)
     }
 
@@ -368,7 +371,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDABCSDR as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDABCSDR>(buffer)
+        self.read_to_buffer::<RDABCSDR>(buffer)
     }
 
     /// ## Read Black/White Low Bits
@@ -380,7 +383,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDBWLB as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDBWLB>(buffer)
+        self.read_to_buffer::<RDBWLB>(buffer)
     }
 
     /// ## Read Bkx
@@ -388,7 +391,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Bkx calibration value from the device.
     pub fn read_bkx(&mut self, buffer: &mut <RDBKX as Transmission>::Data) -> InstructionResult {
-        self.read::<RDBKX>(buffer)
+        self.read_to_buffer::<RDBKX>(buffer)
     }
 
     /// ## Read Bky
@@ -396,7 +399,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Bky calibration value from the device.
     pub fn read_bky(&mut self, buffer: &mut <RDBKY as Transmission>::Data) -> InstructionResult {
-        self.read::<RDBKY>(buffer)
+        self.read_to_buffer::<RDBKY>(buffer)
     }
 
     /// ## Read Wx
@@ -404,7 +407,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Wx calibration value from the device.
     pub fn read_wx(&mut self, buffer: &mut <RDWX as Transmission>::Data) -> InstructionResult {
-        self.read::<RDWX>(buffer)
+        self.read_to_buffer::<RDWX>(buffer)
     }
 
     /// ## Read Wy
@@ -412,7 +415,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Wy calibration value from the device.
     pub fn read_wy(&mut self, buffer: &mut <RDWY as Transmission>::Data) -> InstructionResult {
-        self.read::<RDWY>(buffer)
+        self.read_to_buffer::<RDWY>(buffer)
     }
 
     /// ## Read Rx
@@ -420,7 +423,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Rx calibration value from the device.
     pub fn read_rx(&mut self, buffer: &mut <RDRX as Transmission>::Data) -> InstructionResult {
-        self.read::<RDRX>(buffer)
+        self.read_to_buffer::<RDRX>(buffer)
     }
 
     /// ## Read Ry
@@ -428,7 +431,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Ry calibration value from the device.
     pub fn read_ry(&mut self, buffer: &mut <RDRY as Transmission>::Data) -> InstructionResult {
-        self.read::<RDRY>(buffer)
+        self.read_to_buffer::<RDRY>(buffer)
     }
 
     /// ## Read Gx
@@ -436,7 +439,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Gx calibration value from the device.
     pub fn read_gx(&mut self, buffer: &mut <RDGX as Transmission>::Data) -> InstructionResult {
-        self.read::<RDGX>(buffer)
+        self.read_to_buffer::<RDGX>(buffer)
     }
 
     /// ## Read Gy
@@ -444,7 +447,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Gy calibration value from the device.
     pub fn read_gy(&mut self, buffer: &mut <RDGY as Transmission>::Data) -> InstructionResult {
-        self.read::<RDGY>(buffer)
+        self.read_to_buffer::<RDGY>(buffer)
     }
 
     /// ## Read Blue/A Color Low Bits
@@ -456,7 +459,7 @@ impl<E: Extension> ST7701S<E> {
         &mut self,
         buffer: &mut <RDBALB as Transmission>::Data,
     ) -> InstructionResult {
-        self.read::<RDBALB>(buffer)
+        self.read_to_buffer::<RDBALB>(buffer)
     }
 
     /// ## Read Bx
@@ -464,7 +467,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Bx calibration value from the device.
     pub fn read_bx(&mut self, buffer: &mut <RDBX as Transmission>::Data) -> InstructionResult {
-        self.read::<RDBX>(buffer)
+        self.read_to_buffer::<RDBX>(buffer)
     }
 
     /// ## Read By
@@ -472,7 +475,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the By calibration value from the device.
     pub fn read_by(&mut self, buffer: &mut <RDBY as Transmission>::Data) -> InstructionResult {
-        self.read::<RDBY>(buffer)
+        self.read_to_buffer::<RDBY>(buffer)
     }
 
     /// ## Read Ax
@@ -480,7 +483,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Ax calibration value from the device.
     pub fn read_ax(&mut self, buffer: &mut <RDAX as Transmission>::Data) -> InstructionResult {
-        self.read::<RDAX>(buffer)
+        self.read_to_buffer::<RDAX>(buffer)
     }
 
     /// ## Read Ay
@@ -488,7 +491,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the Ay calibration value from the device.
     pub fn read_ay(&mut self, buffer: &mut <RDAY as Transmission>::Data) -> InstructionResult {
-        self.read::<RDAY>(buffer)
+        self.read_to_buffer::<RDAY>(buffer)
     }
 
     /// ## Read DDB Start
@@ -496,7 +499,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the initial value of the Display Data Bus (DDB) for diagnostics.
     pub fn read_ddbs(&mut self, buffer: &mut <RDDDBS as Transmission>::Data) -> InstructionResult {
-        self.read::<RDDDBS>(buffer)
+        self.read_to_buffer::<RDDDBS>(buffer)
     }
 
     /// ## Read DDB Continue
@@ -504,7 +507,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the next value of the Display Data Bus (DDB) for diagnostics.
     pub fn read_ddbc(&mut self, buffer: &mut <RDDDBC as Transmission>::Data) -> InstructionResult {
-        self.read::<RDDDBC>(buffer)
+        self.read_to_buffer::<RDDDBC>(buffer)
     }
 
     /// ## Read First Checksum
@@ -512,7 +515,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the first checksum value for verifying data integrity.
     pub fn read_fcs(&mut self, buffer: &mut <RDFCS as Transmission>::Data) -> InstructionResult {
-        self.read::<RDFCS>(buffer)
+        self.read_to_buffer::<RDFCS>(buffer)
     }
 
     /// ## Read Continue Checksum
@@ -520,7 +523,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the next checksum value for continued data integrity verification.
     pub fn read_ccs(&mut self, buffer: &mut <RDCCS as Transmission>::Data) -> InstructionResult {
-        self.read::<RDCCS>(buffer)
+        self.read_to_buffer::<RDCCS>(buffer)
     }
 
     /// ## Read ID1
@@ -528,7 +531,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the first identification value from the device.
     pub fn read_id1(&mut self, buffer: &mut <RDID1 as Transmission>::Data) -> InstructionResult {
-        self.read::<RDID1>(buffer)
+        self.read_to_buffer::<RDID1>(buffer)
     }
 
     /// ## Read ID2
@@ -536,7 +539,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the second identification value from the device.
     pub fn read_id2(&mut self, buffer: &mut <RDID2 as Transmission>::Data) -> InstructionResult {
-        self.read::<RDID2>(buffer)
+        self.read_to_buffer::<RDID2>(buffer)
     }
 
     /// ## Read ID3
@@ -544,7 +547,7 @@ impl<E: Extension> ST7701S<E> {
     ///
     /// Reads the third identification value from the device.
     pub fn read_id3(&mut self, buffer: &mut <RDID3 as Transmission>::Data) -> InstructionResult {
-        self.read::<RDID3>(buffer)
+        self.read_to_buffer::<RDID3>(buffer)
     }
 
     /// ## Command2 BKx Selection
@@ -553,7 +556,7 @@ impl<E: Extension> ST7701S<E> {
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<N> {
+    pub fn select_command_extension<N>(mut self, extension: N) -> ST7701S<N> {
         let transmission = CommandExtension::new();
 
         if let Some(extension) = N::EXTENSION {
