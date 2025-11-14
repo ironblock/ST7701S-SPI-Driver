@@ -17,11 +17,11 @@ pub trait Transmission {
 pub trait Parametric: Transmission {
     type BitMasks: AsRef<[BitMask]> + IntoIterator<Item = BitMask>;
 
-    const INITIAL_VALUE: <Self as Transmission>::Data;
-    const ARGUMENT_MASK: <Self as Transmission>::MapToData<BitMask>;
+    const INITIAL_VALUE: Self::Data;
+    const ARGUMENT_MASK: Self::MapToData<BitMask>;
 
-    fn as_tx_data(&self) -> <Self as Transmission>::Data;
-    fn from_rx_data(packets: &<Self as Transmission>::Data) -> Self;
+    fn as_tx_data(&self) -> Self::Data;
+    fn from_rx_data(packets: &Self::Data) -> Self;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]

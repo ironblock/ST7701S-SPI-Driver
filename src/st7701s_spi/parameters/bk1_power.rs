@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::{Switch, Volts}, transmissions::*},
+    st7701s_spi::{parameters::general::Switch, transmissions::*},
     transmission_mapping,
 };
 use MipiLaneCount::*;
@@ -105,16 +105,16 @@ transmission_mapping! {
     );
 }
 impl OperatingVoltage {
-    pub const fn values(&self) -> (u8, f32,) {
+    pub const fn values(&self) -> (u8, f32) {
         let vrha = self.amplitude_const().as_u8();
         let vop = 3.5375 + (vrha as f32 * 0.0125);
 
-        (vrha, vop,)
+        (vrha, vop)
     }
 }
 impl Display for OperatingVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (vrha, vop,) = self.values();
+        let (vrha, vop) = self.values();
 
         write!(f, "VOP Amplitude: {:.4} V (VRHA: 0x{:02X})", vop, vrha)
     }
@@ -126,16 +126,16 @@ transmission_mapping! {
     );
 }
 impl CommonVoltage {
-    pub const fn values(&self) -> (u8, f32,) {
+    pub const fn values(&self) -> (u8, f32) {
         let vcom = self.amplitude_const().as_u8();
         let vop = 0.1 + (vcom as f32 * 0.0125);
 
-        (vcom, vop,)
+        (vcom, vop)
     }
 }
 impl Display for CommonVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (vcom, vop,) = self.values();
+        let (vcom, vop) = self.values();
 
         write!(f, "VCOM Amplitude: {:.4} V (VCOM: 0x{:02X})", vop, vcom)
     }
@@ -208,7 +208,7 @@ impl GateHighVoltage {
         self.set_amplitude(GateHighAmplitude::from_voltage(volts))
     }
 
-    pub fn values(&self) -> (u8, f32,) {
+    pub fn values(&self) -> (u8, f32) {
         let vghss = self.amplitude();
 
         (vghss.as_u8(), vghss.as_volts())
@@ -216,12 +216,11 @@ impl GateHighVoltage {
 }
 impl Display for GateHighVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (vghss, voltage,) = self.values();
+        let (vghss, voltage) = self.values();
 
         write!(f, "VGH Voltage: {:.1} V (VGHSS: 0x{:02X})", voltage, vghss)
     }
 }
-
 
 bit_value_enum! {
     pub enum GateLowAmplitude<4> {
@@ -296,7 +295,7 @@ transmission_mapping! {
     );
 }
 impl GateLowVoltage {
-    pub fn values(&self) -> (u8, f32,) {
+    pub fn values(&self) -> (u8, f32) {
         let vgls = self.amplitude();
 
         (vgls.as_u8(), vgls.as_volts())
@@ -308,7 +307,7 @@ impl GateLowVoltage {
 }
 impl Display for GateLowVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (vgls, voltage,) = self.values();
+        let (vgls, voltage) = self.values();
 
         write!(f, "VGL Voltage: {:.2} V (VGLS: 0x{:02X})", voltage, vgls)
     }
@@ -317,8 +316,6 @@ impl Display for GateLowVoltage {
 // ============================================================================
 // Power Control Settings - p. 292-293
 // ============================================================================
-
-
 
 bit_value_enum! {
     /// VGH Voltage Multiplier

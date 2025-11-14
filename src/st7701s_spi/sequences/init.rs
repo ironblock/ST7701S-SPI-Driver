@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, io};
 
 use crate::st7701s_spi::{
     device::ST7701S,
@@ -9,14 +9,16 @@ use crate::st7701s_spi::{
             InversionSelection, LineSettings, PolarityInversion, PorchControl, VoltageBias,
             VoltageControl,
         },
-        general::Switch,
+        general::Switch, register::Bank,
     },
-    protocol::connection::{ ExtensionBk0, ExtensionBk1},
+    protocol::connection::{ExtensionBk0, ExtensionBk1, ExtensionVariant},
 };
 use Switch::*;
 
-pub fn init_sequence<E>(display: ST7701S<E>) -> ST7701S<impl Any> {
-    let mut display = display.select_command_extension(ExtensionBk0);
+pub fn init_sequence(
+    display: ST7701S<impl ExtensionVariant>,
+) -> io::Result<ST7701S<impl ExtensionVariant>> {
+    let mut display = display.select_command_extension(Some(Bank::BK0));
 
     display.line_setting(
         &LineSettings::new()
@@ -280,5 +282,5 @@ pub fn init_sequence<E>(display: ST7701S<E>) -> ST7701S<impl Any> {
     // SPI_WriteData(0x60);//0x60 18bit   0x50 16bit
     // #endif
 
-    display
+    Ok(display)
 }
