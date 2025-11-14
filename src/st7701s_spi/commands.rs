@@ -1,15 +1,13 @@
 use std::any::Any;
 
-use crate::st7701s_spi::parameters::register::Bank;
 use crate::st7701s_spi::protocol::connection::{
-    CommandInstruction, ReadInstruction, WriteInstruction,
+    CommandInstruction, ExtensionVariant, ReadInstruction, WriteInstruction,
 };
+
 use std::{io, thread, time};
 
 use crate::st7701s_spi::address::{bk0::*, bk1::*, bk3::*, special::*};
-use crate::st7701s_spi::protocol::connection::{
-    ExtensionBk0, ExtensionBk1, ExtensionBk3,
-};
+use crate::st7701s_spi::protocol::connection::{ExtensionBk0, ExtensionBk1, ExtensionBk3};
 use crate::st7701s_spi::{
     address::core::*,
     parameters::{
@@ -325,7 +323,7 @@ where
         let gamma_curve = transmission.gc();
 
         GAMSET::write_from_parameters(self.connection(), &transmission).inspect(|_| {
-            self.modify_state(|state| {
+            self.modify_state(move |state| {
                 state.image.set_gamma_curve(gamma_curve);
             });
         })
@@ -565,10 +563,10 @@ where
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension(mut self, extension: Option<Bank>) -> ST7701S<impl Any> {
+    pub fn select_command_extension<N: ExtensionVariant>(mut self, extension: N) -> ST7701S<N> {
         let transmission = CommandExtension::new();
 
-        if let Some(bank) = extension {
+        if let Some(bank) = N::EXTENSION {
             transmission.set_extended_commands(On).set_bank(bank);
         } else {
             transmission.set_extended_commands(Off);

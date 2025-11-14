@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::st7701s_spi::protocol::connection::{Command, Read, Write};
 use crate::st7701s_spi::protocol::connection::{ExtensionBk0, ExtensionBk1, ExtensionBk3};
 

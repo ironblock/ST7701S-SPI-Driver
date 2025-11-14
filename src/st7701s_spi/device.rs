@@ -2,7 +2,10 @@ extern crate spidev;
 
 use std::any::Any;
 
-use crate::st7701s_spi::{protocol::connection::Connection, state::domains::DeviceState};
+use crate::st7701s_spi::{
+    protocol::connection::{Connection, ExtensionVariant},
+    state::domains::DeviceState,
+};
 
 pub type StateModifier = for<'a> fn(&'a mut DeviceState);
 pub type StateAccessor<T> = for<'a> fn(&'a DeviceState) -> &'a T;
@@ -15,9 +18,8 @@ pub struct ST7701S<E> {
     extension: E,
 }
 
-impl<E> ST7701S<E>
-{
-    pub const fn new(connection: &'static impl Connection) -> ST7701S<impl Any> {
+impl<E> ST7701S<E> {
+    pub const fn new(connection: &'static impl Connection) -> ST7701S<()> {
         ST7701S {
             state: DeviceState::new(),
             connection,
@@ -33,7 +35,7 @@ impl<E> ST7701S<E>
         &mut self.extension
     }
 
-    pub fn set_extension<N>(self, extension: N) -> ST7701S<N> {
+    pub fn set_extension<N: ExtensionVariant>(self, extension: N) -> ST7701S<N> {
         ST7701S {
             state: self.state,
             connection: self.connection,
@@ -49,7 +51,7 @@ impl<E> ST7701S<E>
         &mut self.state
     }
 
-    pub fn modify_state(&mut self, modifier: StateModifier) {
+    pub fn modify_state(&mut self, modifier: impl FnOnce(&mut DeviceState)) {
         modifier(&mut self.state);
     }
 

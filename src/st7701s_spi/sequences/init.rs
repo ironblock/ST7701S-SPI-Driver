@@ -9,16 +9,16 @@ use crate::st7701s_spi::{
             InversionSelection, LineSettings, PolarityInversion, PorchControl, VoltageBias,
             VoltageControl,
         },
-        general::Switch, register::Bank,
+        general::Switch,
     },
     protocol::connection::{ExtensionBk0, ExtensionBk1, ExtensionVariant},
 };
-use Switch::*;
 
 pub fn init_sequence(
     display: ST7701S<impl ExtensionVariant>,
 ) -> io::Result<ST7701S<impl ExtensionVariant>> {
-    let mut display = display.select_command_extension(Some(Bank::BK0));
+    use Switch::*;
+    let mut display = display.select_command_extension(ExtensionBk0);
 
     display.line_setting(
         &LineSettings::new()

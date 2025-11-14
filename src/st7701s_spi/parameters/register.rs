@@ -1,34 +1,8 @@
-use std::ops::Deref;
-
-use crate::{bit_value_enum,
+use crate::{
+    bit_value_enum,
     st7701s_spi::{parameters::general::Switch, transmissions::*},
-    transmission_mapping};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Address {
-    register: u8,
-    bank: Option<Bank>,
-}
-impl Address {
-    pub const fn new(register: u8, bank: Option<Bank>) -> Self {
-        Self { register, bank }
-    }
-
-    pub const fn register(&self) -> u8 {
-        self.register
-    }
-
-    pub const fn bank(&self) -> &Option<Bank> {
-        &self.bank
-    }
-}
-impl Deref for Address {
-    type Target = u8;
-
-    fn deref(&self) -> &Self::Target {
-        &self.register
-    }
-}
+    transmission_mapping,
+};
 
 bit_value_enum! {
     pub enum Bank<2> {
@@ -48,3 +22,5 @@ transmission_mapping! {
         4: (D4(extended_commands<1> as Switch), D0(bank<2> as Bank),),
     );
 }
+
+pub type Extension = Option<Bank>;

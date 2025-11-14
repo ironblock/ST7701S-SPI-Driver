@@ -1,27 +1,33 @@
-use std::{any::Any, fmt::Debug, io};
+use std::{fmt::Debug, io};
 
-use crate::st7701s_spi::transmissions::{Parametric, Transmission};
+use crate::st7701s_spi::{parameters::register::Bank, transmissions::{Parametric, Transmission}};
 
-pub trait ExtensionVariant {}
-impl<T> ExtensionVariant for T {}
+pub trait ExtensionVariant {
+    const EXTENSION: Option<Bank>;
+}
 
-// pub type AnyExtension = dyn Any + 'static;
-// impl ExtensionVariant for AnyExtension {}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionBk0
-where
-    Self: ExtensionVariant;
+pub type AnyExtension = ();
+impl ExtensionVariant for AnyExtension {
+    const EXTENSION: Option<Bank> = None;
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionBk1
-where
-    Self: ExtensionVariant;
+pub struct ExtensionBk0;
+impl ExtensionVariant for  ExtensionBk0 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK0);
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ExtensionBk3
-where
-    Self: ExtensionVariant;
+pub struct ExtensionBk1;
+impl ExtensionVariant for  ExtensionBk1 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK1);
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct ExtensionBk3;
+impl ExtensionVariant for  ExtensionBk3 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK3);
+}
 
 pub trait InstructionVariant {}
 impl<T> InstructionVariant for T {}
