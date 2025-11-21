@@ -1,3 +1,5 @@
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Mode {
     pub clock: u32,
 

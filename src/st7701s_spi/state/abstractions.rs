@@ -8,6 +8,7 @@ use crate::st7701s_spi::{
     },
 };
 
+#[derive(Debug)]
 pub struct Abstraction<'a, X, E, COMMANDS, STATE> {
     device: &'a mut ST7701S<X, E>,
     accessor: StateAccessorMut<STATE>,

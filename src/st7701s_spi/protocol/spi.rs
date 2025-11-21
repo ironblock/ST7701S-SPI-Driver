@@ -1,17 +1,13 @@
 use std::{
-    error::Error,
     fmt::{Debug, Formatter},
-    fs::File,
     io,
-    mem::MaybeUninit,
     os::fd::AsRawFd,
     path::Path,
-    sync::{Arc, Mutex},
 };
 
 use linux_embedded_hal::{
     SPIError, SpidevDevice,
-    spidev::{SpiModeFlags, Spidev, SpidevOptions, SpidevTransfer},
+    spidev::{SpiModeFlags, SpidevOptions, SpidevTransfer},
 };
 
 use crate::st7701s_spi::protocol::connection::{Connection, DcxPacket};

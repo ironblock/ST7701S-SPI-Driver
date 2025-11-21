@@ -7,7 +7,7 @@
 //!
 //! ## Hardware Compatibility
 //! The primary development hardware used for testing is an original
-//! BeagleBone Black (Texas Instruments AM335X) connected to a Shanghai Top
+//! `BeagleBone` Black (Texas Instruments AM335X) connected to a Shanghai Top
 //! Display Optoelectronics Co. TL021WVC02-B1323B LCD module. The module is
 //! controlled via SPI and driven by 18 RGB signal lines (sometimes called a
 //! "3SPI+18RGB" interface).
@@ -17,7 +17,7 @@
 //! exposed on that hardware.
 
 use log::info;
-use st7701s::st7701s_spi::{device::ST7701S, protocol::spi::*, sequences::init::init_sequence};
+use st7701s::st7701s_spi::{device::ST7701S, protocol::spi::ThreeWireSPI, sequences::init::init_sequence};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");

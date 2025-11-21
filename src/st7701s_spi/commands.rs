@@ -3,7 +3,26 @@ use crate::st7701s_spi::protocol::connection::{ConnectionOwner as _, RxData};
 
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::{bk0::*, bk1::*, bk3::*, core::*, special::*};
+use crate::st7701s_spi::address::{
+    bk0::{
+        CABCCTRL, CCCTRL, COLCTRL, DGMEN, DGMLUTB, DGMLUTR, INVSET, LNESET, NRCTRL, NVGAMCTRL,
+        NVMSETE, PARCTRL, PDOSET, PORCTRL, PVGAMCTRL, PWMCLKSEL, RGBCTRL, SDIR, SECTRL, SKCTRL,
+        SRECTRL,
+    },
+    bk1::{
+        MIPISET1, MIPISET2, MIPISET3, MIPISET4, PCLKS1, PCLKS2, PCLKS3, PWCTRL2, SPD1, SPD2,
+        TESTCMD, VCOMS, VGHSS, VGLS, VRHS,
+    },
+    bk3::{NVMSET, PROMACT},
+    core::{
+        ALLPOFF, ALLPON, DISPOFF, DISPON, GAMSET, GSL, IDMOFF, IDMON, INVOFF, INVON, NOP, NORON,
+        PTLON, RDABCSDR, RDAX, RDAY, RDBALB, RDBKX, RDBKY, RDBLUE, RDBWLB, RDBX, RDBY, RDCABC,
+        RDCABCMB, RDCCS, RDCTRLD, RDDCOLMOD, RDDDBC, RDDDBS, RDDID, RDDIM, RDDISBV, RDDMADCTL,
+        RDDPM, RDDSM, RDFCS, RDGREEN, RDGX, RDGY, RDID1, RDID2, RDID3, RDNUMED, RDRED, RDRX, RDRY,
+        RDWX, RDWY, SLPIN, SLPOUT, SWRESET, TEOFF, TEON, WRCABCMB, WRCACE, WRCTRLD, WRDISBV,
+    },
+    special::{CND2BKXSEL, DSTB, DSTBT},
+};
 
 use crate::st7701s_spi::parameters::{
     bk0_display::{
@@ -785,7 +804,7 @@ impl<X: Connection> ST7701S<X, Bank0> {
     }
 }
 
-impl<X: Connection> ST7701S<X> {
+impl<X: Connection> ST7701S<X, Bank1> {
     /// ## `BK1: 0xB0` `VRHS` VOP Amplitude Setting
     /// > Reference: p. 283
     ///

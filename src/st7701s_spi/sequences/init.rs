@@ -1,4 +1,4 @@
-use std::{any::Any, io};
+use std::io;
 
 use crate::st7701s_spi::{
     device::ST7701S,

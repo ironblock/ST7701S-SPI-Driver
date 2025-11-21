@@ -1,6 +1,6 @@
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::{Parametric, BitValue, BitMask, BitOffset, D0, D7, D6, D5}},
+    st7701s_spi::{parameters::general::Switch, transmissions::{BitValue, BitMask, BitOffset, D0, D7, D6, D5}},
     transmission_mapping,
 };
 use Switch::Off;
