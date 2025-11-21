@@ -9,7 +9,7 @@ type BK3 = Bank3;
 
 #[rustfmt::skip]
 pub mod special {
-    use super::*;
+    use super::{Write, ANY};
 
     pub type CND2BKXSEL =   Write<ANY, 0xFF, 5>;
     pub type DSTB       =   Write<ANY, 0xFF, 5>;
@@ -18,7 +18,7 @@ pub mod special {
 
 #[rustfmt::skip]
 pub mod core {
-    use super::*;
+    use super::{Command, ANY, Write, Read};
 
     pub type NOP        = Command<ANY, 0x00,  >;
     pub type SWRESET    =   Write<ANY, 0x01, 1>;
@@ -86,7 +86,7 @@ pub mod core {
 
 #[rustfmt::skip]
 pub mod bk0 {
-    use super::*;
+    use super::{Write, BK0};
 
     pub type PVGAMCTRL  =   Write<BK0, 0xB0, 16>;
     pub type NVGAMCTRL  =   Write<BK0, 0xB1, 16>;
@@ -113,7 +113,7 @@ pub mod bk0 {
 
 #[rustfmt::skip]
 pub mod bk1 {
-    use super::*;
+    use super::{Write, BK1};
 
     pub type VRHS       =   Write<BK1, 0xB0, 1>;
     pub type VCOMS      =   Write<BK1, 0xB1, 1>;
@@ -135,7 +135,7 @@ pub mod bk1 {
 
 #[rustfmt::skip]
 pub mod bk3 {
-    use super::*;
+    use super::{Write, BK3};
 
     pub type NVMSET     =   Write<BK3, 0xCA, 1>;
     pub type PROMACT    =   Write<BK3, 0xCC, 1>;

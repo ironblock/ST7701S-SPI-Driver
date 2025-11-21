@@ -3,13 +3,13 @@ use crate::st7701s_spi::protocol::connection::{ConnectionOwner as _, RxData};
 
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::{bk0::*, bk1::*, bk3::*, special::*};
+use crate::st7701s_spi::address::{bk0::{PVGAMCTRL, NVGAMCTRL, DGMEN, DGMLUTR, DGMLUTB, PWMCLKSEL, LNESET, PORCTRL, INVSET, RGBCTRL, PARCTRL, SDIR, PDOSET, COLCTRL, SRECTRL, NRCTRL, SECTRL, CCCTRL, SKCTRL, NVMSETE, CABCCTRL}, bk1::{VRHS, VCOMS, VGHSS, TESTCMD, VGLS, PWCTRL2, PCLKS1, PCLKS2, PCLKS3, SPD1, SPD2, MIPISET1, MIPISET2, MIPISET3, MIPISET4}, bk3::{NVMSET, PROMACT}, special::{CND2BKXSEL, DSTB, DSTBT}};
 
 use crate::st7701s_spi::{
-    address::core::*,
+    address::core::{NOP, SWRESET, RDDID, RDNUMED, RDRED, RDGREEN, RDBLUE, RDDPM, RDDMADCTL, RDDCOLMOD, RDDIM, RDDSM, GSL, RDDISBV, WRDISBV, RDCTRLD, WRCTRLD, SLPIN, SLPOUT, PTLON, NORON, INVON, INVOFF, ALLPOFF, ALLPON, GAMSET, DISPON, DISPOFF, IDMON, IDMOFF, TEON, TEOFF, WRCACE, RDCABC, WRCABCMB, RDCABCMB, RDABCSDR, RDBWLB, RDBKX, RDBKY, RDWX, RDWY, RDRX, RDRY, RDGX, RDGY, RDBALB, RDBX, RDBY, RDAX, RDAY, RDDDBS, RDDDBC, RDFCS, RDCCS, RDID1, RDID2, RDID3},
     parameters::{
-        bk0_display::*,
-        bk1_power::*,
+        bk0_display::{GammaLutRed, GammaLutBlue, RgbControl, PartialControl, ScanDirectionControl, PseudoDotInversion, ColorControl, SunlightEnhancement, NoiseReduction, SharpnessControl, ColorCalibration, SkinToneControl},
+        bk1_power::{OperatingVoltage, CommonVoltage, GateHighVoltage, GateLowVoltage, PowerControl2, PanelClockSetting1, PanelClockSetting2, PanelClockSetting3, SourcePreDriveTiming1, SourcePreDriveTiming2, MipiSetting1, MipiSetting2, MipiSetting3, MipiSetting4},
         display::{InversionSelection, LineSettings, PorchControl},
     },
 };
@@ -26,7 +26,7 @@ use crate::st7701s_spi::{
     parameters::{display::TearingEffectSignal, register::CommandExtension},
     state::abstractions::{Configure, Select, Toggle},
 };
-use Switch::*;
+use Switch::{On, Off};
 
 impl<E> ST7701S<E> {
     /// ## No Operation
@@ -75,9 +75,7 @@ impl<E> ST7701S<E> {
         }
 
         log::info!(
-            "Software reset triggered{}. Pausing commands for {}ms",
-            condition,
-            delay
+            "Software reset triggered{condition}. Pausing commands for {delay}ms"
         );
 
         thread::sleep(time::Duration::from_millis(delay));
@@ -241,7 +239,7 @@ impl<E> ST7701S<E> {
     /// > Reference: p. 202
     ///
     pub fn enable_partial_mode(&mut self) -> io::Result<()> {
-        self.command::<PTLON>().inspect(|_| {
+        self.command::<PTLON>().inspect(|()| {
             self.modify_state(|state| {
                 state.mode.partial = On;
             });
@@ -252,7 +250,7 @@ impl<E> ST7701S<E> {
     /// > Reference: p. 203
     ///
     pub fn enable_normal_mode(&mut self) -> io::Result<()> {
-        self.command::<NORON>().inspect(|_| {
+        self.command::<NORON>().inspect(|()| {
             self.modify_state(|state| {
                 state.mode.partial = Off;
                 state.image.set_all_pixels_black(Off);
@@ -266,18 +264,18 @@ impl<E> ST7701S<E> {
     /// > - `INVOFF` p. 204
     /// > - `INVON`  p. 205
     pub fn invert_colors_on(&mut self) -> io::Result<()> {
-        self.command::<INVON>().inspect(|_| {
+        self.command::<INVON>().inspect(|()| {
             self.modify_state(|state| {
                 state.image.set_invert_colors(On);
-            })
+            });
         })
     }
 
     pub fn invert_colors_off(&mut self) -> io::Result<()> {
-        self.command::<INVOFF>().inspect(|_| {
+        self.command::<INVOFF>().inspect(|()| {
             self.modify_state(|state| {
                 state.image.set_invert_colors(Off);
-            })
+            });
         })
     }
 
@@ -287,17 +285,17 @@ impl<E> ST7701S<E> {
     /// > - `ALLPON`  p. 207
     pub fn set_all_pixels(&mut self, extrema: PixelExtrema) -> io::Result<()> {
         match extrema {
-            PixelExtrema::Black => self.command::<ALLPOFF>().inspect(|_| {
+            PixelExtrema::Black => self.command::<ALLPOFF>().inspect(|()| {
                 self.modify_state(|state| {
                     state.image.set_all_pixels_black(On);
                     state.image.set_all_pixels_white(Off);
-                })
+                });
             }),
-            PixelExtrema::White => self.command::<ALLPON>().inspect(|_| {
+            PixelExtrema::White => self.command::<ALLPON>().inspect(|()| {
                 self.modify_state(|state| {
                     state.image.set_all_pixels_black(Off);
                     state.image.set_all_pixels_white(On);
-                })
+                });
             }),
         }
     }
@@ -309,7 +307,7 @@ impl<E> ST7701S<E> {
     pub fn select_gamma_curve(&mut self, transmission: GammaCurve) -> io::Result<()> {
         let gamma_curve = transmission.gc();
 
-        self.write::<GAMSET>(&transmission.buffer()).inspect(|_| {
+        self.write::<GAMSET>(transmission.buffer()).inspect(|()| {
             self.modify_state(move |state| {
                 state.image.set_gamma_curve(gamma_curve);
             });
@@ -541,7 +539,7 @@ impl<E> ST7701S<E> {
         self.read::<RDID3>(buffer)
     }
 
-    /// ## Command2 BKx Selection
+    /// ## Command2 `BKx` Selection
     /// > Reference: p. 260
     ///
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
@@ -556,8 +554,8 @@ impl<E> ST7701S<E> {
             transmission.set_extended_commands(Off);
         }
 
-        self.write::<CND2BKXSEL>(&transmission.buffer())
-            .inspect(|_| {
+        self.write::<CND2BKXSEL>(transmission.buffer())
+            .inspect(|()| {
                 self.modify_state(|state| {
                     state.command_extension = transmission;
                 });

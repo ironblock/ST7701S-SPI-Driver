@@ -2,20 +2,12 @@ use std::io;
 
 use crate::st7701s_spi::{
     device::ST7701S,
-    parameters::{
-        bk0_display::{ColorControl, MDT},
-        bk1_power::{CommonVoltage, GateHighVoltage, GateLowVoltage, OperatingVoltage},
-        display::{
-            InversionSelection, LineSettings, PolarityInversion, PorchControl, VoltageBias,
-            VoltageControl,
-        },
-        general::Switch,
-    },
-    protocol::connection::{self, Bank0, Extension},
+    parameters::bk0_display::{ColorControl, MDT},
+    protocol::connection::{Bank0, Extension},
 };
 
 pub fn init_sequence(display: ST7701S<impl Extension>) -> io::Result<ST7701S<impl Extension>> {
-    use Switch::*;
+    
     let mut display = display.select_command_extension(Bank0);
 
     // display.line_setting(&LineSettings::new().set_extra_line(On).set_line(27))?;
@@ -35,7 +27,7 @@ pub fn init_sequence(display: ST7701S<impl Extension>) -> io::Result<ST7701S<imp
     // SPI_WriteComm(0xCC); // ?????????
     // SPI_WriteData(0x10);
 
-    display.color_control(&ColorControl::new().set_mdt(MDT::CollectToDB))?;
+    display.color_control(ColorControl::new().set_mdt(MDT::CollectToDB))?;
 
     // let gamma_voltage = VoltageControl::new()
     //     .set_aj0(VoltageBias::A)

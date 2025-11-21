@@ -1,7 +1,7 @@
 use crate::{
     st7701s_spi::{
         parameters::{
-            brightness::*,
+            brightness::{Brightness, BrightnessControl, AdaptiveBrightness, MinAdaptiveBrightness},
             display::{DisplayImageMode, TearingEffectSignal},
             general::Switch,
             register::CommandExtension,
@@ -11,7 +11,7 @@ use crate::{
     state_struct,
 };
 
-use Switch::*;
+use Switch::{Off, On};
 
 // RDDPM
 //   - backlight state
@@ -26,7 +26,7 @@ state_struct! {
   }
 }
 impl ModeState {
-    pub const fn power_state(&self) -> Power {
+    #[must_use] pub const fn power_state(&self) -> Power {
         match self {
             Self { standby: On, .. } => Power::L6,
             Self { sleep: On, .. }  => Power::L5,

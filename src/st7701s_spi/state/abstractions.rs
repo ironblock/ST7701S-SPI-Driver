@@ -28,28 +28,25 @@ impl<'a, E, COMMANDS, STATE> Abstraction<'a, E, COMMANDS, STATE> {
 }
 
 pub type Toggle<'a, E, ON, OFF> = Abstraction<'a, E, (ON, OFF), Switch>;
-impl<'a, E, ON, OFF> Toggle<'a, E, ON, OFF>
+impl<E, ON, OFF> Toggle<'_, E, ON, OFF>
 where
     ON: CommandInstruction<E>,
     OFF: CommandInstruction<E>,
 {
     pub fn on(mut self) -> io::Result<()> {
-        self.device.command::<ON>().inspect(move |_| {
+        self.device.command::<ON>().inspect(move |()| {
             *self.field_mut() = Switch::On;
         })
     }
 
     pub fn off(mut self) -> io::Result<()> {
-        self.device.command::<OFF>().inspect(move |_| {
+        self.device.command::<OFF>().inspect(move |()| {
             *self.field_mut() = Switch::Off;
         })
     }
 }
 
 pub type Select<'a, E, SELECT, DISABLE, D>
-where
-    SELECT: WriteInstruction<E, Data = D>,
-    DISABLE: CommandInstruction<E>,
 = Abstraction<'a, E, (SELECT, DISABLE), Option<D>>;
 impl<E, SELECT, DISABLE, D> Select<'_, E, SELECT, DISABLE, D>
 where
@@ -64,22 +61,19 @@ where
     }
 
     pub fn select(mut self, buffer: D) -> io::Result<()> {
-        self.device.write::<SELECT>(&buffer).inspect(move |_| {
+        self.device.write::<SELECT>(&buffer).inspect(move |()| {
             *self.field_mut() = Some(buffer);
         })
     }
 
     pub fn disable(mut self) -> io::Result<()> {
-        self.device.command::<DISABLE>().inspect(|_| {
+        self.device.command::<DISABLE>().inspect(|()| {
             *self.field_mut() = None;
         })
     }
 }
 
 pub type Configure<'a, E, READ, WRITE, D>
-where
-    READ: ReadInstruction<E, Data = D>,
-    WRITE: WriteInstruction<E, Data = D>,
 = Abstraction<'a, E, (READ, WRITE), D>;
 impl<E, READ, WRITE, D> Configure<'_, E, READ, WRITE, D>
 where
@@ -87,13 +81,13 @@ where
     WRITE: WriteInstruction<E, Data = D>,
 {
     pub fn read(mut self, mut buffer: D) -> io::Result<()> {
-        self.device.read::<READ>(&mut buffer).inspect(move |_| {
+        self.device.read::<READ>(&mut buffer).inspect(move |()| {
             *self.field_mut() = buffer;
         })
     }
 
     pub fn write(mut self, buffer: D) -> io::Result<()> {
-        self.device.write::<WRITE>(&buffer).inspect(move |_| {
+        self.device.write::<WRITE>(&buffer).inspect(move |()| {
             *self.field_mut() = buffer;
         })
     }

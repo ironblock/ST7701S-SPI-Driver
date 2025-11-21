@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     borrow::{Borrow, BorrowMut},
     fmt::Debug,
     io,
@@ -19,21 +18,21 @@ pub struct Bank0;
 impl Extension for Bank0 {
     const EXTENSION: Option<Bank> = Some(Bank::BK0);
 }
-impl RequireBank<Bank0> for Bank0 {}
+impl RequireBank<Self> for Bank0 {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Bank1;
 impl Extension for Bank1 {
     const EXTENSION: Option<Bank> = Some(Bank::BK1);
 }
-impl RequireBank<Bank1> for Bank1 {}
+impl RequireBank<Self> for Bank1 {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Bank3;
 impl Extension for Bank3 {
     const EXTENSION: Option<Bank> = Some(Bank::BK3);
 }
-impl RequireBank<Bank3> for Bank3 {}
+impl RequireBank<Self> for Bank3 {}
 
 pub struct AnyExtension;
 impl Extension for AnyExtension {
@@ -124,15 +123,15 @@ pub enum DcxPacket {
 }
 impl DcxPacket {
     /// Formats a command as a pair of packets
-    pub const fn format_command(address: u8) -> [u8; 2] {
-        [DcxPacket::Command as u8, address]
+    #[must_use] pub const fn format_command(address: u8) -> [u8; 2] {
+        [Self::Command as u8, address]
     }
 
     /// Formats an array of parameters as an array of pairs of packets
-    pub fn format_parameters(data: &[u8]) -> impl AsRef<[u8]> {
+    #[must_use] pub fn format_parameters(data: &[u8]) -> impl AsRef<[u8]> {
         data.as_ref()
-            .into_iter()
-            .flat_map(|b| [DcxPacket::Parameter as u8, *b])
+            .iter()
+            .flat_map(|b| [Self::Parameter as u8, *b])
             .collect::<Vec<u8>>()
     }
 }

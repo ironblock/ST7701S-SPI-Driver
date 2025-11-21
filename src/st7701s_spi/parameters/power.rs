@@ -1,6 +1,6 @@
 use crate::{st7701s_spi::parameters::general::{Switch}, state_struct};
 
-use Switch::*;
+use Switch::{On, Off};
 
 state_struct! {
   pub struct PowerMode {

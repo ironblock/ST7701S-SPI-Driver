@@ -2,13 +2,13 @@ use crate::{
     bit_value_enum,
     st7701s_spi::{
         parameters::general::{Direction, Edge, Logic, Switch},
-        transmissions::*,
+        transmissions::{Parametric, BitValue, BitMask, BitOffset, D7, D6, D0, D4, D3, D2, D1, D5},
     },
     transmission_mapping,
 };
-use Edge::*;
-use Logic::*;
-use Switch::*;
+use Edge::Rising;
+use Logic::{High, Low};
+use Switch::Off;
 
 // ============================================================================
 // RGB Interface Control (RGBCTRL) - p. 272

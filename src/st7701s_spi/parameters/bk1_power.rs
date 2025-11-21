@@ -3,11 +3,11 @@ use std::fmt::Display;
 
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::*},
+    st7701s_spi::{parameters::general::Switch, transmissions::{Parametric, BitValue, BitMask, BitOffset, D7, D4, D0, D6}},
     transmission_mapping,
 };
-use MipiLaneCount::*;
-use Switch::*;
+use MipiLaneCount::OneLane;
+use Switch::{On, Off};
 
 // ============================================================================
 // MIPI Settings (MIPISET1-4) - p. 299-302
@@ -105,9 +105,9 @@ transmission_mapping! {
     );
 }
 impl OperatingVoltage {
-    pub fn values(&self) -> (u8, f32) {
+    #[must_use] pub fn values(&self) -> (u8, f32) {
         let vrha = self.amplitude().as_u8();
-        let vop = 3.5375 + (vrha as f32 * 0.0125);
+        let vop = f32::from(vrha).mul_add(0.0125, 3.5375);
 
         (vrha, vop)
     }
@@ -116,7 +116,7 @@ impl Display for OperatingVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (vrha, vop) = self.values();
 
-        write!(f, "VOP Amplitude: {:.4} V (VRHA: 0x{:02X})", vop, vrha)
+        write!(f, "VOP Amplitude: {vop:.4} V (VRHA: 0x{vrha:02X})")
     }
 }
 
@@ -126,9 +126,9 @@ transmission_mapping! {
     );
 }
 impl CommonVoltage {
-    pub fn values(&self) -> (u8, f32) {
+    #[must_use] pub fn values(&self) -> (u8, f32) {
         let vcom = self.amplitude().as_u8();
-        let vop = 0.1 + (vcom as f32 * 0.0125);
+        let vop = f32::from(vcom).mul_add(0.0125, 0.1);
 
         (vcom, vop)
     }
@@ -137,7 +137,7 @@ impl Display for CommonVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (vcom, vop) = self.values();
 
-        write!(f, "VCOM Amplitude: {:.4} V (VCOM: 0x{:02X})", vop, vcom)
+        write!(f, "VCOM Amplitude: {vop:.4} V (VCOM: 0x{vcom:02X})")
     }
 }
 
@@ -160,7 +160,7 @@ bit_value_enum! {
     }
 }
 impl GateHighAmplitude {
-    pub const fn from_voltage(volts: f32) -> Self {
+    #[must_use] pub const fn from_voltage(volts: f32) -> Self {
         match volts {
             11.5 => Pos11_5,
             12.0 => Pos12_0,
@@ -178,7 +178,7 @@ impl GateHighAmplitude {
         }
     }
 
-    pub const fn as_volts(&self) -> f32 {
+    #[must_use] pub const fn as_volts(&self) -> f32 {
         match self {
             Pos11_5 => 11.5,
             Pos12_0 => 12.0,
@@ -196,7 +196,7 @@ impl GateHighAmplitude {
     }
 }
 
-use GateHighAmplitude::*;
+use GateHighAmplitude::{Pos11_5, Pos12_0, Pos12_5, Pos13_0, Pos13_5, Pos14_0, Pos14_5, Pos15_0, Pos15_5, Pos16_0, Pos16_5, Pos17_0};
 
 transmission_mapping! {
     pub struct GateHighVoltage<1>(
@@ -208,7 +208,7 @@ impl GateHighVoltage {
         self.set_amplitude(GateHighAmplitude::from_voltage(volts))
     }
 
-    pub fn values(&self) -> (u8, f32) {
+    #[must_use] pub fn values(&self) -> (u8, f32) {
         let vghss = self.amplitude();
 
         (vghss.as_u8(), vghss.as_volts())
@@ -218,7 +218,7 @@ impl Display for GateHighVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (vghss, voltage) = self.values();
 
-        write!(f, "VGH Voltage: {:.1} V (VGHSS: 0x{:02X})", voltage, vghss)
+        write!(f, "VGH Voltage: {voltage:.1} V (VGHSS: 0x{vghss:02X})")
     }
 }
 
@@ -243,9 +243,9 @@ bit_value_enum! {
         const Neg12_69 = 0x0F,
     }
 }
-use GateLowAmplitude::*;
+use GateLowAmplitude::{Neg7_06, Neg7_47, Neg7_91, Neg8_14, Neg8_65, Neg8_92, Neg9_21, Neg9_51, Neg9_83, Neg10_17, Neg10_53, Neg10_91, Neg11_31, Neg11_74, Neg12_20, Neg12_69};
 impl GateLowAmplitude {
-    pub const fn from_voltage(volts: f32) -> Self {
+    #[must_use] pub const fn from_voltage(volts: f32) -> Self {
         match volts {
             -7.06 => Neg7_06,
             -7.47 => Neg7_47,
@@ -267,7 +267,7 @@ impl GateLowAmplitude {
         }
     }
 
-    pub const fn as_volts(&self) -> f32 {
+    #[must_use] pub const fn as_volts(&self) -> f32 {
         match self {
             Neg7_06 => -7.06,
             Neg7_47 => -7.47,
@@ -295,7 +295,7 @@ transmission_mapping! {
     );
 }
 impl GateLowVoltage {
-    pub fn values(&self) -> (u8, f32) {
+    #[must_use] pub fn values(&self) -> (u8, f32) {
         let vgls = self.amplitude();
 
         (vgls.as_u8(), vgls.as_volts())
@@ -309,7 +309,7 @@ impl Display for GateLowVoltage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (vgls, voltage) = self.values();
 
-        write!(f, "VGL Voltage: {:.2} V (VGLS: 0x{:02X})", voltage, vgls)
+        write!(f, "VGL Voltage: {voltage:.2} V (VGLS: 0x{vgls:02X})")
     }
 }
 

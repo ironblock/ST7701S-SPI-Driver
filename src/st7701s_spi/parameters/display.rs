@@ -1,9 +1,9 @@
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::*},
+    st7701s_spi::{parameters::general::Switch, transmissions::{Parametric, BitValue, BitMask, BitOffset, D0, D6, D5, D4, D3, D7, D1}},
     transmission_mapping,
 };
-use Switch::*;
+use Switch::On;
 
 // ============================================================================
 // Tearing Effect - p. 212

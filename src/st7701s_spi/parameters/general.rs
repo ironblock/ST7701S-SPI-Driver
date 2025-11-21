@@ -10,7 +10,7 @@ macro_rules! state_struct {
             $($FVIS $FIELD: $TYPE,)+
         }
         impl $NAME {
-            $VIS const fn new() -> Self {
+            #[must_use] $VIS const fn new() -> Self {
                 Self {
                     $($FIELD: $VAL),+
                 }
@@ -33,11 +33,11 @@ bit_value_enum! {
 }
 
 impl Switch {
-    pub fn is_on(&self) -> bool {
+    #[must_use] pub fn is_on(&self) -> bool {
         *self == Self::On
     }
 
-    pub fn is_off(&self) -> bool {
+    #[must_use] pub fn is_off(&self) -> bool {
         *self == Self::Off
     }
 }
