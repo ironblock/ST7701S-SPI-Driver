@@ -10,14 +10,14 @@ pub type StateAccessor<T> = for<'a> fn(&'a DeviceState) -> &'a T;
 pub type StateAccessorMut<T> = for<'a> fn(&'a mut DeviceState) -> &'a mut T;
 
 #[derive(Debug)]
-pub struct ST7701S<E> {
+pub struct ST7701S<X, E = ()> {
     state: DeviceState,
-    connection: &'static dyn Connection,
+    connection: X,
     extension: E,
 }
 
-impl<E> ST7701S<E> {
-    pub const fn new(connection: &'static impl Connection) -> ST7701S<()> {
+impl<X, E> ST7701S<X, E> {
+    pub const fn new(connection: X) -> ST7701S<X> {
         ST7701S {
             state: DeviceState::new(),
             connection,
@@ -33,7 +33,7 @@ impl<E> ST7701S<E> {
         &mut self.extension
     }
 
-    pub fn set_extension<N>(self, extension: N) -> ST7701S<N> {
+    pub fn set_extension<N>(self, extension: N) -> ST7701S<X, N> {
         ST7701S {
             state: self.state,
             connection: self.connection,
@@ -53,7 +53,7 @@ impl<E> ST7701S<E> {
         modifier(&mut self.state);
     }
 
-    pub fn reset(self) -> ST7701S<()> {
+    pub fn reset(self) -> ST7701S<X, ()> {
         ST7701S {
             connection: self.connection,
             extension: (),
@@ -62,8 +62,11 @@ impl<E> ST7701S<E> {
     }
 }
 
-impl<E> ConnectionOwner<E> for ST7701S<E> {
-    fn connection(&self) -> &dyn Connection {
-        self.connection
+impl<X, E> ConnectionOwner<X, E> for ST7701S<X, E>
+where
+    X: Connection,
+{
+    fn connection(&self) -> &X {
+        &self.connection
     }
 }

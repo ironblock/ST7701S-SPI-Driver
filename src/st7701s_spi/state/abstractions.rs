@@ -4,17 +4,17 @@ use crate::st7701s_spi::{
     device::{ST7701S, StateAccessorMut},
     parameters::general::Switch,
     protocol::connection::{
-        CommandInstruction, ConnectionOwner as _, ReadInstruction, WriteInstruction,
+        CommandInstruction, Connection, ConnectionOwner as _, ReadInstruction, WriteInstruction,
     },
 };
 
-pub struct Abstraction<'a, E, COMMANDS, STATE> {
-    device: &'a mut ST7701S<E>,
+pub struct Abstraction<'a, X, E, COMMANDS, STATE> {
+    device: &'a mut ST7701S<X, E>,
     accessor: StateAccessorMut<STATE>,
     _commands: PhantomData<COMMANDS>,
 }
-impl<'a, E, COMMANDS, STATE> Abstraction<'a, E, COMMANDS, STATE> {
-    pub const fn new(device: &'a mut ST7701S<E>, accessor: StateAccessorMut<STATE>) -> Self {
+impl<'a, X, E, COMMANDS, STATE> Abstraction<'a, X, E, COMMANDS, STATE> {
+    pub const fn new(device: &'a mut ST7701S<X, E>, accessor: StateAccessorMut<STATE>) -> Self {
         Self {
             device,
             accessor,
@@ -27,9 +27,10 @@ impl<'a, E, COMMANDS, STATE> Abstraction<'a, E, COMMANDS, STATE> {
     }
 }
 
-pub type Toggle<'a, E, ON, OFF> = Abstraction<'a, E, (ON, OFF), Switch>;
-impl<E, ON, OFF> Toggle<'_, E, ON, OFF>
+pub type Toggle<'a, X, E, ON, OFF> = Abstraction<'a, X, E, (ON, OFF), Switch>;
+impl<X, E, ON, OFF> Toggle<'_, X, E, ON, OFF>
 where
+    X: Connection,
     ON: CommandInstruction<E>,
     OFF: CommandInstruction<E>,
 {
@@ -46,10 +47,10 @@ where
     }
 }
 
-pub type Select<'a, E, SELECT, DISABLE, D>
-= Abstraction<'a, E, (SELECT, DISABLE), Option<D>>;
-impl<E, SELECT, DISABLE, D> Select<'_, E, SELECT, DISABLE, D>
+pub type Select<'a, X, E, SELECT, DISABLE, D> = Abstraction<'a, X, E, (SELECT, DISABLE), Option<D>>;
+impl<X, E, SELECT, DISABLE, D> Select<'_, X, E, SELECT, DISABLE, D>
 where
+    X: Connection,
     SELECT: WriteInstruction<E, Data = D>,
     DISABLE: CommandInstruction<E>,
 {
@@ -73,10 +74,10 @@ where
     }
 }
 
-pub type Configure<'a, E, READ, WRITE, D>
-= Abstraction<'a, E, (READ, WRITE), D>;
-impl<E, READ, WRITE, D> Configure<'_, E, READ, WRITE, D>
+pub type Configure<'a, X, E, READ, WRITE, D> = Abstraction<'a, X, E, (READ, WRITE), D>;
+impl<X, E, READ, WRITE, D> Configure<'_, X, E, READ, WRITE, D>
 where
+    X: Connection,
     READ: ReadInstruction<E, Data = D>,
     WRITE: WriteInstruction<E, Data = D>,
 {

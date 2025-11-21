@@ -16,17 +16,14 @@
 //! device, there may exist race conditions or other timing issues that won't be
 //! exposed on that hardware.
 
-use linux_embedded_hal::SpidevDevice;
 use log::info;
 use st7701s::st7701s_spi::{device::ST7701S, protocol::spi::*, sequences::init::init_sequence};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");
-    
-    let mut device = SpidevDevice::open("/dev/spidev1.0").expect("Failed to open SPI device");
-    device.configure(&ThreeWireSPI::DEFAULT_OPTIONS).expect("Failed to configure SPI device");
 
-    let display= ST7701S::new().connect(ThreeWireSPI { device });
+    let connection = ThreeWireSPI::open("/dev/spidev1.0").expect("Failed to open SPI device");
+    let display = ST7701S::<_>::new(connection);
 
-    init_sequence(display);
+    init_sequence(display).expect("Failed to initialize display");
 }

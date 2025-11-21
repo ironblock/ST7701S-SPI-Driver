@@ -34,31 +34,12 @@ impl Extension for Bank3 {
 }
 impl RequireBank<Self> for Bank3 {}
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct AnyExtension;
 impl Extension for AnyExtension {
     const EXTENSION: Option<Bank> = None;
 }
 impl<E> RequireBank<E> for AnyExtension {}
-
-pub(crate) mod instruction {
-    trait InstructionVariant {}
-    impl<T> InstructionVariant for T {}
-
-    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub struct Command
-    where
-        Self: InstructionVariant;
-
-    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub struct Write
-    where
-        Self: InstructionVariant;
-
-    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub struct Read
-    where
-        Self: InstructionVariant;
-}
 
 pub trait Address {
     const ADDRESS: u8;
@@ -82,6 +63,7 @@ impl<T, E> WriteInstruction<E> for T where T: Address + TxData {}
 pub trait ReadInstruction<E>: CommandInstruction<E> + RxData {}
 impl<T, E> ReadInstruction<E> for T where T: Address + RxData {}
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Command<E, const ADDRESS: u8>(PhantomData<E>)
 where
     Self: CommandInstruction<E>;
@@ -89,6 +71,7 @@ impl<E, const ADDRESS: u8> Address for Command<E, ADDRESS> {
     const ADDRESS: u8 = ADDRESS;
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Write<E, const ADDRESS: u8, const PACKETS: usize>(PhantomData<E>)
 where
     Self: WriteInstruction<E>;
@@ -99,6 +82,7 @@ impl<E, const ADDRESS: u8, const PACKETS: usize> TxData for Write<E, ADDRESS, PA
     type Data = [u8; PACKETS];
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Read<E, const ADDRESS: u8, const PACKETS: usize>(PhantomData<E>)
 where
     Self: ReadInstruction<E>;
@@ -123,12 +107,14 @@ pub enum DcxPacket {
 }
 impl DcxPacket {
     /// Formats a command as a pair of packets
-    #[must_use] pub const fn format_command(address: u8) -> [u8; 2] {
+    #[must_use]
+    pub const fn format_command(address: u8) -> [u8; 2] {
         [Self::Command as u8, address]
     }
 
     /// Formats an array of parameters as an array of pairs of packets
-    #[must_use] pub fn format_parameters(data: &[u8]) -> impl AsRef<[u8]> {
+    #[must_use]
+    pub fn format_parameters(data: &[u8]) -> impl AsRef<[u8]> {
         data.as_ref()
             .iter()
             .flat_map(|b| [Self::Parameter as u8, *b])
@@ -154,8 +140,11 @@ pub trait Connection: Send + Sync + Debug {
     fn read(&self, address: u8, read_buffer: &mut [u8]) -> io::Result<()>;
 }
 
-pub trait ConnectionOwner<E> {
-    fn connection(&self) -> &dyn Connection;
+pub trait ConnectionOwner<X, E>
+where
+    X: Connection,
+{
+    fn connection(&self) -> &X;
 
     fn command<C: CommandInstruction<E>>(&self) -> io::Result<()> {
         self.connection().command(C::ADDRESS)

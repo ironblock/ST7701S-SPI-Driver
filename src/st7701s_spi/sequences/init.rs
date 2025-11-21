@@ -1,13 +1,14 @@
-use std::io;
+use std::{any::Any, io};
 
 use crate::st7701s_spi::{
     device::ST7701S,
     parameters::bk0_display::{ColorControl, MDT},
-    protocol::connection::{Bank0, Extension},
+    protocol::connection::{Bank0, Connection, Extension},
 };
 
-pub fn init_sequence(display: ST7701S<impl Extension>) -> io::Result<ST7701S<impl Extension>> {
-    
+pub fn init_sequence<X: Connection, E>(
+    display: ST7701S<X, E>,
+) -> io::Result<ST7701S<X, impl Extension>> {
     let mut display = display.select_command_extension(Bank0);
 
     // display.line_setting(&LineSettings::new().set_extra_line(On).set_line(27))?;

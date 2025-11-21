@@ -1,17 +1,22 @@
-use crate::st7701s_spi::protocol::connection::{Bank0, Bank1, Bank3, Extension};
+use crate::st7701s_spi::protocol::connection::{Bank0, Bank1, Bank3, Connection, Extension};
 use crate::st7701s_spi::protocol::connection::{ConnectionOwner as _, RxData};
 
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::{bk0::{PVGAMCTRL, NVGAMCTRL, DGMEN, DGMLUTR, DGMLUTB, PWMCLKSEL, LNESET, PORCTRL, INVSET, RGBCTRL, PARCTRL, SDIR, PDOSET, COLCTRL, SRECTRL, NRCTRL, SECTRL, CCCTRL, SKCTRL, NVMSETE, CABCCTRL}, bk1::{VRHS, VCOMS, VGHSS, TESTCMD, VGLS, PWCTRL2, PCLKS1, PCLKS2, PCLKS3, SPD1, SPD2, MIPISET1, MIPISET2, MIPISET3, MIPISET4}, bk3::{NVMSET, PROMACT}, special::{CND2BKXSEL, DSTB, DSTBT}};
+use crate::st7701s_spi::address::{bk0::*, bk1::*, bk3::*, core::*, special::*};
 
-use crate::st7701s_spi::{
-    address::core::{NOP, SWRESET, RDDID, RDNUMED, RDRED, RDGREEN, RDBLUE, RDDPM, RDDMADCTL, RDDCOLMOD, RDDIM, RDDSM, GSL, RDDISBV, WRDISBV, RDCTRLD, WRCTRLD, SLPIN, SLPOUT, PTLON, NORON, INVON, INVOFF, ALLPOFF, ALLPON, GAMSET, DISPON, DISPOFF, IDMON, IDMOFF, TEON, TEOFF, WRCACE, RDCABC, WRCABCMB, RDCABCMB, RDABCSDR, RDBWLB, RDBKX, RDBKY, RDWX, RDWY, RDRX, RDRY, RDGX, RDGY, RDBALB, RDBX, RDBY, RDAX, RDAY, RDDDBS, RDDDBC, RDFCS, RDCCS, RDID1, RDID2, RDID3},
-    parameters::{
-        bk0_display::{GammaLutRed, GammaLutBlue, RgbControl, PartialControl, ScanDirectionControl, PseudoDotInversion, ColorControl, SunlightEnhancement, NoiseReduction, SharpnessControl, ColorCalibration, SkinToneControl},
-        bk1_power::{OperatingVoltage, CommonVoltage, GateHighVoltage, GateLowVoltage, PowerControl2, PanelClockSetting1, PanelClockSetting2, PanelClockSetting3, SourcePreDriveTiming1, SourcePreDriveTiming2, MipiSetting1, MipiSetting2, MipiSetting3, MipiSetting4},
-        display::{InversionSelection, LineSettings, PorchControl},
+use crate::st7701s_spi::parameters::{
+    bk0_display::{
+        ColorCalibration, ColorControl, GammaLutBlue, GammaLutRed, NoiseReduction, PartialControl,
+        PseudoDotInversion, RgbControl, ScanDirectionControl, SharpnessControl, SkinToneControl,
+        SunlightEnhancement,
     },
+    bk1_power::{
+        CommonVoltage, GateHighVoltage, GateLowVoltage, MipiSetting1, MipiSetting2, MipiSetting3,
+        MipiSetting4, OperatingVoltage, PanelClockSetting1, PanelClockSetting2, PanelClockSetting3,
+        PowerControl2, SourcePreDriveTiming1, SourcePreDriveTiming2,
+    },
+    display::{InversionSelection, LineSettings, PorchControl},
 };
 use crate::st7701s_spi::{
     device::ST7701S,
@@ -26,9 +31,9 @@ use crate::st7701s_spi::{
     parameters::{display::TearingEffectSignal, register::CommandExtension},
     state::abstractions::{Configure, Select, Toggle},
 };
-use Switch::{On, Off};
+use Switch::{Off, On};
 
-impl<E> ST7701S<E> {
+impl<X: Connection, E> ST7701S<X, E> {
     /// ## No Operation
     ///
     /// This command is "do nothing". It has no effect on the display, but it
@@ -59,7 +64,7 @@ impl<E> ST7701S<E> {
     /// (with no arguments), and p. 188 refers to it as a **write**. As only a
     /// write can have arguments and 0x01 is the constant argument in both
     /// references, SWRESET's canonical representation here is as a **write**.
-    pub fn software_reset(self) -> ST7701S<()> {
+    pub fn software_reset(self) -> ST7701S<X> {
         const RESET_PARAMETERS: [u8; 1] = [0x01];
         self.write::<SWRESET>(&RESET_PARAMETERS)
             .expect("failed to send software reset command");
@@ -74,9 +79,7 @@ impl<E> ST7701S<E> {
             condition = "";
         }
 
-        log::info!(
-            "Software reset triggered{condition}. Pausing commands for {delay}ms"
-        );
+        log::info!("Software reset triggered{condition}. Pausing commands for {delay}ms");
 
         thread::sleep(time::Duration::from_millis(delay));
 
@@ -196,7 +199,7 @@ impl<E> ST7701S<E> {
     ///
     /// ### Considerations
     ///   1. Manual brightness control must be enabled (see `__CTRLD`)
-    pub fn brightness_value(&'_ mut self) -> Configure<'_, E, RDDISBV, WRDISBV, Brightness> {
+    pub fn brightness_value(&'_ mut self) -> Configure<'_, X, E, RDDISBV, WRDISBV, Brightness> {
         if cfg!(debug_assertions)
             && self
                 .state()
@@ -224,14 +227,14 @@ impl<E> ST7701S<E> {
     ///   2. Dimming control can only be set when using manual brightness control)
     pub fn brightness_control(
         &'_ mut self,
-    ) -> Configure<'_, E, RDCTRLD, WRCTRLD, BrightnessControl> {
+    ) -> Configure<'_, X, E, RDCTRLD, WRCTRLD, BrightnessControl> {
         Configure::new(self, |state| &mut state.config.brightness_control)
     }
 
     /// ## Toggle Sleep Mode
     /// > Reference: p. 200, 201
     ///
-    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, E, SLPIN, SLPOUT> {
+    pub fn sleep_mode(&'_ mut self) -> Toggle<'_, X, E, SLPIN, SLPOUT> {
         Toggle::new(self, |state| &mut state.mode.sleep)
     }
 
@@ -318,18 +321,18 @@ impl<E> ST7701S<E> {
     /// > Reference:
     /// > `DISPOFF` p. 209
     /// > `DISPON`  p. 210
-    pub fn display_output(&'_ mut self) -> Toggle<'_, E, DISPON, DISPOFF> {
+    pub fn display_output(&'_ mut self) -> Toggle<'_, X, E, DISPON, DISPOFF> {
         Toggle::new(self, |state| &mut state.mode.display)
     }
 
     /// ## Toggle Idle Mode
     /// > Reference: p. 215, 216
     ///
-    pub fn idle_mode(&'_ mut self) -> Toggle<'_, E, IDMON, IDMOFF> {
+    pub fn idle_mode(&'_ mut self) -> Toggle<'_, X, E, IDMON, IDMOFF> {
         Toggle::new(self, |state| &mut state.mode.idle)
     }
 
-    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, E, TEON, TEOFF, TearingEffectSignal> {
+    pub fn tearing_effect_line(&'_ mut self) -> Select<'_, X, E, TEON, TEOFF, TearingEffectSignal> {
         Select::new(self, |state| &mut state.tearing_effect)
     }
 
@@ -340,7 +343,7 @@ impl<E> ST7701S<E> {
     /// disables color enhancement and selects the enhancement mode.
     pub fn adaptive_brightness(
         &'_ mut self,
-    ) -> Configure<'_, E, WRCACE, RDCABC, AdaptiveBrightness> {
+    ) -> Configure<'_, X, E, WRCACE, RDCABC, AdaptiveBrightness> {
         Configure::new(self, |state| &mut state.config.adaptive_brightness)
     }
 
@@ -351,7 +354,7 @@ impl<E> ST7701S<E> {
     /// (CABC).
     pub fn min_adaptive_brightness(
         &'_ mut self,
-    ) -> Configure<'_, E, WRCABCMB, RDCABCMB, MinAdaptiveBrightness> {
+    ) -> Configure<'_, X, E, WRCABCMB, RDCABCMB, MinAdaptiveBrightness> {
         Configure::new(self, |state| &mut state.config.min_adaptive_brightness)
     }
 
@@ -545,7 +548,7 @@ impl<E> ST7701S<E> {
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<N> {
+    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<X, N> {
         let mut transmission = CommandExtension::new();
 
         if let Some(bank) = N::EXTENSION {
@@ -586,7 +589,7 @@ impl<E> ST7701S<E> {
     }
 }
 
-impl ST7701S<Bank0> {
+impl<X: Connection> ST7701S<X, Bank0> {
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
     /// > See p. 261
     ///
@@ -782,7 +785,7 @@ impl ST7701S<Bank0> {
     }
 }
 
-impl ST7701S<Bank1> {
+impl<X: Connection> ST7701S<X> {
     /// ## `BK1: 0xB0` `VRHS` VOP Amplitude Setting
     /// > Reference: p. 283
     ///
@@ -922,7 +925,7 @@ impl ST7701S<Bank1> {
     }
 }
 
-impl ST7701S<Bank3> {
+impl<X: Connection> ST7701S<X, Bank3> {
     /// ## `BK3: 0xCA` `NVMSET` NVM Setting
     /// > Reference: p. 304
     ///
