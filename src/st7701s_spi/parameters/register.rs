@@ -22,5 +22,3 @@ transmission_mapping! {
         4: (D4(extended_commands<1> as Switch), D0(bank<2> as Bank),),
     );
 }
-
-pub type Extension = Option<Bank>;

@@ -105,8 +105,8 @@ transmission_mapping! {
     );
 }
 impl OperatingVoltage {
-    pub const fn values(&self) -> (u8, f32) {
-        let vrha = self.amplitude_const().as_u8();
+    pub fn values(&self) -> (u8, f32) {
+        let vrha = self.amplitude().as_u8();
         let vop = 3.5375 + (vrha as f32 * 0.0125);
 
         (vrha, vop)
@@ -126,8 +126,8 @@ transmission_mapping! {
     );
 }
 impl CommonVoltage {
-    pub const fn values(&self) -> (u8, f32) {
-        let vcom = self.amplitude_const().as_u8();
+    pub fn values(&self) -> (u8, f32) {
+        let vcom = self.amplitude().as_u8();
         let vop = 0.1 + (vcom as f32 * 0.0125);
 
         (vcom, vop)
@@ -204,7 +204,7 @@ transmission_mapping! {
     );
 }
 impl GateHighVoltage {
-    pub fn set_amplitude_volts(self, volts: f32) -> Self {
+    pub fn set_amplitude_volts(&mut self, volts: f32) -> &mut Self {
         self.set_amplitude(GateHighAmplitude::from_voltage(volts))
     }
 
@@ -301,7 +301,7 @@ impl GateLowVoltage {
         (vgls.as_u8(), vgls.as_volts())
     }
 
-    pub fn set_amplitude_volts(self, volts: f32) -> Self {
+    pub fn set_amplitude_volts(&mut self, volts: f32) -> &mut Self {
         self.set_amplitude(GateLowAmplitude::from_voltage(volts))
     }
 }

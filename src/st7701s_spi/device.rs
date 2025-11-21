@@ -1,9 +1,7 @@
 extern crate spidev;
 
-use std::any::Any;
-
 use crate::st7701s_spi::{
-    protocol::connection::{Connection, ExtensionVariant},
+    protocol::connection::{Connection, ConnectionOwner},
     state::domains::DeviceState,
 };
 
@@ -35,7 +33,7 @@ impl<E> ST7701S<E> {
         &mut self.extension
     }
 
-    pub fn set_extension<N: ExtensionVariant>(self, extension: N) -> ST7701S<N> {
+    pub fn set_extension<N>(self, extension: N) -> ST7701S<N> {
         ST7701S {
             state: self.state,
             connection: self.connection,
@@ -55,15 +53,17 @@ impl<E> ST7701S<E> {
         modifier(&mut self.state);
     }
 
-    pub fn reset(self) -> ST7701S<impl Any> {
+    pub fn reset(self) -> ST7701S<()> {
         ST7701S {
             connection: self.connection,
             extension: (),
             state: DeviceState::new(),
         }
     }
+}
 
-    pub fn connection(&self) -> &dyn Connection {
+impl<E> ConnectionOwner<E> for ST7701S<E> {
+    fn connection(&self) -> &dyn Connection {
         self.connection
     }
 }

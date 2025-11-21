@@ -1,4 +1,4 @@
-use std::{any::Any, io};
+use std::io;
 
 use crate::st7701s_spi::{
     device::ST7701S,
@@ -11,78 +11,72 @@ use crate::st7701s_spi::{
         },
         general::Switch,
     },
-    protocol::connection::{ExtensionBk0, ExtensionBk1, ExtensionVariant},
+    protocol::connection::{self, Bank0, Extension},
 };
 
-pub fn init_sequence(
-    display: ST7701S<impl ExtensionVariant>,
-) -> io::Result<ST7701S<impl ExtensionVariant>> {
+pub fn init_sequence(display: ST7701S<impl Extension>) -> io::Result<ST7701S<impl Extension>> {
     use Switch::*;
-    let mut display = display.select_command_extension(ExtensionBk0);
+    let mut display = display.select_command_extension(Bank0);
 
-    display.line_setting(
-        &LineSettings::new()
-            .set_extra_line(On)
-            .set_line_const::<27>(),
-    )?;
+    // display.line_setting(&LineSettings::new().set_extra_line(On).set_line(27))?;
 
-    display.porch_control(
-        &PorchControl::new()
-            .set_vertical_back_porch_const::<11>()
-            .set_vertical_front_porch_const::<2>(),
-    )?;
+    // display.porch_control(
+    //     &PorchControl::new()
+    //         .set_vertical_back_porch(11)
+    //         .set_vertical_front_porch(2),
+    // )?;
 
-    display.inversion_select(
-        &InversionSelection::new()
-            .set_polarity_inversion(PolarityInversion::OneDot)
-            .set_rtni_const::<2>(),
-    )?;
+    // display.inversion_select(
+    //     &InversionSelection::new()
+    //         .set_polarity_inversion(PolarityInversion::OneDot)
+    //         .set_rtni(2),
+    // )?;
 
     // SPI_WriteComm(0xCC); // ?????????
     // SPI_WriteData(0x10);
 
     display.color_control(&ColorControl::new().set_mdt(MDT::CollectToDB))?;
 
-    let gamma_voltage = VoltageControl::new()
-        .set_aj0(VoltageBias::A)
-        .set_vc0_const::<0x02>()
-        .set_aj1(VoltageBias::A)
-        .set_vc4_const::<0x13>()
-        .set_aj2(VoltageBias::A)
-        .set_vc8_const::<0x1B>()
-        .set_vc16_const::<0x0D>()
-        .set_aj3(VoltageBias::A)
-        .set_vc24_const::<0x10>()
-        .set_vc52_const::<0x05>()
-        .set_vc80_const::<0x08>()
-        .set_vc108_const::<0x07>()
-        .set_vc147_const::<0x07>()
-        .set_vc175_const::<0x24>()
-        .set_vc203_const::<0x04>()
-        .set_aj4(VoltageBias::A)
-        .set_vc231_const::<0x11>()
-        .set_vc239_const::<0x0E>()
-        .set_aj5(VoltageBias::A)
-        .set_vc247_const::<0x2C>()
-        .set_aj6(VoltageBias::A)
-        .set_vc251_const::<0x33>()
-        .set_aj7(VoltageBias::A)
-        .set_vc255_const::<0x1D>();
+    // let gamma_voltage = VoltageControl::new()
+    //     .set_aj0(VoltageBias::A)
+    //     .set_vc0(0x02)
+    //     .set_aj1(VoltageBias::A)
+    //     .set_vc4(0x13)
+    //     .set_aj2(VoltageBias::A)
+    //     .set_vc8(0x1B)
+    //     .set_vc16(0x0D)
+    //     .set_aj3(VoltageBias::A)
+    //     .set_vc24(0x10)
+    //     .set_vc52(0x05)
+    //     .set_vc80(0x08)
+    //     .set_vc108(0x07)
+    //     .set_vc147(0x07)
+    //     .set_vc175(0x24)
+    //     .set_vc203(0x04)
+    //     .set_aj4(VoltageBias::A)
+    //     .set_vc231(0x11)
+    //     .set_vc239(0x0E)
+    //     .set_aj5(VoltageBias::A)
+    //     .set_vc247(0x2C)
+    //     .set_aj6(VoltageBias::A)
+    //     .set_vc251(0x33)
+    //     .set_aj7(VoltageBias::A)
+    //     .set_vc255(0x1D);
 
-    display.positive_gamma_control(&gamma_voltage)?;
-    display.negative_gamma_control(&gamma_voltage)?;
+    // display.positive_gamma_control(&gamma_voltage)?;
+    // display.negative_gamma_control(&gamma_voltage)?;
 
-    let mut display = display.select_command_extension(ExtensionBk1);
+    // let mut display = display.select_command_extension(Bk1);
 
-    display.set_operating_voltage(&OperatingVoltage::new().set_amplitude_const::<0x5D>())?;
+    // display.set_operating_voltage(&OperatingVoltage::new().set_amplitude(0x5D))?;
 
-    display.set_common_voltage(&CommonVoltage::new().set_amplitude_const::<0x43>())?;
+    // display.set_common_voltage(&CommonVoltage::new().set_amplitude(0x43))?;
 
-    display.set_gate_high_voltage(&GateHighVoltage::new().set_amplitude_volts(12.0))?;
+    // display.set_gate_high_voltage(&GateHighVoltage::new().set_amplitude_volts(12.0))?;
 
-    display.test_command()?;
+    // display.test_command()?;
 
-    display.set_gate_low_voltage(&GateLowVoltage::new().set_amplitude_volts(-8.14))?;
+    // display.set_gate_low_voltage(&GateLowVoltage::new().set_amplitude_volts(-8.14))?;
 
     // SPI_WriteComm(0xB7); // power control 1
     // SPI_WriteData(0x85);
