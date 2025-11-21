@@ -1,10 +1,9 @@
-pub mod address;
 pub mod commands;
+pub mod device;
 pub mod instructions;
 pub mod panel;
 pub mod parameters;
+pub mod protocol;
 pub mod sequences;
-pub mod device;
 pub mod state;
 pub mod transmissions;
-pub mod protocol;

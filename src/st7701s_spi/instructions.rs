@@ -9,7 +9,7 @@ type BK3 = Bank3;
 
 #[rustfmt::skip]
 pub mod special {
-    use super::{Write, ANY};
+    use super::{ANY, Write};
 
     pub type CND2BKXSEL =   Write<ANY, 0xFF, 5>;
     pub type DSTB       =   Write<ANY, 0xFF, 5>;
@@ -18,9 +18,9 @@ pub mod special {
 
 #[rustfmt::skip]
 pub mod core {
-    use super::{Command, ANY, Write, Read};
+    use super::{ANY, Command, Write, Read};
 
-    pub type NOP        = Command<ANY, 0x00,  >;
+    pub type NOP        = Command<ANY, 0x00>;
     pub type SWRESET    =   Write<ANY, 0x01, 1>;
     pub type RDDID      =    Read<ANY, 0x04, 3>;
     pub type RDNUMED    =    Read<ANY, 0x05, 1>;
@@ -33,14 +33,14 @@ pub mod core {
     pub type RDDIM      =    Read<ANY, 0x0D, 1>;
     pub type RDDSM      =    Read<ANY, 0x0E, 1>;
     pub type RDDSDR     =    Read<ANY, 0x0F, 1>;
-    pub type SLPIN      = Command<ANY, 0x10,  >;
-    pub type SLPOUT     = Command<ANY, 0x11,  >;
-    pub type PTLON      = Command<ANY, 0x12,  >;
-    pub type NORON      = Command<ANY, 0x13,  >;
-    pub type INVOFF     = Command<ANY, 0x20,  >;
-    pub type INVON      = Command<ANY, 0x21,  >;
-    pub type ALLPOFF    = Command<ANY, 0x22,  >;
-    pub type ALLPON     = Command<ANY, 0x23,  >;
+    pub type SLPIN      = Command<ANY, 0x10>;
+    pub type SLPOUT     = Command<ANY, 0x11>;
+    pub type PTLON      = Command<ANY, 0x12>;
+    pub type NORON      = Command<ANY, 0x13>;
+    pub type INVOFF     = Command<ANY, 0x20>;
+    pub type INVON      = Command<ANY, 0x21>;
+    pub type ALLPOFF    = Command<ANY, 0x22>;
+    pub type ALLPON     = Command<ANY, 0x23>;
     pub type GAMSET     =   Write<ANY, 0x26, 1>;
     pub type DISPOFF    = Command<ANY, 0x28>;
     pub type DISPON     = Command<ANY, 0x29>;
@@ -86,7 +86,7 @@ pub mod core {
 
 #[rustfmt::skip]
 pub mod bk0 {
-    use super::{Write, BK0};
+    use super::{BK0,  Write};
 
     pub type PVGAMCTRL  =   Write<BK0, 0xB0, 16>;
     pub type NVGAMCTRL  =   Write<BK0, 0xB1, 16>;
@@ -113,7 +113,7 @@ pub mod bk0 {
 
 #[rustfmt::skip]
 pub mod bk1 {
-    use super::{Write, BK1};
+    use super::{BK1, Write};
 
     pub type VRHS       =   Write<BK1, 0xB0, 1>;
     pub type VCOMS      =   Write<BK1, 0xB1, 1>;
@@ -135,7 +135,7 @@ pub mod bk1 {
 
 #[rustfmt::skip]
 pub mod bk3 {
-    use super::{Write, BK3};
+    use super::{BK3, Write};
 
     pub type NVMSET     =   Write<BK3, 0xCA, 1>;
     pub type PROMACT    =   Write<BK3, 0xCC, 1>;

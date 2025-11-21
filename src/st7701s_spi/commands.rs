@@ -3,7 +3,7 @@ use crate::st7701s_spi::protocol::connection::{ConnectionOwner as _, RxData};
 
 use std::{io, thread, time};
 
-use crate::st7701s_spi::address::{
+use crate::st7701s_spi::instructions::{
     bk0::{
         CABCCTRL, CCCTRL, COLCTRL, DGMEN, DGMLUTB, DGMLUTR, INVSET, LNESET, NRCTRL, NVGAMCTRL,
         NVMSETE, PARCTRL, PDOSET, PORCTRL, PVGAMCTRL, PWMCLKSEL, RGBCTRL, SDIR, SECTRL, SKCTRL,

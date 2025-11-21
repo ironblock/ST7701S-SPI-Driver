@@ -6,12 +6,22 @@ use crate::{
             general::Switch,
             register::CommandExtension,
         },
-        state::derived::Power,
     },
     state_struct,
 };
 
 use Switch::{Off, On};
+
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
+pub enum Power {
+    L1,
+    L2,
+    L3,
+    L4,
+    L5,
+    L6,
+    L7,
+}
 
 // RDDPM
 //   - backlight state

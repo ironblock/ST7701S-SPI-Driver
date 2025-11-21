@@ -10,9 +10,6 @@ use Edge::Rising;
 use Logic::{High, Low};
 use Switch::Off;
 
-// ============================================================================
-// RGB Interface Control (RGBCTRL) - p. 272
-// ============================================================================
 
 bit_value_enum! {
     /// RGB Interface Mode Selection
@@ -45,9 +42,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Partial Display Control (PARCTRL) - p. 273
-// ============================================================================
 
 transmission_mapping! {
     /// ## Partial Area Control
@@ -59,9 +53,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Scan Direction Control (SDIR) - p. 274
-// ============================================================================
 
 transmission_mapping! {
     /// ## X-Direction Scan Control
@@ -72,9 +63,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Pseudo-Dot Inversion (PDOSET) - p. 275
-// ============================================================================
 
 bit_value_enum! {
     /// Pseudo-dot inversion mode
@@ -95,9 +83,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Color Control (COLCTRL) - p. 276
-// ============================================================================
 
 bit_value_enum! {
     pub enum MDT<1> {
@@ -132,9 +117,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Sunlight Readable Enhancement (SRECTRL) - p. 278
-// ============================================================================
 
 transmission_mapping! {
     /// ## Sunlight Readable Enhancement Control
@@ -150,9 +132,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Noise Reduction Control (NRCTRL) - p. 279
-// ============================================================================
 
 transmission_mapping! {
     /// ## Noise Reduction Control
@@ -176,9 +155,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Sharpness and Edge Enhancement (SECTRL) - p. 280
-// ============================================================================
 
 transmission_mapping! {
     /// ## Sharpness and Edge Enhancement Control
@@ -204,9 +180,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Color Calibration Control (CCCTRL) - p. 281
-// ============================================================================
 
 transmission_mapping! {
     /// ## Color Calibration Control
@@ -223,9 +196,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Skin Tone Preservation (SKCTRL) - p. 282
-// ============================================================================
 
 transmission_mapping! {
     /// ## Skin Tone Control
@@ -240,9 +210,6 @@ transmission_mapping! {
     );
 }
 
-// ============================================================================
-// Digital Gamma LUT (DGMLUTR/DGMLUTB) - p. 266, 267
-// ============================================================================
 
 /// Digital Gamma Look-up Table for Red channel (64 bytes)
 /// > Reference: `DGMLUTR` p. 266
