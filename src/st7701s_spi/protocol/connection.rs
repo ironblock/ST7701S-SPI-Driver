@@ -7,39 +7,15 @@ use std::{
 
 use crate::st7701s_spi::parameters::register::Bank;
 
+pub(crate) mod extended_instructions {
+    pub trait RequiredExtension<E> {}
+}
+
+use extended_instructions::RequiredExtension;
+
 pub trait Extension {
     const EXTENSION: Option<Bank>;
 }
-
-pub trait RequireBank<E> {}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Bank0;
-impl Extension for Bank0 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK0);
-}
-impl RequireBank<Self> for Bank0 {}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Bank1;
-impl Extension for Bank1 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK1);
-}
-impl RequireBank<Self> for Bank1 {}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Bank3;
-impl Extension for Bank3 {
-    const EXTENSION: Option<Bank> = Some(Bank::BK3);
-}
-impl RequireBank<Self> for Bank3 {}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct AnyExtension;
-impl Extension for AnyExtension {
-    const EXTENSION: Option<Bank> = None;
-}
-impl<E> RequireBank<E> for AnyExtension {}
 
 pub trait Address {
     const ADDRESS: u8;
@@ -53,44 +29,63 @@ pub trait RxData {
     type Data: BorrowMut<[u8]>;
 }
 
-pub trait CommandInstruction<E>: Address + RequireBank<E> {}
-impl<T, E> RequireBank<E> for T where T: CommandInstruction<E> {}
-impl<T, E> CommandInstruction<E> for T where T: Address {}
-
-pub trait WriteInstruction<E>: CommandInstruction<E> + TxData {}
-impl<T, E> WriteInstruction<E> for T where T: Address + TxData {}
-
-pub trait ReadInstruction<E>: CommandInstruction<E> + RxData {}
-impl<T, E> ReadInstruction<E> for T where T: Address + RxData {}
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Command<E, const ADDRESS: u8>(PhantomData<E>)
-where
-    Self: CommandInstruction<E>;
-impl<E, const ADDRESS: u8> Address for Command<E, ADDRESS> {
-    const ADDRESS: u8 = ADDRESS;
+pub struct Bank0;
+impl Extension for Bank0 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK0);
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Write<E, const ADDRESS: u8, const PACKETS: usize>(PhantomData<E>)
-where
-    Self: WriteInstruction<E>;
-impl<E, const ADDRESS: u8, const PACKETS: usize> Address for Write<E, ADDRESS, PACKETS> {
-    const ADDRESS: u8 = ADDRESS;
-}
-impl<E, const ADDRESS: u8, const PACKETS: usize> TxData for Write<E, ADDRESS, PACKETS> {
-    type Data = [u8; PACKETS];
+pub struct Bank1;
+impl Extension for Bank1 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK1);
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Read<E, const ADDRESS: u8, const PACKETS: usize>(PhantomData<E>)
-where
-    Self: ReadInstruction<E>;
-impl<E, const ADDRESS: u8, const PACKETS: usize> Address for Read<E, ADDRESS, PACKETS> {
-    const ADDRESS: u8 = ADDRESS;
+pub struct Bank3;
+impl Extension for Bank3 {
+    const EXTENSION: Option<Bank> = Some(Bank::BK3);
 }
-impl<E, const ADDRESS: u8, const PACKETS: usize> RxData for Read<E, ADDRESS, PACKETS> {
-    type Data = [u8; PACKETS];
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct AnyExtension;
+impl Extension for AnyExtension {
+    const EXTENSION: Option<Bank> = None;
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct CommandVariant;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct WriteVariant;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct ReadVariant;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct Instruction<V, E, const A: u8, const N: usize = 0> {
+    _variant: PhantomData<V>,
+    _extension: PhantomData<E>,
+}
+impl<V, E, const A: u8, const N: usize> Address for Instruction<V, E, A, N> {
+    const ADDRESS: u8 = A;
+}
+impl<V, const A: u8, const N: usize> RequiredExtension<Bank0> for Instruction<V, Bank0, A, N> {}
+impl<V, const A: u8, const N: usize> RequiredExtension<Bank1> for Instruction<V, Bank1, A, N> {}
+impl<V, const A: u8, const N: usize> RequiredExtension<Bank3> for Instruction<V, Bank3, A, N> {}
+impl<V, E, const A: u8, const N: usize> RequiredExtension<E>
+    for Instruction<V, AnyExtension, A, N>
+{
+}
+
+pub type CommandDefinition<E, const A: u8> = Instruction<CommandVariant, E, A, 0>;
+pub type WriteDefinition<E, const A: u8, const N: usize> = Instruction<WriteVariant, E, A, N>;
+impl<E, const A: u8, const N: usize> TxData for WriteDefinition<E, A, N> {
+    type Data = [u8; N];
+}
+pub type ReadDefinition<E, const A: u8, const N: usize> = Instruction<ReadVariant, E, A, N>;
+impl<E, const A: u8, const N: usize> RxData for ReadDefinition<E, A, N> {
+    type Data = [u8; N];
 }
 
 /// # D/CX Packet Types
@@ -146,15 +141,21 @@ where
 {
     fn connection(&self) -> &X;
 
-    fn command<C: CommandInstruction<E>>(&self) -> io::Result<()> {
+    fn command<C: Address + RequiredExtension<E>>(&self) -> io::Result<()> {
         self.connection().command(C::ADDRESS)
     }
 
-    fn write<W: WriteInstruction<E>>(&self, buffer: &W::Data) -> io::Result<()> {
+    fn write<W: Address + TxData + RequiredExtension<E>>(
+        &self,
+        buffer: &W::Data,
+    ) -> io::Result<()> {
         self.connection().write(W::ADDRESS, buffer.borrow())
     }
 
-    fn read<R: ReadInstruction<E>>(&self, buffer: &mut R::Data) -> io::Result<()> {
+    fn read<R: Address + RxData + RequiredExtension<E>>(
+        &self,
+        buffer: &mut R::Data,
+    ) -> io::Result<()> {
         self.connection().read(R::ADDRESS, buffer.borrow_mut())
     }
 }

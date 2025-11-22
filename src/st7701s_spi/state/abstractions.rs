@@ -4,7 +4,8 @@ use crate::st7701s_spi::{
     device::{ST7701S, StateAccessorMut},
     parameters::general::Switch,
     protocol::connection::{
-        CommandInstruction, Connection, ConnectionOwner as _, ReadInstruction, WriteInstruction,
+        Address, Connection, ConnectionOwner as _, RxData, TxData,
+        extended_instructions::RequiredExtension,
     },
 };
 
@@ -32,8 +33,8 @@ pub type Toggle<'a, X, E, ON, OFF> = Abstraction<'a, X, E, (ON, OFF), Switch>;
 impl<X, E, ON, OFF> Toggle<'_, X, E, ON, OFF>
 where
     X: Connection,
-    ON: CommandInstruction<E>,
-    OFF: CommandInstruction<E>,
+    ON: Address + RequiredExtension<E>,
+    OFF: Address + RequiredExtension<E>,
 {
     pub fn on(mut self) -> io::Result<()> {
         self.device.command::<ON>().inspect(move |()| {
@@ -52,8 +53,8 @@ pub type Select<'a, X, E, SELECT, DISABLE, D> = Abstraction<'a, X, E, (SELECT, D
 impl<X, E, SELECT, DISABLE, D> Select<'_, X, E, SELECT, DISABLE, D>
 where
     X: Connection,
-    SELECT: WriteInstruction<E, Data = D>,
-    DISABLE: CommandInstruction<E>,
+    SELECT: Address + RequiredExtension<E> + TxData<Data = D>,
+    DISABLE: Address + RequiredExtension<E>,
 {
     pub fn is_enabled(&mut self) -> bool {
         self.field_mut().is_some()
@@ -79,8 +80,8 @@ pub type Configure<'a, X, E, READ, WRITE, D> = Abstraction<'a, X, E, (READ, WRIT
 impl<X, E, READ, WRITE, D> Configure<'_, X, E, READ, WRITE, D>
 where
     X: Connection,
-    READ: ReadInstruction<E, Data = D>,
-    WRITE: WriteInstruction<E, Data = D>,
+    READ: Address + RequiredExtension<E> + RxData<Data = D>,
+    WRITE: Address + RequiredExtension<E> + TxData<Data = D>,
 {
     pub fn read(mut self, mut buffer: D) -> io::Result<()> {
         self.device.read::<READ>(&mut buffer).inspect(move |()| {
