@@ -568,7 +568,7 @@ impl<X: Connection, E> ST7701S<X, E> {
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
     pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<X, N> {
-        let mut transmission = CommandExtension::new();
+        let transmission = CommandExtension::new();
 
         if let Some(bank) = N::EXTENSION {
             transmission.set_extended_commands(On).set_bank(bank);

@@ -3,12 +3,14 @@ use std::fmt::Display;
 
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::{BitValue, BitMask, BitOffset, D7, D4, D0, D6}},
+    st7701s_spi::{
+        parameters::general::Switch,
+        transmissions::{BitMask, BitOffset, BitValue, D0, D4, D6, D7},
+    },
     transmission_mapping,
 };
 use MipiLaneCount::OneLane;
-use Switch::{On, Off};
-
+use Switch::{Off, On};
 
 bit_value_enum! {
     /// MIPI Lane Configuration
@@ -92,14 +94,14 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     pub struct OperatingVoltage<1>(
         0: (D0(amplitude<8> = 0x4D),),
     );
 }
 impl OperatingVoltage {
-    #[must_use] pub fn values(&self) -> (u8, f32) {
+    #[must_use]
+    pub fn values(&self) -> (u8, f32) {
         let vrha = self.amplitude().as_u8();
         let vop = f32::from(vrha).mul_add(0.0125, 3.5375);
 
@@ -120,7 +122,8 @@ transmission_mapping! {
     );
 }
 impl CommonVoltage {
-    #[must_use] pub fn values(&self) -> (u8, f32) {
+    #[must_use]
+    pub fn values(&self) -> (u8, f32) {
         let vcom = self.amplitude().as_u8();
         let vop = f32::from(vcom).mul_add(0.0125, 0.1);
 
@@ -154,7 +157,8 @@ bit_value_enum! {
     }
 }
 impl GateHighAmplitude {
-    #[must_use] pub const fn from_voltage(volts: f32) -> Self {
+    #[must_use]
+    pub const fn from_voltage(volts: f32) -> Self {
         match volts {
             11.5 => Pos11_5,
             12.0 => Pos12_0,
@@ -172,7 +176,8 @@ impl GateHighAmplitude {
         }
     }
 
-    #[must_use] pub const fn as_volts(&self) -> f32 {
+    #[must_use]
+    pub const fn as_volts(&self) -> f32 {
         match self {
             Pos11_5 => 11.5,
             Pos12_0 => 12.0,
@@ -190,7 +195,10 @@ impl GateHighAmplitude {
     }
 }
 
-use GateHighAmplitude::{Pos11_5, Pos12_0, Pos12_5, Pos13_0, Pos13_5, Pos14_0, Pos14_5, Pos15_0, Pos15_5, Pos16_0, Pos16_5, Pos17_0};
+use GateHighAmplitude::{
+    Pos11_5, Pos12_0, Pos12_5, Pos13_0, Pos13_5, Pos14_0, Pos14_5, Pos15_0, Pos15_5, Pos16_0,
+    Pos16_5, Pos17_0,
+};
 
 transmission_mapping! {
     pub struct GateHighVoltage<1>(
@@ -198,11 +206,12 @@ transmission_mapping! {
     );
 }
 impl GateHighVoltage {
-    pub fn set_amplitude_volts(&mut self, volts: f32) -> &mut Self {
+    pub fn set_amplitude_volts(self, volts: f32) -> Self {
         self.set_amplitude(GateHighAmplitude::from_voltage(volts))
     }
 
-    #[must_use] pub fn values(&self) -> (u8, f32) {
+    #[must_use]
+    pub fn values(&self) -> (u8, f32) {
         let vghss = self.amplitude();
 
         (vghss.as_u8(), vghss.as_volts())
@@ -237,9 +246,13 @@ bit_value_enum! {
         const Neg12_69 = 0x0F,
     }
 }
-use GateLowAmplitude::{Neg7_06, Neg7_47, Neg7_91, Neg8_14, Neg8_65, Neg8_92, Neg9_21, Neg9_51, Neg9_83, Neg10_17, Neg10_53, Neg10_91, Neg11_31, Neg11_74, Neg12_20, Neg12_69};
+use GateLowAmplitude::{
+    Neg7_06, Neg7_47, Neg7_91, Neg8_14, Neg8_65, Neg8_92, Neg9_21, Neg9_51, Neg9_83, Neg10_17,
+    Neg10_53, Neg10_91, Neg11_31, Neg11_74, Neg12_20, Neg12_69,
+};
 impl GateLowAmplitude {
-    #[must_use] pub const fn from_voltage(volts: f32) -> Self {
+    #[must_use]
+    pub const fn from_voltage(volts: f32) -> Self {
         match volts {
             -7.06 => Neg7_06,
             -7.47 => Neg7_47,
@@ -261,7 +274,8 @@ impl GateLowAmplitude {
         }
     }
 
-    #[must_use] pub const fn as_volts(&self) -> f32 {
+    #[must_use]
+    pub const fn as_volts(&self) -> f32 {
         match self {
             Neg7_06 => -7.06,
             Neg7_47 => -7.47,
@@ -289,13 +303,14 @@ transmission_mapping! {
     );
 }
 impl GateLowVoltage {
-    #[must_use] pub fn values(&self) -> (u8, f32) {
+    #[must_use]
+    pub fn values(&self) -> (u8, f32) {
         let vgls = self.amplitude();
 
         (vgls.as_u8(), vgls.as_volts())
     }
 
-    pub fn set_amplitude_volts(&mut self, volts: f32) -> &mut Self {
+    pub fn set_amplitude_volts(self, volts: f32) -> Self {
         self.set_amplitude(GateLowAmplitude::from_voltage(volts))
     }
 }
@@ -306,7 +321,6 @@ impl Display for GateLowVoltage {
         write!(f, "VGL Voltage: {voltage:.2} V (VGLS: 0x{vgls:02X})")
     }
 }
-
 
 bit_value_enum! {
     /// VGH Voltage Multiplier
@@ -341,7 +355,6 @@ transmission_mapping! {
         ),
     );
 }
-
 
 bit_value_enum! {
     /// Clock Divider Ratio
@@ -388,7 +401,6 @@ transmission_mapping! {
     );
 }
 
-
 bit_value_enum! {
     /// Source Pre-charge Period
     pub enum SourcePrecharge<4> {
@@ -424,7 +436,6 @@ transmission_mapping! {
         0: (D0(speed_optimization<8> = 0x00),),
     );
 }
-
 
 /// Test Command Parameter
 /// Used for factory testing and diagnostics

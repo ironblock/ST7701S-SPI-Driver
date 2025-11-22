@@ -20,21 +20,24 @@ impl<V, const N: usize> Parameters<V, N>
 where
     Self: Parametric<N>,
 {
-    #[must_use] pub const fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             buffer: Self::INITIAL_VALUE,
             _variant: PhantomData,
         }
     }
 
-    #[must_use] pub const fn from_array(buffer: [u8; N]) -> Self {
+    #[must_use]
+    pub const fn from_array(buffer: [u8; N]) -> Self {
         Self {
             buffer,
             _variant: PhantomData,
         }
     }
 
-    #[must_use] pub const fn buffer(&self) -> &[u8; N] {
+    #[must_use]
+    pub const fn buffer(&self) -> &[u8; N] {
         &self.buffer
     }
 
@@ -54,31 +57,37 @@ where
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct BitMask(usize);
 impl BitMask {
-    #[must_use] pub const fn new(value: usize) -> Self {
+    #[must_use]
+    pub const fn new(value: usize) -> Self {
         Self(value)
     }
 
-    #[must_use] pub const fn from_bit_size(bits: usize) -> Self {
+    #[must_use]
+    pub const fn from_bit_size(bits: usize) -> Self {
         Self((1 << bits) - 1)
     }
 
-    #[must_use] pub const fn lsh(mut self, shift: usize) -> Self {
+    #[must_use]
+    pub const fn lsh(mut self, shift: usize) -> Self {
         self.0 <<= shift;
 
         self
     }
 
-    #[must_use] pub const fn merge(self, other: &Self) -> Self {
+    #[must_use]
+    pub const fn merge(self, other: &Self) -> Self {
         assert!((self.0 & other.0) == 0, "Overlapping bit masks");
 
         Self(self.0 | other.0)
     }
 
-    #[must_use] pub const fn get(&self) -> usize {
+    #[must_use]
+    pub const fn get(&self) -> usize {
         self.0
     }
 
-    #[must_use] pub const fn apply(&self, target: u8) -> u8 {
+    #[must_use]
+    pub const fn apply(&self, target: u8) -> u8 {
         target & self.get() as u8
     }
 }
@@ -129,7 +138,8 @@ impl<const SIZE: usize, const INITIAL: u8> BitValue for BitField<SIZE, INITIAL> 
     const INITIAL_VALUE: Self::Target = INITIAL;
 }
 impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
-    #[must_use] pub const fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         const {
             assert!(
                 Self::SIZE_MASK.apply(INITIAL) == INITIAL,
@@ -154,7 +164,8 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
         );
     }
 
-    #[must_use] pub const fn from_const<const SOURCE: usize, const VALUE: u8>() -> Self {
+    #[must_use]
+    pub const fn from_const<const SOURCE: usize, const VALUE: u8>() -> Self {
         const {
             Self::assert_source(SOURCE);
             Self::assert_value(VALUE);
@@ -163,7 +174,8 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
         Self { value: VALUE }
     }
 
-    #[must_use] pub const fn from_const_source<const SOURCE: usize>(value: u8) -> Self {
+    #[must_use]
+    pub const fn from_const_source<const SOURCE: usize>(value: u8) -> Self {
         const {
             Self::assert_source(SOURCE);
         };
@@ -171,7 +183,8 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
         Self { value }
     }
 
-    #[must_use] pub const fn from_const_value<const VALUE: u8>() -> Self {
+    #[must_use]
+    pub const fn from_const_value<const VALUE: u8>() -> Self {
         const {
             Self::assert_value(VALUE);
         };
@@ -179,7 +192,8 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
         Self { value: VALUE }
     }
 
-    #[must_use] pub const fn as_u8(&self) -> u8 {
+    #[must_use]
+    pub const fn as_u8(&self) -> u8 {
         self.value
     }
 }
@@ -202,29 +216,34 @@ impl<const SHIFT: usize, const BITS: usize, const INITIAL: u8> BitOffset<Self>
     const SHIFT: usize = SHIFT;
 }
 impl<const SHIFT: usize, const BITS: usize, const INITIAL: u8> PacketField<SHIFT, BITS, INITIAL> {
-    #[must_use] pub const fn as_bit_value() -> BitField<BITS, INITIAL> {
+    #[must_use]
+    pub const fn as_bit_value() -> BitField<BITS, INITIAL> {
         BitField::<BITS, INITIAL>::new()
     }
 
-    #[must_use] pub const fn shift_raw_value(value: u8) -> u8 {
+    #[must_use]
+    pub const fn shift_raw_value(value: u8) -> u8 {
         Self::SHIFT_MASK.apply(value << SHIFT)
     }
 
-    #[must_use] pub const fn shift_bit_value(value: BitField<BITS>) -> u8 {
+    #[must_use]
+    pub const fn shift_bit_value(value: BitField<BITS>) -> u8 {
         value.as_u8() << SHIFT
     }
 
-    #[must_use] pub const fn extract_raw_value(target: u8) -> u8 {
+    #[must_use]
+    pub const fn extract_raw_value(target: u8) -> u8 {
         Self::SHIFT_MASK.apply(target) >> SHIFT
     }
 
-    #[must_use] pub const fn extract_bit_value(target: u8) -> BitField<BITS, INITIAL> {
+    #[must_use]
+    pub const fn extract_bit_value(target: u8) -> BitField<BITS, INITIAL> {
         BitField::<BITS, INITIAL>::from_const_source::<BITS>(Self::extract_raw_value(target))
     }
 
-    // pub const fn set_raw_value(target: &mut u8, value: u8) {
-    //     *target |= Self::shift_raw_value(value);
-    // }
+    pub const fn set_raw_value(target: &mut u8, value: u8) {
+        *target |= Self::shift_raw_value(value);
+    }
 
     pub const fn set_from_bitfield(target: &mut u8, value: BitField<BITS>) {
         *target |= Self::shift_bit_value(value);
@@ -397,7 +416,14 @@ macro_rules! transmission_mapping {
                                 ::from($D::<$BITS>::extract_bit_value(self.buffer()[$INDEX]))
                         }
 
-                        pub fn [<set_ $ARG:lower>](&mut self, value: [<$NAME:snake _types>]::[<$ARG:camel Value>]) -> &mut Self {
+                        pub fn [<set_ $ARG:lower _const>]<const V: u8>(mut self) -> Self {
+                            $D::<$BITS>
+                                ::set_const::<V>(&mut self.buffer_mut()[$INDEX]);
+
+                            self
+                        }
+
+                        pub fn [<set_ $ARG:lower>](mut self, value: [<$NAME:snake _types>]::[<$ARG:camel Value>]) -> Self {
                             $D::<$BITS>
                                 ::set_from_bitfield(&mut self.buffer_mut()[$INDEX], value.into());
 
