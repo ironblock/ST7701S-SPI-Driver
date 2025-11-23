@@ -107,7 +107,7 @@ pub trait BitValue {
     const SIZE_MASK: BitMask = BitMask::from_bit_size(Self::BIT_SIZE);
 
     const IS_VALID: () = const {
-        assert!(Self::BIT_SIZE < Self::MAX_SIZE, "BITS exceeds type size");
+        assert!(Self::BIT_SIZE <= Self::MAX_SIZE, "BITS exceeds type size");
     };
 }
 
@@ -410,7 +410,7 @@ macro_rules! transmission_mapping {
                 $(
                     $(
                         #[must_use] pub fn [<$ARG:lower>](&self) -> [<$NAME:snake _types>]::[<$ARG:camel Value>] {
-                            <transmission_mapping!(
+                            <$crate::transmission_mapping!(
                                 @value_type ($ARG<$BITS $(,$ALIAS)?>)
                             )>
                                 ::from($D::<$BITS>::extract_bit_value(self.buffer()[$INDEX]))
