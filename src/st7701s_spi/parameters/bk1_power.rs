@@ -206,7 +206,7 @@ transmission_mapping! {
     );
 }
 impl GateHighVoltage {
-    #[must_use] 
+    #[must_use]
     pub fn set_amplitude_volts(self, volts: f32) -> Self {
         self.set_amplitude(GateHighAmplitude::from_voltage(volts))
     }
@@ -311,7 +311,7 @@ impl GateLowVoltage {
         (vgls.as_u8(), vgls.as_volts())
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn set_amplitude_volts(self, volts: f32) -> Self {
         self.set_amplitude(GateLowAmplitude::from_voltage(volts))
     }

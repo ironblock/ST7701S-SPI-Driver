@@ -1,10 +1,12 @@
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::{BitValue, BitMask, BitOffset, D0, D7, D6, D5}},
+    st7701s_spi::{
+        parameters::general::Switch,
+        transmissions::{BitMask, BitOffset, BitValue, D0, D5, D6, D7},
+    },
     transmission_mapping,
 };
 use Switch::Off;
-
 
 transmission_mapping!(
     /// ## Display Brightness Value
@@ -14,7 +16,6 @@ transmission_mapping!(
         0: (D0(value<7>),),
     );
 );
-
 
 transmission_mapping! {
     /// ## Display Brightness Control Modes
@@ -28,7 +29,6 @@ transmission_mapping! {
         ),
     );
 }
-
 
 bit_value_enum! {
     /// CABC Mode Selection
@@ -52,7 +52,6 @@ transmission_mapping! {
         ),
     );
 }
-
 
 transmission_mapping! {
     /// ## CABC Minimum Brightness

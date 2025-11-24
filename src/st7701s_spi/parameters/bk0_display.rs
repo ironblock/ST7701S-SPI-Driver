@@ -2,14 +2,13 @@ use crate::{
     bit_value_enum,
     st7701s_spi::{
         parameters::general::{Direction, Edge, Logic, Switch},
-        transmissions::{BitValue, BitMask, BitOffset, D7, D6, D0, D4, D3, D2, D1, D5},
+        transmissions::{BitMask, BitOffset, BitValue, D0, D1, D2, D3, D4, D5, D6, D7},
     },
     transmission_mapping,
 };
 use Edge::Rising;
 use Logic::{High, Low};
 use Switch::Off;
-
 
 bit_value_enum! {
     /// RGB Interface Mode Selection
@@ -42,7 +41,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     /// ## Partial Area Control
     /// Configures partial display update region
@@ -53,7 +51,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     /// ## X-Direction Scan Control
     /// Controls horizontal scan direction for display mirroring
@@ -62,7 +59,6 @@ transmission_mapping! {
         0: (D0(x_direction<1> as Direction),),
     );
 }
-
 
 bit_value_enum! {
     /// Pseudo-dot inversion mode
@@ -82,7 +78,6 @@ transmission_mapping! {
         0: (D0(pseudo_dot_mode<2> as PseudoDotMode),),
     );
 }
-
 
 bit_value_enum! {
     pub enum MDT<1> {
@@ -117,7 +112,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     /// ## Sunlight Readable Enhancement Control
     /// Improves display visibility in bright ambient light
@@ -131,7 +125,6 @@ transmission_mapping! {
         2: (D0(black_level<8> = 0x00),),
     );
 }
-
 
 transmission_mapping! {
     /// ## Noise Reduction Control
@@ -154,7 +147,6 @@ transmission_mapping! {
         10: (D0(nr_reserved<8> = 0x00),),
     );
 }
-
 
 transmission_mapping! {
     /// ## Sharpness and Edge Enhancement Control
@@ -180,7 +172,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     /// ## Color Calibration Control
     /// Fine-tunes color reproduction and white balance
@@ -196,7 +187,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     /// ## Skin Tone Control
     /// Preserves natural skin tones in images
@@ -209,7 +199,6 @@ transmission_mapping! {
         1: (D0(skin_tone_gain<8> = 0x00),),
     );
 }
-
 
 /// Digital Gamma Look-up Table for Red channel (64 bytes)
 /// > Reference: `DGMLUTR` p. 266

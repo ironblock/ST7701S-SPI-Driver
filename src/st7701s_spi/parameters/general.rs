@@ -33,11 +33,13 @@ bit_value_enum! {
 }
 
 impl Switch {
-    #[must_use] pub fn is_on(&self) -> bool {
+    #[must_use]
+    pub fn is_on(&self) -> bool {
         *self == Self::On
     }
 
-    #[must_use] pub fn is_off(&self) -> bool {
+    #[must_use]
+    pub fn is_off(&self) -> bool {
         *self == Self::Off
     }
 }

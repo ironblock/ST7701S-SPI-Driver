@@ -1,11 +1,9 @@
 use crate::{
-    st7701s_spi::{
-        parameters::{
-            brightness::{Brightness, BrightnessControl, AdaptiveBrightness, MinAdaptiveBrightness},
-            display::{DisplayImageMode, TearingEffectSignal},
-            general::Switch,
-            register::CommandExtension,
-        },
+    st7701s_spi::parameters::{
+        brightness::{AdaptiveBrightness, Brightness, BrightnessControl, MinAdaptiveBrightness},
+        display::{DisplayImageMode, TearingEffectSignal},
+        general::Switch,
+        register::CommandExtension,
     },
     state_struct,
 };
@@ -36,11 +34,16 @@ state_struct! {
   }
 }
 impl ModeState {
-    #[must_use] pub const fn power_state(&self) -> Power {
+    #[must_use]
+    pub const fn power_state(&self) -> Power {
         match self {
             Self { standby: On, .. } => Power::L6,
-            Self { sleep: On, .. }  => Power::L5,
-            Self { partial: On, idle: On, .. }  => Power::L4,
+            Self { sleep: On, .. } => Power::L5,
+            Self {
+                partial: On,
+                idle: On,
+                ..
+            } => Power::L4,
             Self { idle: On, .. } => Power::L3,
             Self { partial: On, .. } => Power::L2,
             _ => Power::L1,
@@ -66,4 +69,3 @@ state_struct! {
         pub config: ConfigurationState = ConfigurationState::new(),
     }
 }
-

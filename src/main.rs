@@ -17,7 +17,9 @@
 //! exposed on that hardware.
 
 use log::info;
-use st7701s::st7701s_spi::{device::ST7701S, protocol::spi::ThreeWireSPI, sequences::init::init_sequence};
+use st7701s::st7701s_spi::{
+    device::ST7701S, protocol::spi::ThreeWireSPI, sequences::init::init_sequence,
+};
 
 fn main() {
     info!("Initializing SPI driver for ST7701S panel");

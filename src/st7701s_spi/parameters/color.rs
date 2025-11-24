@@ -1,6 +1,5 @@
 use crate::bit_value_enum;
 
-
 bit_value_enum! {
     /// Bits Per Pixel Format
     pub enum BitsPerPixel<2> {
@@ -11,7 +10,6 @@ bit_value_enum! {
     }
 }
 
-
 bit_value_enum! {
     /// Color Enhancement Level
     pub enum EnhanceLevel<2> {
@@ -21,7 +19,6 @@ bit_value_enum! {
         const High   = 0b10,
     }
 }
-
 
 /// Individual Color Channel
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
