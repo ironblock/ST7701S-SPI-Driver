@@ -14,7 +14,7 @@ use crate::st7701s_spi::{
     protocol::connection::{Bank0, Bank1, Connection},
 };
 
-use Switch::*;
+use Switch::On;
 
 pub fn init_sequence<X: Connection, E>(display: ST7701S<X, E>) -> io::Result<ST7701S<X, impl Any>> {
     let mut display = display.select_command_extension(Bank0);

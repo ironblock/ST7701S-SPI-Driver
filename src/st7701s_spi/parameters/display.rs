@@ -1,10 +1,12 @@
 use crate::{
     bit_value_enum,
-    st7701s_spi::{parameters::general::Switch, transmissions::{BitValue, BitMask, BitOffset, D0, D6, D5, D4, D3, D7, D1}},
+    st7701s_spi::{
+        parameters::general::Switch,
+        transmissions::{BitMask, BitOffset, BitValue, D0, D1, D3, D4, D5, D6, D7},
+    },
     transmission_mapping,
 };
 use Switch::On;
-
 
 bit_value_enum! {
     /// Tearing Effect Signal Mode
@@ -23,7 +25,6 @@ transmission_mapping! {
         0: (D0(tearing_effect<1> as TearingEffectMode),),
     );
 }
-
 
 // FIXME: This isn't necessarily correct, and the datasheet indicates
 // that the initial value is "RESERVED". Maybe better to set this to
@@ -49,7 +50,6 @@ transmission_mapping! {
     );
 }
 
-
 bit_value_enum! {
     /// Voltage Bias Adjustment
     pub enum VoltageBias<2> {
@@ -71,22 +71,21 @@ transmission_mapping! {
         0:  (D6(AJ0<2> as VoltageBias), D0(  VC0<4>),),
         1:  (D6(AJ1<2> as VoltageBias), D0(  VC4<6>),),
         2:  (D6(AJ2<2> as VoltageBias), D0(  VC8<6>),),
-        3:  (                           D0( VC16<4>),),
-        4:  (D6(AJ3<2> as VoltageBias), D0( VC24<4>),),
-        5:  (                           D0( VC52<6>),),
+        3:  (                           D0( VC16<5>),),
+        4:  (D6(AJ3<2> as VoltageBias), D0( VC24<5>),),
+        5:  (                           D0( VC52<4>),),
         6:  (                           D0( VC80<6>),),
         7:  (                           D0(VC108<4>),),
         8:  (                           D0(VC147<4>),),
         9:  (                           D0(VC175<6>),),
         10: (                           D0(VC203<4>),),
-        11: (D6(AJ4<2> as VoltageBias), D0(VC231<4>),),
-        12: (                           D0(VC239<4>),),
+        11: (D6(AJ4<2> as VoltageBias), D0(VC231<5>),),
+        12: (                           D0(VC239<5>),),
         13: (D6(AJ5<2> as VoltageBias), D0(VC247<6>),),
         14: (D6(AJ6<2> as VoltageBias), D0(VC251<6>),),
-        15: (D6(AJ7<2> as VoltageBias), D0(VC255<4>),),
+        15: (D6(AJ7<2> as VoltageBias), D0(VC255<5>),),
     );
 }
-
 
 transmission_mapping! {
     /// ## Display Image Mode Settings
@@ -102,7 +101,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping! {
     /// ## Tearing Effect Signal Configuration
     /// Configures tearing effect signal output
@@ -115,7 +113,6 @@ transmission_mapping! {
     );
 }
 
-
 transmission_mapping!(
     /// ## Tearing Effect Scan Line
     /// Sets the scan line at which the tearing effect signal is output
@@ -126,7 +123,6 @@ transmission_mapping!(
     );
 );
 
-
 transmission_mapping!(
     /// ## Vertical Porch Control
     /// Configures vertical back and front porch timing
@@ -136,7 +132,6 @@ transmission_mapping!(
         1: (D0(vertical_front_porch<8> = 0x02),),
     );
 );
-
 
 bit_value_enum!(
     /// Polarity Inversion Pattern

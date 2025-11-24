@@ -416,7 +416,7 @@ macro_rules! transmission_mapping {
                                 ::from($D::<$BITS>::extract_bit_value(self.buffer()[$INDEX]))
                         }
 
-                        pub fn [<set_ $ARG:lower _const>]<const V: u8>(mut self) -> Self {
+                        pub const fn [<set_ $ARG:lower _const>]<const V: u8>(mut self) -> Self {
                             $D::<$BITS>
                                 ::set_const::<V>(&mut self.buffer_mut()[$INDEX]);
 
