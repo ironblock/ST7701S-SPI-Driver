@@ -1,2 +1,6 @@
-[target.armv7-unknown-linux-gnueabihf]
-linker = "arm-linux-gnueabihf-gcc"
+[target.'cfg(all(target_arch = "arm", target_os="linux"))']
+linker = "./zcc.sh"
+rustflags = [
+    "-C",
+    "link-args=-target arm-linux-gnueabihf"
+]
