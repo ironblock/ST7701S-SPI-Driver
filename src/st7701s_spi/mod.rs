@@ -1,5 +1,9 @@
 pub mod commands;
+pub mod device;
+pub mod instructions;
 pub mod panel;
 pub mod parameters;
+pub mod protocol;
 pub mod sequences;
-pub mod spi;
+pub mod state;
+pub mod transmissions;

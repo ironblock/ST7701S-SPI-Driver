@@ -4,6 +4,6 @@ description: Install any command line utilities or dependencies that will be req
 runs:
   using: composite
   steps:
-    - name: Ensure toolchains and linkers are present
-      run: sudo apt-get -yq install gcc g++-arm-linux-gnueabihf
-      shell: bash
+    - uses: actions/checkout@v3
+    - name: Move Zig For Great Justice
+      uses: mlugg/setup-zig@v2
