@@ -52,6 +52,7 @@ use crate::st7701s_spi::{
 };
 use Switch::{Off, On};
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 impl<X: Connection, E> ST7701S<X, E> {
     /// ## No Operation
     ///
@@ -610,6 +611,7 @@ impl<X: Connection, E> ST7701S<X, E> {
     }
 }
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 impl<X: Connection> ST7701S<X, Bank0> {
     /// ## `BK0: 0xB0` `PVGAMCTRL` Positive Voltage Gamma Control
     /// > See p. 261
@@ -806,6 +808,7 @@ impl<X: Connection> ST7701S<X, Bank0> {
     }
 }
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 impl<X: Connection> ST7701S<X, Bank1> {
     /// ## `BK1: 0xB0` `VRHS` VOP Amplitude Setting
     /// > Reference: p. 283
