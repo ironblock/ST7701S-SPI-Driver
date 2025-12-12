@@ -6,11 +6,10 @@ edition = "2024"
 
 [dependencies]
 log = { version = "0.4" }
-linux-embedded-hal = { version = "0.4", default-features = false, features = [
+linux-embedded-hal = { version = "0.4.1", default-features = false, features = [
   "spi",
 ] }
 pastey = { version = "0.1" }
-spidev = { version = "0.7" }
 
 [[bin]]
 name = "st7701s"

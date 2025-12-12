@@ -1,5 +1,3 @@
-extern crate spidev;
-
 use crate::st7701s_spi::{
     protocol::connection::{Connection, ConnectionOwner},
     state::domains::DeviceState,
