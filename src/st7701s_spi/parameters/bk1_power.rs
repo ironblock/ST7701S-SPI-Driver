@@ -253,6 +253,7 @@ use GateLowAmplitude::{
 };
 impl GateLowAmplitude {
     #[must_use]
+    // TODO: This breaks so many rules and conventions
     pub const fn from_voltage(volts: f32) -> Self {
         match volts {
             -7.06 => Neg7_06,

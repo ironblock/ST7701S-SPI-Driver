@@ -16,8 +16,9 @@ use crate::st7701s_spi::{
 
 use Switch::On;
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 pub fn init_sequence<X: Connection, E>(display: ST7701S<X, E>) -> io::Result<ST7701S<X, impl Any>> {
-    let mut display = display.select_command_extension(Bank0);
+    let mut display = display.select_command_extension(Bank0)?;
 
     display.line_setting(
         &LineSettings::new()
@@ -71,7 +72,7 @@ pub fn init_sequence<X: Connection, E>(display: ST7701S<X, E>) -> io::Result<ST7
     display.positive_gamma_control(&gamma_voltage)?;
     display.negative_gamma_control(&gamma_voltage)?;
 
-    let mut display = display.select_command_extension(Bank1);
+    let mut display = display.select_command_extension(Bank1)?;
 
     display.set_operating_voltage(&OperatingVoltage::new().set_amplitude_const::<0x5D>())?;
 

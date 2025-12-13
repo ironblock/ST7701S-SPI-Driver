@@ -76,7 +76,7 @@ impl BitMask {
 
     #[must_use]
     pub const fn merge(self, other: &Self) -> Self {
-        assert!((self.0 & other.0) == 0, "Overlapping bit masks");
+        debug_assert!((self.0 & other.0) == 0, "Overlapping bit masks");
 
         Self(self.0 | other.0)
     }
@@ -87,6 +87,10 @@ impl BitMask {
     }
 
     #[must_use]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "Intended for binary representation of u8, usize will never truncate"
+    )]
     pub const fn apply(&self, target: u8) -> u8 {
         target & self.get() as u8
     }
@@ -201,8 +205,7 @@ impl<const SIZE: usize, const INITIAL: u8> BitField<SIZE, INITIAL> {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct PacketField<const SHIFT: usize, const BITS: usize, const INITIAL: u8 = 0>
 where
-    Self: BitValue,
-    Self: BitOffset<Self>;
+    Self: BitValue + BitOffset<Self>;
 impl<const SHIFT: usize, const BITS: usize, const INITIAL: u8> BitValue
     for PacketField<SHIFT, BITS, INITIAL>
 {
@@ -299,6 +302,10 @@ macro_rules! bit_value_enum {
                     }
                 }
 
+                /// Converts a raw `u8` value into the corresponding enum variant.
+                ///
+                /// # Errors
+                /// Returns an error if the value does not correspond to any enum variant.
                 pub const fn from_raw_value(value: u8) -> Result<Self, &'static str> {
                     match value {
                         $($N1 => Ok($NAME::$V1),)*
@@ -370,7 +377,7 @@ macro_rules! transmission_mapping {
     ) => {
         pastey::paste! {
             mod [<$NAME:snake _types>] {
-                #[allow(unused_imports)]
+                #[allow(unused_imports, reason = "Macro-generated code may not use all imports")]
                 use super::*;
 
                 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -416,6 +423,7 @@ macro_rules! transmission_mapping {
                                 ::from($D::<$BITS>::extract_bit_value(self.buffer()[$INDEX]))
                         }
 
+                        #[must_use]
                         pub const fn [<set_ $ARG:lower _const>]<const V: u8>(mut self) -> Self {
                             $D::<$BITS>
                                 ::set_const::<V>(&mut self.buffer_mut()[$INDEX]);
@@ -423,6 +431,7 @@ macro_rules! transmission_mapping {
                             self
                         }
 
+                        #[must_use]
                         pub fn [<set_ $ARG:lower>](mut self, value: [<$NAME:snake _types>]::[<$ARG:camel Value>]) -> Self {
                             $D::<$BITS>
                                 ::set_from_bitfield(&mut self.buffer_mut()[$INDEX], value.into());

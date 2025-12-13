@@ -36,12 +36,14 @@ where
     ON: Address + RequiredExtension<E>,
     OFF: Address + RequiredExtension<E>,
 {
+    #[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
     pub fn on(mut self) -> io::Result<()> {
         self.device.command::<ON>().inspect(move |()| {
             *self.field_mut() = Switch::On;
         })
     }
 
+    #[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
     pub fn off(mut self) -> io::Result<()> {
         self.device.command::<OFF>().inspect(move |()| {
             *self.field_mut() = Switch::Off;
@@ -63,12 +65,14 @@ where
         self.field_mut().is_none()
     }
 
+    #[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
     pub fn select(mut self, buffer: D) -> io::Result<()> {
         self.device.write::<SELECT>(&buffer).inspect(move |()| {
             *self.field_mut() = Some(buffer);
         })
     }
 
+    #[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
     pub fn disable(mut self) -> io::Result<()> {
         self.device.command::<DISABLE>().inspect(|()| {
             *self.field_mut() = None;
@@ -83,12 +87,14 @@ where
     READ: Address + RequiredExtension<E> + RxData<Data = D>,
     WRITE: Address + RequiredExtension<E> + TxData<Data = D>,
 {
+    #[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
     pub fn read(mut self, mut buffer: D) -> io::Result<()> {
         self.device.read::<READ>(&mut buffer).inspect(move |()| {
             *self.field_mut() = buffer;
         })
     }
 
+    #[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
     pub fn write(mut self, buffer: D) -> io::Result<()> {
         self.device.write::<WRITE>(&buffer).inspect(move |()| {
             *self.field_mut() = buffer;

@@ -84,26 +84,20 @@ impl<X: Connection, E> ST7701S<X, E> {
     /// (with no arguments), and p. 188 refers to it as a **write**. As only a
     /// write can have arguments and 0x01 is the constant argument in both
     /// references, SWRESET's canonical representation here is as a **write**.
-    pub fn software_reset(self) -> ST7701S<X> {
+    pub fn software_reset(self) -> io::Result<ST7701S<X>> {
         const RESET_PARAMETERS: [u8; 1] = [0x01];
-        self.write::<SWRESET>(&RESET_PARAMETERS)
-            .expect("failed to send software reset command");
-        let delay;
-        let condition;
-
-        if self.state().mode.sleep.is_on() {
-            delay = 120;
-            condition = "while in sleep mode";
+        self.write::<SWRESET>(&RESET_PARAMETERS)?;
+        let (delay, condition) = if self.state().mode.sleep.is_on() {
+            (120, "while in sleep mode")
         } else {
-            delay = 5;
-            condition = "";
-        }
+            (5, "")
+        };
 
         log::info!("Software reset triggered{condition}. Pausing commands for {delay}ms");
 
         thread::sleep(time::Duration::from_millis(delay));
 
-        self.reset()
+        Ok(self.reset())
     }
 
     /// ## Read Display ID
@@ -276,8 +270,8 @@ impl<X: Connection, E> ST7701S<X, E> {
         self.command::<NORON>().inspect(|()| {
             self.modify_state(|state| {
                 state.mode.partial = Off;
-                state.image.set_all_pixels_black(Off);
-                state.image.set_all_pixels_white(Off);
+                state.image = state.image.set_all_pixels_black(Off);
+                state.image = state.image.set_all_pixels_white(Off);
             });
         })
     }
@@ -289,7 +283,7 @@ impl<X: Connection, E> ST7701S<X, E> {
     pub fn invert_colors_on(&mut self) -> io::Result<()> {
         self.command::<INVON>().inspect(|()| {
             self.modify_state(|state| {
-                state.image.set_invert_colors(On);
+                state.image = state.image.set_invert_colors(On);
             });
         })
     }
@@ -297,7 +291,7 @@ impl<X: Connection, E> ST7701S<X, E> {
     pub fn invert_colors_off(&mut self) -> io::Result<()> {
         self.command::<INVOFF>().inspect(|()| {
             self.modify_state(|state| {
-                state.image.set_invert_colors(Off);
+                state.image = state.image.set_invert_colors(Off);
             });
         })
     }
@@ -310,14 +304,14 @@ impl<X: Connection, E> ST7701S<X, E> {
         match extrema {
             PixelExtrema::Black => self.command::<ALLPOFF>().inspect(|()| {
                 self.modify_state(|state| {
-                    state.image.set_all_pixels_black(On);
-                    state.image.set_all_pixels_white(Off);
+                    state.image = state.image.set_all_pixels_black(On);
+                    state.image = state.image.set_all_pixels_white(Off);
                 });
             }),
             PixelExtrema::White => self.command::<ALLPON>().inspect(|()| {
                 self.modify_state(|state| {
-                    state.image.set_all_pixels_black(Off);
-                    state.image.set_all_pixels_white(On);
+                    state.image = state.image.set_all_pixels_black(Off);
+                    state.image = state.image.set_all_pixels_white(On);
                 });
             }),
         }
@@ -330,9 +324,9 @@ impl<X: Connection, E> ST7701S<X, E> {
     pub fn select_gamma_curve(&mut self, transmission: GammaCurve) -> io::Result<()> {
         let gamma_curve = transmission.gc();
 
-        self.write::<GAMSET>(transmission.buffer()).inspect(|()| {
-            self.modify_state(move |state| {
-                state.image.set_gamma_curve(gamma_curve);
+        self.write::<GAMSET>(transmission.buffer()).map(|()| {
+            self.modify_state(|state| {
+                state.image = state.image.set_gamma_curve(gamma_curve);
             });
         })
     }
@@ -568,26 +562,27 @@ impl<X: Connection, E> ST7701S<X, E> {
     /// Selects the extended command bank (BK0, BK1, BK3) for subsequent operations.
     /// This command is required before sending any extended command and ensures the
     /// correct register bank is active.
-    pub fn select_command_extension<N: Extension>(mut self, extension: N) -> ST7701S<X, N> {
-        let transmission;
-
-        if let Some(bank) = N::EXTENSION {
-            transmission = CommandExtension::new()
-                .set_extended_commands(On)
-                .set_bank(bank);
-        } else {
-            transmission = CommandExtension::new().set_extended_commands(Off);
-        }
+    pub fn select_command_extension<N: Extension>(
+        mut self,
+        extension: N,
+    ) -> io::Result<ST7701S<X, N>> {
+        let transmission = N::EXTENSION.map_or_else(
+            || CommandExtension::new().set_extended_commands(Off),
+            |bank| {
+                CommandExtension::new()
+                    .set_extended_commands(On)
+                    .set_bank(bank)
+            },
+        );
 
         self.write::<CND2BKXSEL>(transmission.buffer())
             .inspect(|()| {
                 self.modify_state(|state| {
                     state.command_extension = transmission;
                 });
-            })
-            .expect("failed to select command extension");
+            })?;
 
-        self.set_extension(extension)
+        Ok(self.set_extension(extension))
     }
 
     /// ## `Special: 0xFF` `DSTB` Deep Standby Mode Enable
@@ -853,10 +848,10 @@ impl<X: Connection> ST7701S<X, Bank1> {
         self.write::<VGLS>(parameters.buffer())
     }
 
-    /// ## `BK1: 0xB7` `PWCTRL1` Power Control 1
-    /// > Reference: p. 288
-    ///
-    /// Primary power control settings including AVDD, AVEE, and VGH/VGL multipliers.
+    // ## `BK1: 0xB7` `PWCTRL1` Power Control 1
+    // > Reference: p. 288
+    //
+    // Primary power control settings including AVDD, AVEE, and VGH/VGL multipliers.
     // pub fn power_control_1(&mut self, parameters: &PowerControl1) -> io::Result<()> {
     //     self.write::<PWCTRL1>(parameters)
     // }
@@ -949,6 +944,7 @@ impl<X: Connection> ST7701S<X, Bank1> {
     }
 }
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 impl<X: Connection> ST7701S<X, Bank3> {
     /// ## `BK3: 0xCA` `NVMSET` NVM Setting
     /// > Reference: p. 304
