@@ -16,9 +16,10 @@ pub struct ThreeWireSPI
 where
     Self: Connection,
 {
-    pub spidev: SpidevDevice,
+    spidev: SpidevDevice,
 }
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 impl ThreeWireSPI {
     pub const DEFAULT_OPTIONS: SpidevOptions = SpidevOptions {
         bits_per_word: Some(9),
@@ -27,13 +28,21 @@ impl ThreeWireSPI {
         spi_mode: Some(SpiModeFlags::SPI_MODE_0),
     };
 
-    pub fn open<P>(path: P) -> Result<Self, SPIError>
-    where
-        P: AsRef<Path>,
-    {
-        let spidev = SpidevDevice::open(path)?;
+    /// Opens a new "three wire" SPI connection to the specified display.
+    ///
+    /// Alias for [`SpidevDevice::open`]
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, SPIError> {
+        SpidevDevice::open(path).map(|spidev| Self { spidev })
+    }
 
-        Ok(Self { spidev })
+    #[must_use]
+    pub const fn spidev(&self) -> &SpidevDevice {
+        &self.spidev
+    }
+
+    #[must_use]
+    pub const fn spidev_mut(&mut self) -> &mut SpidevDevice {
+        &mut self.spidev
     }
 
     pub fn configure(&mut self, options: &SpidevOptions) -> io::Result<()> {
@@ -58,17 +67,17 @@ impl Connection for ThreeWireSPI {
             )))
     }
 
-    fn write(&self, address: u8, parameters: &[u8]) -> io::Result<()> {
+    fn write(&self, address: u8, write_buffer: &[u8]) -> io::Result<()> {
         self.spidev.transfer_multiple(&mut [
             SpidevTransfer::write(&DcxPacket::format_command(address)),
-            SpidevTransfer::write(DcxPacket::format_parameters(parameters).as_ref()),
+            SpidevTransfer::write(DcxPacket::format_parameters(write_buffer).as_ref()),
         ])
     }
 
-    fn read(&self, address: u8, buffer: &mut [u8]) -> io::Result<()> {
+    fn read(&self, address: u8, read_buffer: &mut [u8]) -> io::Result<()> {
         self.spidev.transfer_multiple(&mut [
             SpidevTransfer::write(&DcxPacket::format_command(address)),
-            SpidevTransfer::read((*buffer).as_mut()),
+            SpidevTransfer::read((*read_buffer).as_mut()),
         ])
     }
 }

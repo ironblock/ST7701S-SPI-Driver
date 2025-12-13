@@ -117,6 +117,7 @@ impl DcxPacket {
     }
 }
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 pub trait Connection: Send + Sync + Debug {
     /// Send a "Command" instruction to the the specified address.
     /// Depending on the protocol used, this may be implemented as multiple
@@ -135,6 +136,7 @@ pub trait Connection: Send + Sync + Debug {
     fn read(&self, address: u8, read_buffer: &mut [u8]) -> io::Result<()>;
 }
 
+#[allow(clippy::missing_errors_doc, reason = "IO errors are self-explanatory")]
 pub trait ConnectionOwner<X, E>
 where
     X: Connection,
