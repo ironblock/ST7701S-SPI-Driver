@@ -1,7 +1,8 @@
-use std::{any::Any, io};
+use std::{io, thread, time};
 
 use crate::st7701s_spi::{
     device::ST7701S,
+    instructions::core::{COLMOD, MADCTL},
     parameters::{
         bk0_display::{ColorControl, MDT},
         bk1_power::{CommonVoltage, GateHighVoltage, GateLowVoltage, OperatingVoltage},
@@ -11,38 +12,49 @@ use crate::st7701s_spi::{
         },
         general::Switch,
     },
-    protocol::connection::{Bank0, Bank1, Connection},
+    protocol::connection::{AnyExtension, Bank0, Bank1, Bank3, Connection, ConnectionOwner as _},
 };
 
-use Switch::On;
+use Switch::Off;
 
-pub fn init_sequence<X: Connection, E>(display: ST7701S<X, E>) -> io::Result<ST7701S<X, impl Any>> {
+/// Initializes the panel using the sequence provided by Shanghai Top Display
+/// Optoelectronics (TDO) for the TL021WVC02 module.
+///
+/// Every transmission this function produces is verified byte-for-byte
+/// against `TDO_init_sequence.txt` by the `golden_init` integration test.
+/// Typed builders are used wherever the register is understood well enough
+/// to model; the remainder is sent verbatim via [`ST7701S::write_raw`].
+pub fn init_sequence<X: Connection, E>(
+    display: ST7701S<X, E>,
+) -> io::Result<ST7701S<X, AnyExtension>> {
     let mut display = display.select_command_extension(Bank0);
 
+    // LNESET 0x3B: (0x3B + 1) * 8 = 480 display lines.
     display.line_setting(
         &LineSettings::new()
-            .set_extra_line(On)
-            .set_line_const::<27>(),
+            .set_extra_line(Off)
+            .set_line_const::<0x3B>(),
     )?;
 
     display.porch_control(
         &PorchControl::new()
-            .set_vertical_back_porch_const::<11>()
-            .set_vertical_front_porch_const::<2>(),
+            .set_vertical_back_porch_const::<0x0B>()
+            .set_vertical_front_porch_const::<0x02>(),
     )?;
 
     display.inversion_select(
         &InversionSelection::new()
             .set_polarity_inversion(PolarityInversion::OneDot)
-            .set_rtni_const::<2>(),
+            .set_rtni_const::<0x02>(),
     )?;
 
-    // SPI_WriteComm(0xCC); // ?????????
-    // SPI_WriteData(0x10);
+    // 0xCC does not appear anywhere in the datasheet; the reference sequence
+    // sends it between INVSEL and COLCTRL.
+    display.write_raw(0xCC, &[0x10])?;
 
     display.color_control(&ColorControl::new().set_mdt(MDT::CollectToDB))?;
 
-    let gamma_voltage = VoltageControl::new()
+    let positive_gamma = VoltageControl::new()
         .set_aj0(VoltageBias::A)
         .set_vc0_const::<0x02>()
         .set_aj1(VoltageBias::A)
@@ -68,8 +80,15 @@ pub fn init_sequence<X: Connection, E>(display: ST7701S<X, E>) -> io::Result<ST7
         .set_aj7(VoltageBias::A)
         .set_vc255_const::<0x1D>();
 
-    display.positive_gamma_control(&gamma_voltage)?;
-    display.negative_gamma_control(&gamma_voltage)?;
+    // The negative curve differs from the positive curve only in VC0 and
+    // VC24. Field setters replace previous values, so the positive curve can
+    // be used as the starting point.
+    let negative_gamma = positive_gamma
+        .set_vc0_const::<0x05>()
+        .set_vc24_const::<0x11>();
+
+    display.positive_gamma_control(&positive_gamma)?;
+    display.negative_gamma_control(&negative_gamma)?;
 
     let mut display = display.select_command_extension(Bank1);
 
@@ -83,203 +102,74 @@ pub fn init_sequence<X: Connection, E>(display: ST7701S<X, E>) -> io::Result<ST7
 
     display.set_gate_low_voltage(&GateLowVoltage::new().set_amplitude_volts(-8.14))?;
 
-    // SPI_WriteComm(0xB7); // power control 1
-    // SPI_WriteData(0x85);
-    // display.power_control_1(settings)
+    // The remainder of the BK1 section reproduces the reference bytes
+    // verbatim. PWCTRL2/SPD1/SPD2/MIPISET1 have typed models, but their field
+    // semantics have not been verified against datasheet v1.2 (and 0xD0 =
+    // 0x88 is not even expressible in the current MIPISET1 layout), so the
+    // known-good values are sent raw until they are.
+    display.write_raw(0xB7, &[0x85])?; // PWCTRL1
+    display.write_raw(0xB8, &[0x20])?; // PWCTRL2
+    display.write_raw(0xC1, &[0x78])?; // SPD1
+    display.write_raw(0xC2, &[0x78])?; // SPD2
+    display.write_raw(0xD0, &[0x88])?; // MIPISET1
 
-    // SPI_WriteComm(0xB8);// power control 2
-    // SPI_WriteData(0x20);
+    // 0xE0-0xEF are undocumented in the public datasheet. Vendor and Linux
+    // kernel sequences both ship opaque blobs here; these are the TDO
+    // reference values, transcribed from `TDO_init_sequence.txt`.
+    display.write_raw(0xE0, &[0x00, 0x00, 0x02])?;
+    display.write_raw(
+        0xE1,
+        &[
+            0x03, 0xA0, 0x00, 0x00, 0x04, 0xA0, 0x00, 0x00, 0x00, 0x20, 0x20,
+        ],
+    )?;
+    display.write_raw(0xE2, &[0x00; 13])?;
+    display.write_raw(0xE3, &[0x00, 0x00, 0x11, 0x00])?;
+    display.write_raw(0xE4, &[0x22, 0x00])?;
+    display.write_raw(
+        0xE5,
+        &[
+            0x05, 0xEC, 0xA0, 0xA0, 0x07, 0xEE, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ],
+    )?;
+    display.write_raw(0xE6, &[0x00, 0x00, 0x11, 0x00])?;
+    display.write_raw(0xE7, &[0x22, 0x00])?;
+    display.write_raw(
+        0xE8,
+        &[
+            0x06, 0xED, 0xA0, 0xA0, 0x08, 0xEF, 0xA0, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00,
+        ],
+    )?;
+    display.write_raw(0xEB, &[0x00, 0x00, 0x40, 0x40, 0x00, 0x00, 0x00])?;
+    display.write_raw(
+        0xED,
+        &[
+            0xFF, 0xFF, 0xFF, 0xBA, 0x0A, 0xBF, 0x45, 0xFF, 0xFF, 0x54, 0xFB, 0xA0, 0xAB, 0xFF,
+            0xFF, 0xFF,
+        ],
+    )?;
+    display.write_raw(0xEF, &[0x10, 0x0D, 0x04, 0x08, 0x3F, 0x1F])?;
 
-    // SPI_WriteComm(0xC1); // pre drive timing set 1
-    // SPI_WriteData(0x78);
+    // The reference sequence briefly enters BK3 for one undocumented write.
+    // Note that 0xEF here is a different (1-byte) register than the 6-byte
+    // 0xEF in BK1 above.
+    let mut display = display.select_command_extension(Bank3);
+    display.write_raw(0xEF, &[0x08])?;
 
-    // SPI_WriteComm(0xC2); source eq2 setting
-    // SPI_WriteData(0x78);
+    let mut display = display.select_command_extension(AnyExtension);
 
-    // SPI_WriteComm(0xD0); // mipi setting 1? what?
-    // SPI_WriteData(0x88); // ???
+    display.sleep_mode().off()?;
+    thread::sleep(time::Duration::from_millis(120));
 
-    // SPI_WriteComm(0xE0); // SSCTRL - spread spectrum
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x02);
+    display.display_output().on()?;
 
-    // SPI_WriteComm(0xE1); // Noise Reduction Control
-    // SPI_WriteData(0x03);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x04);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x20);
-    // SPI_WriteData(0x20);
-
-    // SPI_WriteComm(0xE2); // Sharpness
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xE3); // Color calibration
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x11);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xE4); // Skin tone preservation
-    // SPI_WriteData(0x22);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xE5); // ????????
-    // SPI_WriteData(0x05);
-    // SPI_WriteData(0xEC);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0x07);
-    // SPI_WriteData(0xEE);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xE6); // ??????????
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x11);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xE7); // ???????
-    // SPI_WriteData(0x22);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xE8); // ?????????
-    // SPI_WriteData(0x06);
-    // SPI_WriteData(0xED);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0x08);
-    // SPI_WriteData(0xEF);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xEB); // ????????
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x40);
-    // SPI_WriteData(0x40);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-
-    // SPI_WriteComm(0xED); // ???????
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0xBA);
-    // SPI_WriteData(0x0A);
-    // SPI_WriteData(0xBF);
-    // SPI_WriteData(0x45);
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0x54);
-    // SPI_WriteData(0xFB);
-    // SPI_WriteData(0xA0);
-    // SPI_WriteData(0xAB);
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0xFF);
-    // SPI_WriteData(0xFF);
-
-    // SPI_WriteComm(0xEF); // ???????
-    // SPI_WriteData(0x10);
-    // SPI_WriteData(0x0D);
-    // SPI_WriteData(0x04);
-    // SPI_WriteData(0x08);
-    // SPI_WriteData(0x3F);
-    // SPI_WriteData(0x1F);
-
-    // SPI_WriteComm(0xFF);
-    // SPI_WriteData(0x77);
-    // SPI_WriteData(0x01);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x13); // BK3 command2!!! Not being used in my code yet
-
-    // SPI_WriteComm(0xEF); // ????????
-    // SPI_WriteData(0x08);
-
-    // SPI_WriteComm(0xFF);
-    // SPI_WriteData(0x77);
-    // SPI_WriteData(0x01);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00);
-    // SPI_WriteData(0x00); // Disable command2
-
-    // #if 0
-    // WriteComm (0xFF);
-    // WriteData (0x77);
-    // WriteData (0x01);
-    // WriteData (0x00);
-    // WriteData (0x00);
-    // WriteData (0x12); // ????
-
-    // WriteComm (0xD1);
-    // WriteData (0x81);
-    // WriteData (0x08);
-    // WriteData (0x03);
-    // WriteData (0x20);
-    // WriteData (0x08);
-    // WriteData (0x01);
-    // WriteData (0xA0);
-    // WriteData (0x01);
-    // WriteData (0xE0);
-    // WriteData (0xA0);
-    // WriteData (0x01);
-    // WriteData (0xE0);
-    // WriteData (0x03);
-    // WriteData (0x20);
-    // WriteComm (0xD2);
-    // WriteData (0x08);
-    // #endif
-    // /////////////////Bring up the internal test picture///////////////////////////////////
-
-    // SPI_WriteComm(0x11); // SLEEP OUT
-
-    // Delay(120);
-
-    // SPI_WriteComm(0x29); // DISPLAY ON
-
-    // SPI_WriteComm(0x36); // MADCTL
-    // SPI_WriteData(0x00); // normal scan, rgb
-
-    // SPI_WriteComm(0x3A); // pixel format
-    // SPI_WriteData(0x60);//0x60 18bit   0x50 16bit
-    // #endif
+    // MADCTL: normal scan direction, RGB color order.
+    // COLMOD: 18-bit RGB666 (0x50 would select 16-bit RGB565).
+    // TODO: model these with typed parameters (see `parameters::data_access`).
+    display.write::<MADCTL>(&[0x00])?;
+    display.write::<COLMOD>(&[0x60])?;
 
     Ok(display)
 }

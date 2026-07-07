@@ -608,6 +608,20 @@ impl<X: Connection, E> ST7701S<X, E> {
         const PARAMS: [u8; 5] = [0x77, 0x01, 0x00, 0x00, 0x13];
         self.write::<DSTBT>(&PARAMS)
     }
+
+    /// ## Raw Register Write (escape hatch)
+    ///
+    /// Sends an arbitrary command byte followed by arbitrary parameter data,
+    /// bypassing both the typed parameter layer and the bank typestate.
+    ///
+    /// Several registers used by known-good vendor init sequences (notably
+    /// `0xE0`–`0xEF` in BK1) are absent from the public datasheet or
+    /// documented too poorly to model honestly. Reproducing those sequences
+    /// requires sending their bytes verbatim; everything that *is* understood
+    /// should use the typed API instead, so that intent stays reviewable.
+    pub fn write_raw(&mut self, address: u8, parameters: &[u8]) -> io::Result<()> {
+        self.connection().write(address, parameters)
+    }
 }
 
 impl<X: Connection> ST7701S<X, Bank0> {
