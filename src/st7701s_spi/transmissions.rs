@@ -90,6 +90,14 @@ impl BitMask {
     pub const fn apply(&self, target: u8) -> u8 {
         target & self.get() as u8
     }
+
+    /// Returns `target` with every bit covered by this mask cleared, leaving
+    /// all other bits untouched. This is the counterpart to [`Self::apply`]
+    /// used to implement read-modify-write field updates.
+    #[must_use]
+    pub const fn clear(&self, target: u8) -> u8 {
+        target & !(self.get() as u8)
+    }
 }
 
 impl Display for BitMask {
@@ -216,6 +224,18 @@ impl<const SHIFT: usize, const BITS: usize, const INITIAL: u8> BitOffset<Self>
     const SHIFT: usize = SHIFT;
 }
 impl<const SHIFT: usize, const BITS: usize, const INITIAL: u8> PacketField<SHIFT, BITS, INITIAL> {
+    /// The field's initial value shifted into its position within the packet
+    /// byte. Evaluating this constant also validates at compile time that the
+    /// initial value fits within the field's bit width.
+    pub const INITIAL_SHIFTED: u8 = {
+        assert!(
+            BitMask::from_bit_size(BITS).apply(INITIAL) == INITIAL,
+            "Initial value exceeds field range"
+        );
+
+        INITIAL << SHIFT
+    };
+
     #[must_use]
     pub const fn as_bit_value() -> BitField<BITS, INITIAL> {
         BitField::<BITS, INITIAL>::new()
@@ -241,16 +261,18 @@ impl<const SHIFT: usize, const BITS: usize, const INITIAL: u8> PacketField<SHIFT
         BitField::<BITS, INITIAL>::from_const_source::<BITS>(Self::extract_raw_value(target))
     }
 
+    /// Sets the field to `value`, clearing the field's previous contents
+    /// first so that repeated writes replace rather than accumulate bits.
     pub const fn set_raw_value(target: &mut u8, value: u8) {
-        *target |= Self::shift_raw_value(value);
+        *target = Self::SHIFT_MASK.clear(*target) | Self::shift_raw_value(value);
     }
 
     pub const fn set_from_bitfield(target: &mut u8, value: BitField<BITS>) {
-        *target |= Self::shift_bit_value(value);
+        *target = Self::SHIFT_MASK.clear(*target) | Self::shift_bit_value(value);
     }
 
     pub const fn set_const<const VALUE: u8>(target: &mut u8) {
-        *target |= Self::shift_bit_value(BitField::<BITS>::from_const_value::<VALUE>());
+        Self::set_from_bitfield(target, BitField::<BITS>::from_const_value::<VALUE>());
     }
 }
 
@@ -270,7 +292,8 @@ macro_rules! bit_value_enum {
         $VIS:vis enum $NAME:ident<$BITS:literal> {
         $(const $V1:ident = $N1:literal,)*
         #[$DEFAULT:meta]
-        $(const $V2:ident = $N2:literal,)+
+        const $VD:ident = $ND:literal,
+        $(const $V2:ident = $N2:literal,)*
     }) => {
         pastey::paste! {
             $VIS type [<$NAME Value>] = $crate::st7701s_spi::transmissions::BitField<$BITS>;
@@ -280,12 +303,13 @@ macro_rules! bit_value_enum {
             $VIS enum $NAME {
                 $($V1 = $N1,)*
                 #[$DEFAULT]
-                $($V2 = $N2,)+
+                $VD = $ND,
+                $($V2 = $N2,)*
             }
             impl $crate::st7701s_spi::transmissions::BitValue for $NAME {
                 type Target = u8;
                 const BIT_SIZE: usize = $BITS;
-                const INITIAL_VALUE: Self::Target = 0 $(| $N2)?;
+                const INITIAL_VALUE: Self::Target = $ND;
             }
             impl $NAME {
                 #[must_use] pub const fn as_u8(&self) -> u8 {
@@ -295,14 +319,16 @@ macro_rules! bit_value_enum {
                 #[must_use] pub const fn as_bit_value(&self) -> [<$NAME Value>] {
                     match self {
                         $($NAME::$V1 => [<$NAME Value>]::from_const::<$BITS, $N1>(),)*
-                        $($NAME::$V2 => [<$NAME Value>]::from_const::<$BITS, $N2>(),)+
+                        $NAME::$VD => [<$NAME Value>]::from_const::<$BITS, $ND>(),
+                        $($NAME::$V2 => [<$NAME Value>]::from_const::<$BITS, $N2>(),)*
                     }
                 }
 
                 pub const fn from_raw_value(value: u8) -> Result<Self, &'static str> {
                     match value {
                         $($N1 => Ok($NAME::$V1),)*
-                        $($N2 => Ok($NAME::$V2),)+
+                        $ND => Ok($NAME::$VD),
+                        $($N2 => Ok($NAME::$V2),)*
                         _ => Err("Value does not correspond to any enum variant"),
                     }
                 }
@@ -395,7 +421,7 @@ macro_rules! transmission_mapping {
                 const INITIAL_VALUE: [u8; $LENGTH] = [
                     $(
                         $crate::transmission_mapping!(@base_value $($BASE)?)
-                        $(| [<$NAME:snake _types>]::[<$ARG:camel Field>]::INITIAL_VALUE)*
+                        $(| [<$NAME:snake _types>]::[<$ARG:camel Field>]::INITIAL_SHIFTED)*
                     ),+
                 ];
 

@@ -201,8 +201,11 @@ use GateHighAmplitude::{
 };
 
 transmission_mapping! {
+    // D7 is a fixed bit: the TDO reference sequence writes 0x81 for 12.0 V
+    // and the old hand-rolled sequences did the same. Unverified against
+    // datasheet v1.2 (page for VGHSS), but every known-good sequence sets it.
     pub struct GateHighVoltage<1>(
-        0: (D0(amplitude<4> as GateHighAmplitude = Pos12_5),),
+        0: (D0(amplitude<4> as GateHighAmplitude = Pos12_5),) = 0b1000_0000,
     );
 }
 impl GateHighVoltage {
@@ -299,8 +302,11 @@ impl GateLowAmplitude {
 }
 
 transmission_mapping! {
+    // D6 is a fixed bit: the TDO reference sequence writes 0x43 for -8.14 V.
+    // (This was previously 0b0100_00000 — nine binary digits, i.e. 0x80 —
+    // which put the fixed bit in the wrong position.)
     pub struct GateLowVoltage<1>(
-        0: (D0(amplitude<4> as GateLowAmplitude = Neg9_51),) = 0b0100_00000,
+        0: (D0(amplitude<4> as GateLowAmplitude = Neg9_51),) = 0b0100_0000,
     );
 }
 impl GateLowVoltage {
